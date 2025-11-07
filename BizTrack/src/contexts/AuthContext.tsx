@@ -47,3 +47,27 @@ const mockCredentials = {
   manager: { username: 'mike', password: 'mike123' },
   staff: { username: 'sarah', password: 'sarah123' },
 }
+
+export const AuthProvider:ReactFC <{childer:React.Reactnode}>=({
+  children,
+})=>{
+  const [user,setUser]=useStae<User|null>(null)>
+  const[isAuthenticated,setIsAutthenticated]=useState(false)
+  const[isLoading,setIsLoading] =useState(true)
+  const authChecked = useRef(false)
+  const navigate = useNavigate()  
+
+   useEffect(() => {
+    if (authChecked.current) return
+    const saved = localStorage.getItem('biztrack_user')
+    if (saved) {
+      const parsed = JSON.parse(saved)
+      setUser(parsed)
+      setIsAuthenticated(true)
+    }
+    setIsLoading(false)
+    authChecked.current = true
+  }, [])
+
+}
+
