@@ -69,5 +69,49 @@ export const AuthProvider:ReactFC <{childer:React.Reactnode}>=({
     authChecked.current = true
   }, [])
 
+   const login = useCallback(
+    async (username: string, password: string) => {
+      await new Promise((r) => setTimeout(r, 500)) // simulate network delay
+
+      let loggedInUser: User | null = null
+      if (
+        username === mockCredentials.owner.username &&
+        password === mockCredentials.owner.password
+      ) {
+        loggedInUser = mockOwner
+      } else if (
+        username === mockCredentials.manager.username &&
+        password === mockCredentials.manager.password
+      ) {
+        loggedInUser = {
+          id: 'mike-1',
+          name: 'Mike Wilson',
+          email: 'mike@biztrack.com',
+          role: 'manager',
+        }
+      } else if (
+        username === mockCredentials.staff.username &&
+        password === mockCredentials.staff.password
+      ) {
+        loggedInUser = {
+          id: 'sarah-1',
+          name: 'Sarah Johnson',
+          email: 'sarah@biztrack.com',
+          role: 'staff',
+        }
+      }
+
+      if (loggedInUser) {
+        setUser(loggedInUser)
+        setIsAuthenticated(true)
+        localStorage.setItem('biztrack_user', JSON.stringify(loggedInUser))
+        return true
+      }
+      return false
+    },
+    [],
+  )
+
+
 }
 
