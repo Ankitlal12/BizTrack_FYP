@@ -6,7 +6,7 @@ import React,{
   useMemo,
   useRef,
   useEffect,
-} from 'React'
+} from 'react'
 
 import {useNavigate} from 'react-router-dom'
 
@@ -48,14 +48,15 @@ const mockCredentials = {
   staff: { username: 'sarah', password: 'sarah123' },
 }
 
-export const AuthProvider:ReactFC <{childer:React.Reactnode}>=({
+export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
   children,
 })=>{
-  const [user,setUser]=useStae<User|null>(null)>
-  const[isAuthenticated,setIsAutthenticated]=useState(false)
-  const[isLoading,setIsLoading] =useState(true)
+  const [user, setUser] = useState<User | null>(null)
+  const [isAuthenticated, setIsAuthenticated] = useState(false)
+  const [isLoading, setIsLoading] = useState(true)
   const authChecked = useRef(false)
-  const navigate = useNavigate()  
+  const navigate = useNavigate()
+
 
    useEffect(() => {
     if (authChecked.current) return
@@ -69,12 +70,12 @@ export const AuthProvider:ReactFC <{childer:React.Reactnode}>=({
     authChecked.current = true
   }, [])
 
-   const login = useCallback(
-    async (username: string, password: string) => {
-      await new Promise((r) => setTimeout(r, 500)) // simulate network delay
+  const login=useCallback(
+    async (username:string,password:string)=>{
+      await new Promise((r)=>setTimeout(r,500))
 
-      let loggedInUser: User | null = null
-      if (
+      let loggedInUser:User|null =null
+       if (
         username === mockCredentials.owner.username &&
         password === mockCredentials.owner.password
       ) {
@@ -83,35 +84,27 @@ export const AuthProvider:ReactFC <{childer:React.Reactnode}>=({
         username === mockCredentials.manager.username &&
         password === mockCredentials.manager.password
       ) {
-        loggedInUser = {
-          id: 'mike-1',
-          name: 'Mike Wilson',
-          email: 'mike@biztrack.com',
-          role: 'manager',
-        }
-      } else if (
-        username === mockCredentials.staff.username &&
-        password === mockCredentials.staff.password
-      ) {
-        loggedInUser = {
-          id: 'sarah-1',
-          name: 'Sarah Johnson',
+        loggedInUser={
+          id:'sarah-1',
+          name:'Sarah Johnson',
           email: 'sarah@biztrack.com',
           role: 'staff',
+
         }
       }
-
-      if (loggedInUser) {
+      if(loggedInUser){
         setUser(loggedInUser)
         setIsAuthenticated(true)
-        localStorage.setItem('biztrack_user', JSON.stringify(loggedInUser))
+        localStorage.setItem('biztracck_user',JSON.stringify(loggedInUser))
         return true
       }
       return false
     },
     [],
   )
-
+  
 
 }
 
+
+export const useAuth=()=>useContext(AuthContext)
