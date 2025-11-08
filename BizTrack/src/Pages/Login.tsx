@@ -8,7 +8,7 @@ const Login = () => {
   const [username, setUsername] = useState("");
   const navigate = useNavigate();
   const { login } = useAuth();
-
+  const [password,setPassword]=useState("");
   return (
     <div className="min-h-screen flex items-center justify-center bg-gray-50 py-12 px-4 sm:px-6 lg:px-8">
       <div className="max-w-md w-full space-y-8">
@@ -44,6 +44,30 @@ const Login = () => {
               placeholder="Username"
             />
           </div>
+        </div>
+        <div>
+            <label
+                htmlFor="password"
+                className="block text-sm font-medium text-gray-700"
+            >
+               Password 
+            </label>
+            <div className="mt-1 relative rounded-md shadow-sm">
+                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                <CiLock className="h-5 w-5 text-gray-400" />
+                </div>
+                <input
+                 type="paswword"
+                 name="password"
+                 required
+                 autoComplete="password"
+                 id="password"
+                 value={password}
+                 onChange={(e)=>setPassword(e.target.value)}
+                 className="pl-10 block w-full border border-gray-300 rounded-md py-3 text-gray-900 placeholder-gray-500 focus:outline-none focus:ring-teal-500 focus:border-teal-500"
+                placeholder="Password"
+                />
+            </div>
         </div>
       </div>
     </div>
