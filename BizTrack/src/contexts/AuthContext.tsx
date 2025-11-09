@@ -1,22 +1,21 @@
-import React,{
+import React, {
   createContext,
   useCallback,
   useContext,
-  useState,
+  useEffect,
   useMemo,
   useRef,
-  useEffect,
+  useState,
 } from 'react'
+import { useNavigate } from 'react-router-dom'
 
-import {useNavigate} from 'react-router-dom'
+export type UserRole = 'owner' | 'manager' | 'staff'
 
-export type UserRole='owner'|'manager'|'staff'
-
-export interface User{
-  id:string
-  name:string
-  email:string
-  role:UserRole
+export interface User {
+  id: string
+  name: string
+  email: string
+  role: UserRole
 }
 
 interface AuthContextType {
@@ -50,15 +49,15 @@ const mockCredentials = {
 
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
   children,
-})=>{
+}) => {
   const [user, setUser] = useState<User | null>(null)
   const [isAuthenticated, setIsAuthenticated] = useState(false)
   const [isLoading, setIsLoading] = useState(true)
   const authChecked = useRef(false)
   const navigate = useNavigate()
 
-
-   useEffect(() => {
+  // Restore session
+  useEffect(() => {
     if (authChecked.current) return
     const saved = localStorage.getItem('biztrack_user')
     if (saved) {
@@ -70,12 +69,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
     authChecked.current = true
   }, [])
 
-  const login=useCallback(
-    async (username:string,password:string)=>{
-      await new Promise((r)=>setTimeout(r,500))
+  const login = useCallback(
+    async (username: string, password: string) => {
+      await new Promise((r) => setTimeout(r, 500)) // simulate network delay
 
-      let loggedInUser:User|null =null
-       if (
+      let loggedInUser: User | null = null
+      if (
         username === mockCredentials.owner.username &&
         password === mockCredentials.owner.password
       ) {
@@ -84,27 +83,48 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
         username === mockCredentials.manager.username &&
         password === mockCredentials.manager.password
       ) {
-        loggedInUser={
-          id:'sarah-1',
-          name:'Sarah Johnson',
+        loggedInUser = {
+          id: 'mike-1',
+          name: 'Mike Wilson',
+          email: 'mike@biztrack.com',
+          role: 'manager',
+        }
+      } else if (
+        username === mockCredentials.staff.username &&
+        password === mockCredentials.staff.password
+      ) {
+        loggedInUser = {
+          id: 'sarah-1',
+          name: 'Sarah Johnson',
           email: 'sarah@biztrack.com',
           role: 'staff',
-
         }
       }
-      if(loggedInUser){
+
+      if (loggedInUser) {
         setUser(loggedInUser)
         setIsAuthenticated(true)
-        localStorage.setItem('biztracck_user',JSON.stringify(loggedInUser))
+        localStorage.setItem('biztrack_user', JSON.stringify(loggedInUser))
         return true
       }
       return false
     },
     [],
   )
-  
 
+  const logout = useCallback(() => {
+    setUser(null)
+    setIsAuthenticated(false)
+    localStorage.removeItem('biztrack_user')
+    navigate('/login', { replace: true })
+  }, [navigate])
+
+  const value = useMemo(
+    () => ({ user, isAuthenticated, isLoading, login, logout }),
+    [user, isAuthenticated, isLoading, login, logout],
+  )
+
+  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>
 }
 
-
-export const useAuth=()=>useContext(AuthContext)
+export const useAuth = () => useContext(AuthContext)
