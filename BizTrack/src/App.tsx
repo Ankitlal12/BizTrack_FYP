@@ -5,7 +5,7 @@ import { useAuth } from './contexts/AuthContext'
 
 const Login = lazy(() => import('./Pages/Login'))
 
-// Simple loading spinner
+
 const PageLoader = () => (
   <div className="flex h-screen items-center justify-center bg-gray-50">
     <div className="w-8 h-8 border-4 border-teal-500 border-t-transparent rounded-full animate-spin"></div>
@@ -23,7 +23,7 @@ export const App = () => {
       <Toaster position="top-right" richColors />
       <Suspense fallback={<PageLoader />}>
         <Routes>
-          {/* LOGIN ROUTE */}
+         
           <Route
             path="/login"
             element={
@@ -35,7 +35,7 @@ export const App = () => {
             }
           />
 
-          {/* PROTECTED DASHBOARD ROUTE */}
+        
           <Route
             path="/"
             element={
@@ -64,7 +64,6 @@ export const App = () => {
             }
           />
 
-          {/* CATCH-ALL REDIRECT */}
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </Suspense>

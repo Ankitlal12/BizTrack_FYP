@@ -71,7 +71,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
 
   const login = useCallback(
     async (username: string, password: string) => {
-      await new Promise((r) => setTimeout(r, 500)) // simulate network delay
+      await new Promise((r) => setTimeout(r, 500)) 
 
       let loggedInUser: User | null = null
       if (
