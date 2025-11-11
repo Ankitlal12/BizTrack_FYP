@@ -80,10 +80,81 @@ const Sidebar=memo(()=>{
         }
         return[...inventoryItems,billingItem]
     },[user?.role])
-    const toogleSidebar=useCallback(()=>{
+    const toggleSidebar=useCallback(()=>{
         setCollapsed((prev)=>!prev)
     },[])
-    const toogleMobileSidebar=useCallback(()=>{
+    const toggleMobileSidebar=useCallback(()=>{
         setMobileOpen((prev)=>!prev)
     },[])  
+    const closeMobileSidebar = useCallback(() => {
+    if (mobileOpen) {
+      setMobileOpen(false)
+    }
+  }, [mobileOpen])
+  
+
+  return(
+    <>
+          <button
+        className="md:hidden fixed top-4 left-4 z-40 p-2 rounded-md bg-teal-500 text-white"
+        onClick={toggleMobileSidebar}
+      >
+        {mobileOpen ? <RxCross2 size={20} /> : <FiMenu size={20} />}
+      </button>
+
+       {mobileOpen && (
+        <div
+          className="md:hidden fixed inset-0 bg-gray-800 bg-opacity-50 z-30"
+          onClick={toggleMobileSidebar}
+        />
+      )}
+      <aside
+        className={`bg-white shadow-lg z-30 ${mobileOpen ? 'fixed inset-y-0 left-0' : 'hidden md:block'} ${collapsed ? 'w-20' : 'w-64'} transition-all duration-300 ease-in-out`}
+      >
+        <div className="h-full flex flex-col">
+          <div
+            className={`flex items-center ${collapsed ? 'justify-center' : 'justify-between'} p-4 border-b`}
+          >
+            {!collapsed && (
+              <h2 className="text-xl font-bold text-teal-600">BizTrack</h2>
+            )}
+            <button
+              onClick={toggleSidebar}
+              className="hidden md:block p-1 rounded-md hover:bg-gray-100"
+            >
+              {collapsed ? <FiMenu size={20} /> : <RxCross2 size={20} />}
+            </button>
+          </div>
+          <nav className="flex-1 pt-4">
+            <ul className="space-y-1">
+              {navItems.map((item) => (
+                <li key={item.path}>
+                  <NavLink
+                    to={item.path}
+                    className={({ isActive }) => `
+                      flex items-center ${collapsed ? 'justify-center' : 'px-6'} py-3
+                      ${isActive ? 'bg-teal-50 text-teal-600 border-r-4 border-teal-500' : 'text-gray-600 hover:bg-gray-100'}
+                      transition-colors duration-200
+                    `}
+                    onClick={closeMobileSidebar}
+                    end
+                  >
+                    <span className="inline-flex">{item.icon}</span>
+                    {!collapsed && <span className="ml-3">{item.name}</span>}
+                  </NavLink>
+                </li>
+              ))}
+            </ul>
+          </nav>
+          <div className={`p-4 border-t ${collapsed ? 'text-center' : ''}`}>
+            <p className="text-xs text-gray-500">
+              {collapsed ? 'v1.0' : 'BizTrack v1.0'}
+            </p>
+          </div>
+        </div>
+      </aside>
+    </>
+  )
 })
+Sidebar.displayName = 'Sidebar'
+export default Sidebar
