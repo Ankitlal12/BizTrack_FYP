@@ -74,5 +74,16 @@ const Sidebar=memo(()=>{
                 },
             ]
         }
+        if(user?.role==='manager'){
+            return [
+                {
+                name:'Inventory',
+                path:'/inventory',
+                icon: <FiPackage size={20} />,
+                },
+                purchasesItem,
+                billingItem
+            ]
+        }
     })
 })
