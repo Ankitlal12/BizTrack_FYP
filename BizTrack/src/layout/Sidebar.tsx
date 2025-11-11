@@ -17,6 +17,7 @@ import { RxCross2 } from "react-icons/rx";
 import { useAuth } from '../contexts/AuthContext';
 const Sidebar=memo(()=>{
     const [collapsed,setCollapsed]=useState(false)
+    const [mobileOpen,setMobileOpen]=useState(false)
     const {user}=useAuth()
     const navItems=useMemo(()=>{
         const inventoryItems=[
@@ -28,7 +29,7 @@ const Sidebar=memo(()=>{
         ]
         const billingItem={
             name:'Billing',
-            path:'billing',
+            path:'/billing',
             icon:<LuShoppingBag size={20} />,
         }
         const purchasesItem={
@@ -75,15 +76,14 @@ const Sidebar=memo(()=>{
             ]
         }
         if(user?.role==='manager'){
-            return [
-                {
-                name:'Inventory',
-                path:'/inventory',
-                icon: <FiPackage size={20} />,
-                },
-                purchasesItem,
-                billingItem
-            ]
+            return[...inventoryItems,purchasesItem,billingItem]
         }
-    })
+        return[...inventoryItems,billingItem]
+    },[user?.role])
+    const toogleSidebar=useCallback(()=>{
+        setCollapsed((prev)=>!prev)
+    },[])
+    const toogleMobileSidebar=useCallback(()=>{
+        setMobileOpen((prev)=>!prev)
+    },[])  
 })
