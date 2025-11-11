@@ -29,7 +29,50 @@ const Sidebar=memo(()=>{
         const billingItem={
             name:'Billing',
             path:'billing',
-            icon:<LuShoppingBag size={20} />
+            icon:<LuShoppingBag size={20} />,
+        }
+        const purchasesItem={
+            name:'Purchases',
+            path:'/purchases',
+            icon:<CiDeliveryTruck size={20} />,
+
+        }
+        if(user?.role==='owner'){
+            return [
+                {
+                    name:'Dashboard',
+                    path:'/dashboard',
+                    icon:<TbLayoutDashboard size={20} />,
+                },
+                ...inventoryItems,
+                {
+                    name:'Sales',
+                    path:'/sales',
+                    icon:<FiShoppingCart size={20} />
+                },
+                purchasesItem,
+                billingItem,
+                {
+                name: 'Invoices',
+                path: '/invoices',
+                icon: <FiFileText size={20} />,
+                },
+                {
+                name: 'Transaction History',
+                path: '/transactions',
+                icon: <FaHistory size={20} />,
+                },
+                {
+                name: 'Reports',
+                path: '/reports',
+                icon: <IoBarChartSharp size={20} />,
+                },
+                {
+                name: 'Settings',
+                path: '/settings',
+                icon: <CiSettings size={20} />,
+                },
+            ]
         }
     })
 })
