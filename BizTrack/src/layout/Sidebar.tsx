@@ -14,4 +14,22 @@ import { FiMenu } from "react-icons/fi";
 import { RxCross2 } from "react-icons/rx";
 
 
-
+import { useAuth } from '../contexts/AuthContext';
+const Sidebar=memo(()=>{
+    const [collapsed,setCollapsed]=useState(false)
+    const {user}=useAuth()
+    const navItems=useMemo(()=>{
+        const inventoryItems=[
+            {
+                name:'Inventory',
+                path:'/inventory',
+                icon: <FiPackage size={20} />,
+            },
+        ]
+        const billingItem={
+            name:'Billing',
+            path:'billing',
+            icon:<LuShoppingBag size={20} />
+        }
+    })
+})
