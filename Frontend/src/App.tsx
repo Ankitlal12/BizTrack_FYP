@@ -3,10 +3,12 @@ import { Routes, Route, Navigate, useLocation } from 'react-router-dom'
 import { Toaster } from 'sonner'
 import { useAuth } from './contexts/AuthContext'
 
+
 const Login = lazy(() => import('./Pages/Login'));
 const Dashboard=lazy(()=>import('./Pages/Dashboard'));
-const Inventory=lazy(()=>import('./Pages/Inventory'))
-
+const Inventory=lazy(()=>import('./Pages/Inventory'));
+const Invoices =lazy(()=>import ('./Pages/Invoices'))
+const Purchases =lazy(()=>import ('./Pages/Purchases'))
 
 const PageLoader = () => (
   <div className="flex h-screen items-center justify-center bg-gray-50">
@@ -59,6 +61,28 @@ export const App = () => {
               )
             }
           />
+          <Route
+            path="/purchases"
+            element={
+              isAuthenticated ? (
+                <Purchases />
+              ) : (
+                <Navigate to="/login" replace />
+              )
+            }
+          />
+
+          <Route
+            path="/invoices"
+            element={
+              isAuthenticated ? (
+                <Invoices />
+              ) : (
+                <Navigate to="/login" replace />
+              )
+            }
+          />
+         
 
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
