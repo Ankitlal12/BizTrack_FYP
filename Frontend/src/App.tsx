@@ -11,9 +11,9 @@ const Invoices =lazy(()=>import ('./Pages/Invoices'));
 const Purchases =lazy(()=>import ('./Pages/Purchases'));
 const Reports=lazy(()=>import('./Pages/Reports.tsx'));
 const Sales=lazy(()=>import('./Pages/Sales.tsx'));
-const Settings=lazy(()=>import('./Pages/Settings.tsx'))
-const TransactionHistory = lazy(() => import('./Pages/TransactionHistory.tsx'))
-
+const Settings=lazy(()=>import('./Pages/Settings.tsx'));
+const TransactionHistory = lazy(() => import('./Pages/TransactionHistory.tsx'));
+const Billing=lazy(()=>import('./Pages/Billing.tsx') )
 
 const PageLoader = () => (
   <div className="flex h-screen items-center justify-center bg-gray-50">
@@ -44,17 +44,19 @@ export const App = () => {
             }
           />
 
-        {/* This is for Dashboard page */}
-          <Route
-            path="/"
-            element={
-              isAuthenticated ? (
-                <Dashboard />
-              ) : (
-                <Navigate to="/login" replace />
-              )
-            }
-          />
+        <Route
+          path="/"
+          element={
+            !isAuthenticated ? (
+              <Navigate to="/login" replace />
+            ) : user?.role === "owner" ? (
+              <Dashboard />
+            ) : (
+              <Navigate to="/inventory" replace />
+            )
+          }
+        />
+
 
           <Route
             path="/inventory"
@@ -125,6 +127,17 @@ export const App = () => {
             element={
               isAuthenticated ? (
                 <TransactionHistory />
+              ) : (
+                <Navigate to="/login" replace />
+              )
+            }
+          />
+
+             <Route
+            path="/billing"
+            element={
+              isAuthenticated ? (
+                <Billing />
               ) : (
                 <Navigate to="/login" replace />
               )
