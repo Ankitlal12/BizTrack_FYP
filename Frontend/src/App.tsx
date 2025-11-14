@@ -2,10 +2,10 @@ import React, { Suspense, lazy } from 'react'
 import { Routes, Route, Navigate, useLocation } from 'react-router-dom'
 import { Toaster } from 'sonner'
 import { useAuth } from './contexts/AuthContext'
-import Sidebar from './layout/Sidebar'
 
 const Login = lazy(() => import('./Pages/Login'));
 const Dashboard=lazy(()=>import('./Pages/Dashboard'));
+const Inventory=lazy(()=>import('./Pages/Inventory'))
 
 
 const PageLoader = () => (
@@ -43,6 +43,17 @@ export const App = () => {
             element={
               isAuthenticated ? (
                 <Dashboard />
+              ) : (
+                <Navigate to="/login" replace />
+              )
+            }
+          />
+
+          <Route
+            path="/inventory"
+            element={
+              isAuthenticated ? (
+                <Inventory />
               ) : (
                 <Navigate to="/login" replace />
               )
