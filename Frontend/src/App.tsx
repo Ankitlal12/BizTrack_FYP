@@ -7,8 +7,10 @@ import { useAuth } from './contexts/AuthContext'
 const Login = lazy(() => import('./Pages/Login'));
 const Dashboard=lazy(()=>import('./Pages/Dashboard'));
 const Inventory=lazy(()=>import('./Pages/Inventory'));
-const Invoices =lazy(()=>import ('./Pages/Invoices'))
-const Purchases =lazy(()=>import ('./Pages/Purchases'))
+const Invoices =lazy(()=>import ('./Pages/Invoices'));
+const Purchases =lazy(()=>import ('./Pages/Purchases'));
+const Reports=lazy(()=>import('./Pages/Reports.tsx'));
+const Sales=lazy(()=>import('./Pages/Sales.tsx'))
 
 const PageLoader = () => (
   <div className="flex h-screen items-center justify-center bg-gray-50">
@@ -77,6 +79,26 @@ export const App = () => {
             element={
               isAuthenticated ? (
                 <Invoices />
+              ) : (
+                <Navigate to="/login" replace />
+              )
+            }
+          />
+           <Route
+            path="/reports"
+            element={
+              isAuthenticated ? (
+                <Reports />
+              ) : (
+                <Navigate to="/login" replace />
+              )
+            }
+          />
+           <Route
+            path="/sales"
+            element={
+              isAuthenticated ? (
+                <Sales />
               ) : (
                 <Navigate to="/login" replace />
               )
