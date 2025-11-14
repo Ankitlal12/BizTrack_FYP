@@ -10,7 +10,10 @@ const Inventory=lazy(()=>import('./Pages/Inventory'));
 const Invoices =lazy(()=>import ('./Pages/Invoices'));
 const Purchases =lazy(()=>import ('./Pages/Purchases'));
 const Reports=lazy(()=>import('./Pages/Reports.tsx'));
-const Sales=lazy(()=>import('./Pages/Sales.tsx'))
+const Sales=lazy(()=>import('./Pages/Sales.tsx'));
+const Settings=lazy(()=>import('./Pages/Settings.tsx'))
+const TransactionHistory = lazy(() => import('./Pages/TransactionHistory.tsx'))
+
 
 const PageLoader = () => (
   <div className="flex h-screen items-center justify-center bg-gray-50">
@@ -63,6 +66,7 @@ export const App = () => {
               )
             }
           />
+          
           <Route
             path="/purchases"
             element={
@@ -104,7 +108,29 @@ export const App = () => {
               )
             }
           />
+          
+          <Route
+            path="/settings"
+            element={
+              isAuthenticated ? (
+                <Settings />
+              ) : (
+                <Navigate to="/login" replace />
+              )
+            }
+          />
          
+           <Route
+            path="/transactions"
+            element={
+              isAuthenticated ? (
+                <TransactionHistory />
+              ) : (
+                <Navigate to="/login" replace />
+              )
+            }
+          />
+
 
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
