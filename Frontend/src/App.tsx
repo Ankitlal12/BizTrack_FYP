@@ -4,7 +4,8 @@ import { Toaster } from 'sonner'
 import { useAuth } from './contexts/AuthContext'
 import Sidebar from './layout/Sidebar'
 
-const Login = lazy(() => import('./Pages/Login'))
+const Login = lazy(() => import('./Pages/Login'));
+const Dashboard=lazy(()=>import('./Pages/Dashboard'));
 
 
 const PageLoader = () => (
@@ -24,41 +25,24 @@ export const App = () => {
       <Toaster position="top-right" richColors />
       <Suspense fallback={<PageLoader />}>
         <Routes>
-         
+         {/* // This is for login page */}
           <Route
             path="/login"
             element={
               !isAuthenticated ? (
                 <Login />
               ) : (
-                <Navigate to={location.state?.from?.pathname || '/'} replace />
+                <Navigate to="/" replace />
               )
             }
           />
 
-        
+        {/* This is for Dashboard page */}
           <Route
             path="/"
             element={
               isAuthenticated ? (
-                <div className="min-h-screen bg-gray-100 flex flex-col items-center justify-center text-gray-800">
-                  <div className="bg-white shadow-lg rounded-xl p-8 w-full max-w-md text-center">
-                    <h1 className="text-2xl font-bold text-teal-700 mb-2">
-                      <Sidebar />
-                    </h1>
-                    <p className="text-gray-600 mb-6">
-                      Welcome back, <span className="font-medium">{user?.name}</span> 👋
-                    </p>
-                    <div className="space-y-4">
-                      <button
-                        onClick={() => logout()}
-                        className="w-full py-2 px-4 bg-teal-600 text-white rounded-md hover:bg-teal-700 transition"
-                      >
-                        Logout
-                      </button>
-                    </div>
-                  </div>
-                </div>
+                <Dashboard />
               ) : (
                 <Navigate to="/login" replace />
               )
