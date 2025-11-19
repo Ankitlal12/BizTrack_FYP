@@ -3,6 +3,8 @@ import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { CiLock, CiUser } from "react-icons/ci";
 import { GoogleLogin } from '@react-oauth/google';
+import { jwtDecode } from "jwt-decode";
+
 
 const Login = () => {
   const [username, setUsername] = useState('');
@@ -140,10 +142,19 @@ const Login = () => {
 
         {/* Google Login */}
         <div className="mt-6 flex justify-center">
-          <GoogleLogin
-            onSuccess={(response) => console.log('Success:', response)}
-            onError={() => console.log('Google Login Failed')}
-          />
+               <GoogleLogin
+                onSuccess={(response) => {
+                  try {
+                    if (response.credential) {
+                      const userData = jwtDecode(response.credential);
+                      console.log("Google User:", userData);
+                    }
+                  } catch (err) {
+                    console.error("JWT decode error:", err);
+                  }
+                }}
+                onError={() => console.log("Google Login Failed")}
+              />
         </div>
 
         {/* Footer */}
