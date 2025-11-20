@@ -24,7 +24,7 @@ interface AuthContextType {
   isAuthenticated: boolean
   isLoading: boolean
   login: (username: string, password: string) => Promise<boolean>
-  googleLogin: (googleUser: any) => void        // ⭐ ADDED
+  googleLogin: (googleUser: any) => void       
   logout: () => void
 }
 
@@ -33,7 +33,7 @@ const AuthContext = createContext<AuthContextType>({
   isAuthenticated: false,
   isLoading: true,
   login: async () => false,
-  googleLogin: () => {},                       // ⭐ ADDED
+  googleLogin: () => {},                     
   logout: () => {},
 })
 
