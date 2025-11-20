@@ -11,7 +11,7 @@ const Login = () => {
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
-  const { login } = useAuth();
+  const { login, googleLogin } = useAuth();
   const navigate = useNavigate();
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -147,6 +147,7 @@ const Login = () => {
                   try {
                     if (response.credential) {
                       const userData = jwtDecode(response.credential);
+                      googleLogin(userData); 
                       console.log("Google User:", userData);
                     }
                   } catch (err) {
