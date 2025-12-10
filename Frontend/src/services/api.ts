@@ -117,3 +117,21 @@ export const invoicesAPI = {
   }),
 };
 
+// Users API
+export const usersAPI = {
+  getAll: () => apiRequest<any[]>('/users'),
+  getById: (id: string) => apiRequest<any>(`/users/${id}`),
+  create: (data: any) => apiRequest<any>('/users/add', {
+    method: 'POST',
+    body: JSON.stringify(data),
+  }),
+  login: (username: string, password: string) => apiRequest<any>('/users/login', {
+    method: 'POST',
+    body: JSON.stringify({ username, password }),
+  }),
+  updateStatus: (id: string, active: boolean) => apiRequest<any>(`/users/${id}/status`, {
+    method: 'PUT',
+    body: JSON.stringify({ active }),
+  }),
+};
+

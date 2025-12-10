@@ -20,39 +20,69 @@ const Settings = () => {
     role: 'staff',
   })
   const [formErrors, setFormErrors] = useState({})
-  const handleAddStaff = (e) => {
+  const [isSubmitting, setIsSubmitting] = useState(false)
+  const [submitError, setSubmitError] = useState('')
+  const [submitSuccess, setSubmitSuccess] = useState(false)
+
+  const handleAddStaff = async (e) => {
     e.preventDefault()
+    setSubmitError('')
+    setSubmitSuccess(false)
+    
     const errors = {}
     if (!newStaff.name) errors.name = 'Name is required'
     if (!newStaff.email) errors.email = 'Email is required'
     if (!newStaff.username) errors.username = 'Username is required'
     if (!newStaff.password) errors.password = 'Password is required'
+    if (newStaff.password.length < 6) errors.password = 'Password must be at least 6 characters'
     if (newStaff.password !== newStaff.confirmPassword)
       errors.confirmPassword = 'Passwords do not match'
     if (Object.keys(errors).length > 0) {
       setFormErrors(errors)
       return
     }
-    // Add staff member with password
-    addStaffMember({
-      name: newStaff.name,
-      email: newStaff.email,
-      username: newStaff.username,
-      password: newStaff.password,
-      role: newStaff.role,
-      active: true,
-      dateAdded: new Date().toISOString().split('T')[0],
-    })
-    // Reset form
-    setNewStaff({
-      name: '',
-      email: '',
-      username: '',
-      password: '',
-      confirmPassword: '',
-      role: 'staff',
-    })
-    setFormErrors({})
+
+    setIsSubmitting(true)
+    try {
+      // Add staff member via API
+      await addStaffMember({
+        name: newStaff.name,
+        email: newStaff.email,
+        username: newStaff.username,
+        password: newStaff.password,
+        role: newStaff.role,
+        active: true,
+        dateAdded: new Date().toISOString().split('T')[0],
+      })
+      
+      // Reset form on success
+      setNewStaff({
+        name: '',
+        email: '',
+        username: '',
+        password: '',
+        confirmPassword: '',
+        role: 'staff',
+      })
+      setFormErrors({})
+      setSubmitSuccess(true)
+      
+      // Clear success message after 3 seconds
+      setTimeout(() => setSubmitSuccess(false), 3000)
+    } catch (error: any) {
+      console.error('Error adding staff member:', error)
+      const errorMessage = error?.message || error?.error || 'Failed to add staff member. Please try again.'
+      setSubmitError(errorMessage)
+      
+      // Set specific field errors if available
+      if (errorMessage.includes('email') || errorMessage.includes('Email')) {
+        setFormErrors({ email: 'This email is already in use' })
+      } else if (errorMessage.includes('username') || errorMessage.includes('Username')) {
+        setFormErrors({ username: 'This username is already taken' })
+      }
+    } finally {
+      setIsSubmitting(false)
+    }
   }
   const tabs = [
     {
@@ -81,7 +111,7 @@ const Settings = () => {
       icon: <DatabaseIcon size={18} />,
     },
   ]
-  const getRoleBadgeClass = (role) => {
+  const getRoleBadgeClass = (role:string) => {
     switch (role) {
       case 'owner':
         return 'bg-teal-100 text-teal-800'
@@ -265,7 +295,13 @@ const Settings = () => {
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
                           <button
-                            onClick={() => toggleStaffStatus(staff.id)}
+                            onClick={async () => {
+                              try {
+                                await toggleStaffStatus(staff.id)
+                              } catch (error) {
+                                alert('Failed to update staff status. Please try again.')
+                              }
+                            }}
                             className={`mr-3 ${staff.active ? 'text-red-600 hover:text-red-900' : 'text-green-600 hover:text-green-900'}`}
                           >
                             {staff.active ? 'Deactivate' : 'Activate'}
@@ -286,6 +322,19 @@ const Settings = () => {
                 <h3 className="text-lg font-medium text-gray-800 mb-6">
                   Add New User
                 </h3>
+                
+                {submitSuccess && (
+                  <div className="mb-4 bg-green-50 border border-green-200 text-green-700 rounded-lg p-3 text-sm">
+                    Staff member added successfully! They can now log in with their credentials.
+                  </div>
+                )}
+                
+                {submitError && (
+                  <div className="mb-4 bg-red-50 border border-red-200 text-red-700 rounded-lg p-3 text-sm">
+                    {submitError}
+                  </div>
+                )}
+                
                 <form onSubmit={handleAddStaff} className="max-w-2xl space-y-6">
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                     <div>
@@ -433,9 +482,10 @@ const Settings = () => {
                   <div>
                     <button
                       type="submit"
-                      className="bg-teal-500 hover:bg-teal-600 text-white py-2 px-6 rounded-lg"
+                      disabled={isSubmitting}
+                      className="bg-teal-500 hover:bg-teal-600 disabled:opacity-50 disabled:cursor-not-allowed text-white py-2 px-6 rounded-lg"
                     >
-                      Add User
+                      {isSubmitting ? 'Adding...' : 'Add User'}
                     </button>
                   </div>
                 </form>
@@ -656,7 +706,7 @@ const Settings = () => {
         </div>
       </div>
     </div>
-     </Layout>
+    </Layout>      
   )
 }
 export default Settings

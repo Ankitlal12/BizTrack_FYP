@@ -9,6 +9,7 @@ import React,
   useState,
 } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { usersAPI } from '../services/api'
 
 // =====================
 // TYPES
@@ -38,8 +39,8 @@ interface AuthContextType {
   login: (username: string, password: string) => Promise<boolean>
   googleLogin: (googleUser: any) => void
   logout: () => void
-  addStaffMember: (staff: Omit<StaffMember, 'id'>) => void
-  toggleStaffStatus: (id: string) => void
+  addStaffMember: (staff: Omit<StaffMember, 'id'>) => Promise<StaffMember>
+  toggleStaffStatus: (id: string) => Promise<void>
 }
 
 // =====================
@@ -120,37 +121,46 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   useEffect(() => {
     if (authChecked.current) return
 
-    const checkAuth = () => {
+    const checkAuth = async () => {
       try {
+        // Check for saved user session
         const savedUser = localStorage.getItem('biztrack_user')
-        const savedStaff = localStorage.getItem('biztrack_staff')
-
         if (savedUser) {
           setUser(JSON.parse(savedUser))
           setIsAuthenticated(true)
         }
 
-        if (savedStaff) {
-          setStaffMembers(JSON.parse(savedStaff))
-        } else {
-          const initialStaff = mockStaffMembers.map((s) => ({
-            ...s,
-            password: s.username === 'mike' ? 'mike123' : 'sarah123',
+        // Fetch staff members from API
+        try {
+          const staff = await usersAPI.getAll()
+          // Convert MongoDB _id to id and format dateAdded
+          const formattedStaff: StaffMember[] = staff.map((s: any) => ({
+            id: s._id || s.id,
+            name: s.name,
+            email: s.email,
+            username: s.username,
+            role: s.role,
+            active: s.active,
+            dateAdded: s.dateAdded 
+              ? new Date(s.dateAdded).toISOString().split('T')[0]
+              : new Date().toISOString().split('T')[0],
           }))
-
-          setStaffMembers(initialStaff)
-          localStorage.setItem('biztrack_staff', JSON.stringify(initialStaff))
+          setStaffMembers(formattedStaff)
+        } catch (error) {
+          console.error('Failed to fetch staff members:', error)
+          // If API fails, keep empty array
+          setStaffMembers([])
         }
-      } catch {
+      } catch (error) {
+        console.error('Auth check failed:', error)
         localStorage.removeItem('biztrack_user')
-        localStorage.removeItem('biztrack_staff')
       } finally {
         setIsLoading(false)
         authChecked.current = true
       }
     }
 
-    setTimeout(checkAuth, 300)
+    checkAuth()
   }, [])
 
   // =====================
@@ -158,42 +168,49 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   // =====================
   const login = useCallback(
     async (username: string, password: string): Promise<boolean> => {
-      await new Promise((r) => setTimeout(r, 600))
-
-      // Owner
-      if (
-        username === mockCredentials.owner.username &&
-        password === mockCredentials.owner.password
-      ) {
-        setUser(mockOwner)
-        setIsAuthenticated(true)
-        localStorage.setItem('biztrack_user', JSON.stringify(mockOwner))
-        return true
-      }
-
-      // Dynamic staff login
-      const staff = staffMembers.find(
-        (s) => s.username === username && s.password === password && s.active,
-      )
-
-      if (staff) {
+      try {
+        // Try to login via API
+        const loggedInUser = await usersAPI.login(username, password)
+        
+        // Convert MongoDB _id to id
         const userObj: User = {
-          id: staff.id,
-          name: staff.name,
-          email: staff.email,
-          role: staff.role,
-          avatar: staff.avatar,
+          id: loggedInUser._id || loggedInUser.id,
+          name: loggedInUser.name,
+          email: loggedInUser.email,
+          role: loggedInUser.role,
+          avatar: loggedInUser.avatar,
         }
 
         setUser(userObj)
         setIsAuthenticated(true)
         localStorage.setItem('biztrack_user', JSON.stringify(userObj))
-        return true
-      }
+        
+        // Refresh staff list after successful login
+        try {
+          const staff = await usersAPI.getAll()
+          const formattedStaff: StaffMember[] = staff.map((s: any) => ({
+            id: s._id || s.id,
+            name: s.name,
+            email: s.email,
+            username: s.username,
+            role: s.role,
+            active: s.active,
+            dateAdded: s.dateAdded 
+              ? new Date(s.dateAdded).toISOString().split('T')[0]
+              : new Date().toISOString().split('T')[0],
+          }))
+          setStaffMembers(formattedStaff)
+        } catch (error) {
+          console.error('Failed to refresh staff list:', error)
+        }
 
-      return false
+        return true
+      } catch (error: any) {
+        console.error('Login failed:', error)
+        return false
+      }
     },
-    [staffMembers],
+    [],
   )
 
   // =====================
@@ -231,28 +248,80 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   // =====================
   // ADD STAFF
   // =====================
-  const addStaffMember = useCallback((staff: Omit<StaffMember, 'id'>) => {
-    const newStaff = { ...staff, id: `staff-${Date.now()}` }
+  const addStaffMember = useCallback(async (staff: Omit<StaffMember, 'id'>) => {
+    try {
+      // Create staff member via API
+      const newStaff = await usersAPI.create({
+        name: staff.name,
+        email: staff.email,
+        username: staff.username,
+        password: staff.password,
+        role: staff.role,
+        active: staff.active !== undefined ? staff.active : true,
+      })
 
-    setStaffMembers((prev) => {
-      const updated = [...prev, newStaff]
-      localStorage.setItem('biztrack_staff', JSON.stringify(updated))
-      return updated
-    })
+      // Convert MongoDB _id to id and format dateAdded
+      const formattedStaff: StaffMember = {
+        id: newStaff._id || newStaff.id,
+        name: newStaff.name,
+        email: newStaff.email,
+        username: newStaff.username,
+        role: newStaff.role,
+        active: newStaff.active,
+        dateAdded: newStaff.dateAdded 
+          ? new Date(newStaff.dateAdded).toISOString().split('T')[0]
+          : new Date().toISOString().split('T')[0],
+      }
+
+      // Update local state
+      setStaffMembers((prev) => [...prev, formattedStaff])
+      
+      return formattedStaff
+    } catch (error: any) {
+      console.error('Failed to add staff member:', error)
+      throw error
+    }
   }, [])
 
   // =====================
   // TOGGLE STAFF
   // =====================
-  const toggleStaffStatus = useCallback((id: string) => {
-    setStaffMembers((prev) => {
-      const updated = prev.map((s) =>
-        s.id === id ? { ...s, active: !s.active } : s,
+  const toggleStaffStatus = useCallback(async (id: string) => {
+    try {
+      // Find current staff member to get current status
+      const currentStaff = staffMembers.find((s) => s.id === id)
+      if (!currentStaff) {
+        console.error('Staff member not found')
+        return
+      }
+
+      const newStatus = !currentStaff.active
+
+      // Update status via API
+      const updatedStaff = await usersAPI.updateStatus(id, newStatus)
+
+      // Convert MongoDB _id to id and format dateAdded
+      const formattedStaff: StaffMember = {
+        id: updatedStaff._id || updatedStaff.id,
+        name: updatedStaff.name,
+        email: updatedStaff.email,
+        username: updatedStaff.username,
+        role: updatedStaff.role,
+        active: updatedStaff.active,
+        dateAdded: updatedStaff.dateAdded 
+          ? new Date(updatedStaff.dateAdded).toISOString().split('T')[0]
+          : currentStaff.dateAdded,
+      }
+
+      // Update local state
+      setStaffMembers((prev) =>
+        prev.map((s) => (s.id === id ? formattedStaff : s))
       )
-      localStorage.setItem('biztrack_staff', JSON.stringify(updated))
-      return updated
-    })
-  }, [])
+    } catch (error: any) {
+      console.error('Failed to toggle staff status:', error)
+      throw error
+    }
+  }, [staffMembers])
 
   // =====================
   // CONTEXT VALUE
