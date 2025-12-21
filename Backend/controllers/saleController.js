@@ -29,6 +29,28 @@ exports.getSaleById = async (req, res) => {
 // Create new sale
 exports.createSale = async (req, res) => {
   try {
+    // Validate stock availability before creating sale
+    const stockErrors = [];
+    for (const item of req.body.items) {
+      if (item.inventoryId) {
+        const inventoryItem = await Inventory.findById(item.inventoryId);
+        if (!inventoryItem) {
+          stockErrors.push(`Item ${item.name || item.inventoryId} not found in inventory`);
+        } else if (inventoryItem.stock < item.quantity) {
+          stockErrors.push(
+            `Insufficient stock for ${item.name || inventoryItem.name}. Available: ${inventoryItem.stock}, Requested: ${item.quantity}`
+          );
+        }
+      }
+    }
+
+    if (stockErrors.length > 0) {
+      return res.status(400).json({ 
+        error: "Insufficient stock", 
+        details: stockErrors 
+      });
+    }
+
     // Update inventory stock for each item
     for (const item of req.body.items) {
       if (item.inventoryId) {
