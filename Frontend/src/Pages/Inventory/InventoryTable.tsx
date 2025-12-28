@@ -50,7 +50,12 @@ const InventoryTable: React.FC<InventoryTableProps> = ({
               const itemId = item._id || item.id
 
               return (
-                <tr key={itemId} className="hover:bg-gray-50">
+                <tr
+                  key={itemId}
+                  className={`hover:bg-gray-50 ${
+                    item.stock < 10 ? 'bg-red-50 text-red-700' : ''
+                  }`}
+                >
                   <td className="px-4 py-4">
                     <div className="font-medium text-gray-900">{item.name}</div>
                     <div className="text-sm text-gray-500">{item.supplier}</div>
@@ -66,11 +71,7 @@ const InventoryTable: React.FC<InventoryTableProps> = ({
                     </div>
                   </td>
 
-                  <td className="px-4 py-4">
-                    <span className={item.stock < 5 ? 'text-red-600' : ''}>
-                      {item.stock}
-                    </span>
-                  </td>
+                  <td className="px-4 py-4">{item.stock}</td>
 
                   <td className="px-4 py-4">
                     <span
@@ -113,4 +114,3 @@ const InventoryTable: React.FC<InventoryTableProps> = ({
 }
 
 export default InventoryTable
-
