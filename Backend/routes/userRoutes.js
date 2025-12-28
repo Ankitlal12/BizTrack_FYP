@@ -4,7 +4,8 @@ const {
   getAllUsers, 
   login, 
   updateUserStatus,
-  getUserById 
+  getUserById,
+  googleLogin
 } = require("../controllers/userController");
 const router = express.Router();
 
@@ -19,6 +20,9 @@ router.get("/:id", getUserById);
 
 // Login
 router.post("/login", login);
+
+// Google Login
+router.post("/google-login", googleLogin);
 
 // Update user status (activate/deactivate)
 router.put("/:id/status", updateUserStatus);

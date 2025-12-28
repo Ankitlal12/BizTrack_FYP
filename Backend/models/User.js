@@ -12,12 +12,25 @@ const userSchema = new mongoose.Schema({
   },
   username: {
     type: String,
-    required: true,
+    required: function() {
+      return !this.googleId; // Required only if not a Google user
+    },
     unique: true,
+    sparse: true, // Allows multiple null values
   },
   password: {
     type: String,
-    required: true,
+    required: function() {
+      return !this.googleId; // Required only if not a Google user
+    },
+  },
+  googleId: {
+    type: String,
+    unique: true,
+    sparse: true, // Allows multiple null values
+  },
+  avatar: {
+    type: String,
   },
   role: {
     type: String,

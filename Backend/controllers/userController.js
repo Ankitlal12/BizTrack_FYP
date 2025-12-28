@@ -1,5 +1,7 @@
 const User = require("../models/User");
 const bcrypt = require("bcryptjs");
+const { OAuth2Client } = require("google-auth-library");
+const { generateToken } = require("../utils/jwt");
 
 // Create a new user (staff member)
 exports.createUser = async (req, res) => {
@@ -95,11 +97,17 @@ exports.login = async (req, res) => {
       });
     }
 
-    // Return user without password
+    // Generate JWT token
+    const token = generateToken(user);
+
+    // Return user without password and token
     const userResponse = user.toObject();
     delete userResponse.password;
 
-    res.json(userResponse);
+    res.json({
+      user: userResponse,
+      token,
+    });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -145,6 +153,145 @@ exports.getUserById = async (req, res) => {
 
     res.json(user);
   } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+};
+
+// Google Login
+exports.googleLogin = async (req, res) => {
+  try {
+    const { credential } = req.body;
+
+    if (!credential) {
+      return res.status(400).json({ 
+        error: "Google credential is required" 
+      });
+    }
+
+    // Get Google Client ID from environment or use the one from frontend
+    const GOOGLE_CLIENT_ID = process.env.GOOGLE_CLIENT_ID || "905396434192-03aqn8vkab2knh33brep80bfvmh3ojik.apps.googleusercontent.com";
+    
+    // Verify the Google token
+    const client = new OAuth2Client(GOOGLE_CLIENT_ID);
+    
+    let ticket;
+    try {
+      ticket = await client.verifyIdToken({
+        idToken: credential,
+        audience: GOOGLE_CLIENT_ID,
+      });
+    } catch (verifyError) {
+      return res.status(401).json({ 
+        error: "Invalid Google token" 
+      });
+    }
+
+    const payload = ticket.getPayload();
+    const { sub: googleId, email, name, picture } = payload;
+
+    if (!email) {
+      return res.status(400).json({ 
+        error: "Email not provided by Google" 
+      });
+    }
+
+    // Check if user exists by email or googleId
+    let user = await User.findOne({
+      $or: [{ email }, { googleId }]
+    });
+
+    if (user) {
+      console.log('Existing user found:', { id: user._id, email: user.email });
+      
+      // Update user if they logged in with Google before but didn't have googleId
+      let updated = false;
+      if (!user.googleId) {
+        user.googleId = googleId;
+        updated = true;
+      }
+      if (picture && user.avatar !== picture) {
+        user.avatar = picture;
+        updated = true;
+      }
+      if (updated) {
+        await user.save();
+        console.log('User updated with Google info');
+      }
+      
+      // Check if user is active
+      if (!user.active) {
+        return res.status(401).json({ 
+          error: "Account is inactive. Please contact administrator." 
+        });
+      }
+    } else {
+      // Create new user from Google account
+      console.log('Creating new Google user:', { email, name, googleId });
+      
+      // Generate a unique username from email
+      const baseUsername = email.split('@')[0].toLowerCase().replace(/[^a-z0-9]/g, '');
+      let username = baseUsername || `user${Date.now()}`;
+      let counter = 1;
+      
+      // Ensure username is unique
+      while (await User.findOne({ username })) {
+        username = `${baseUsername}${counter}`;
+        counter++;
+        // Prevent infinite loop
+        if (counter > 1000) {
+          username = `user${Date.now()}`;
+          break;
+        }
+      }
+
+      try {
+        user = await User.create({
+          name: name || email.split('@')[0],
+          email,
+          username,
+          googleId,
+          avatar: picture,
+          role: 'owner', // Default role for Google users
+          active: true,
+          dateAdded: new Date(),
+        });
+        
+        console.log('New Google user created successfully:', {
+          id: user._id,
+          email: user.email,
+          name: user.name,
+        });
+      } catch (createError) {
+        console.error('Error creating Google user:', createError);
+        
+        // If creation fails due to duplicate, try to find existing user
+        if (createError.code === 11000) {
+          user = await User.findOne({
+            $or: [{ email }, { googleId }]
+          });
+          
+          if (!user) {
+            throw new Error('Failed to create user and user not found');
+          }
+        } else {
+          throw createError;
+        }
+      }
+    }
+
+    // Generate JWT token
+    const token = generateToken(user);
+
+    // Return user without password and token
+    const userResponse = user.toObject();
+    delete userResponse.password;
+
+    res.json({
+      user: userResponse,
+      token,
+    });
+  } catch (err) {
+    console.error("Google login error:", err);
     res.status(500).json({ error: err.message });
   }
 };
