@@ -3,7 +3,6 @@ import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { CiLock, CiUser } from "react-icons/ci";
 import { GoogleLogin } from '@react-oauth/google';
-import { jwtDecode } from "jwt-decode";
 
 
 const Login = () => {
@@ -11,6 +10,7 @@ const Login = () => {
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  const [isGoogleLoading, setIsGoogleLoading] = useState(false);
   const { login, googleLogin } = useAuth();
   const navigate = useNavigate();
 
@@ -142,20 +142,28 @@ const Login = () => {
 
         {/* Google Login */}
         <div className="mt-6 flex justify-center">
-               <GoogleLogin
-                onSuccess={(response) => {
-                  try {
-                    if (response.credential) {
-                      const userData = jwtDecode(response.credential);
-                      googleLogin(userData); 
-                      console.log("Google User:", userData);
-                    }
-                  } catch (err) {
-                    console.error("JWT decode error:", err);
+          <GoogleLogin
+            onSuccess={async (response) => {
+              if (response.credential) {
+                setIsGoogleLoading(true);
+                setError('');
+                try {
+                  const success = await googleLogin(response.credential);
+                  if (!success) {
+                    setError('Google authentication failed. Please try again.');
                   }
-                }}
-                onError={() => console.log("Google Login Failed")}
-              />
+                } catch (err) {
+                  console.error("Google login error:", err);
+                  setError('An error occurred during Google authentication.');
+                } finally {
+                  setIsGoogleLoading(false);
+                }
+              }
+            }}
+            onError={() => {
+              setError('Google login was cancelled or failed.');
+            }}
+          />
         </div>
 
         {/* Footer */}

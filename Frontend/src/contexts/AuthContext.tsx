@@ -9,7 +9,7 @@ import React,
   useState,
 } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { usersAPI } from '../services/api'
+import { usersAPI, tokenManager } from '../services/api'
 
 // =====================
 // TYPES
@@ -37,7 +37,7 @@ interface AuthContextType {
   isAuthenticated: boolean
   isLoading: boolean
   login: (username: string, password: string) => Promise<boolean>
-  googleLogin: (googleUser: any) => void
+  googleLogin: (credential: string) => Promise<boolean>
   logout: () => void
   addStaffMember: (staff: Omit<StaffMember, 'id'>) => Promise<StaffMember>
   toggleStaffStatus: (id: string) => Promise<void>
@@ -52,10 +52,10 @@ const AuthContext = createContext<AuthContextType>({
   isAuthenticated: false,
   isLoading: true,
   login: async () => false,
-  googleLogin: () => {},
+  googleLogin: async () => false,
   logout: () => {},
-  addStaffMember: () => {},
-  toggleStaffStatus: () => {},
+  addStaffMember: async () => ({ id: '', name: '', email: '', username: '', role: 'staff', active: true, dateAdded: '' }),
+  toggleStaffStatus: async () => {},
 })
 
 // =====================
@@ -170,7 +170,16 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     async (username: string, password: string): Promise<boolean> => {
       try {
         // Try to login via API
-        const loggedInUser = await usersAPI.login(username, password)
+        const response = await usersAPI.login(username, password)
+        
+        // Extract user and token from response
+        const loggedInUser = response.user || response
+        const token = response.token
+
+        // Store token if provided
+        if (token) {
+          tokenManager.setToken(token)
+        }
         
         // Convert MongoDB _id to id
         const userObj: User = {
@@ -217,20 +226,58 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   // GOOGLE LOGIN
   // =====================
   const googleLogin = useCallback(
-    (googleUser: any) => {
-      const loggedInUser: User = {
-        id: googleUser.sub,
-        name: googleUser.name,
-        email: googleUser.email,
-        role: 'owner',
-        avatar: googleUser.picture,
+    async (credential: string): Promise<boolean> => {
+      try {
+        // Send credential to backend for verification
+        const response = await usersAPI.googleLogin(credential)
+        
+        // Extract user and token from response
+        const loggedInUser = response.user || response
+        const token = response.token
+
+        // Store token if provided
+        if (token) {
+          tokenManager.setToken(token)
+        }
+        
+        // Convert MongoDB _id to id
+        const userObj: User = {
+          id: loggedInUser._id || loggedInUser.id,
+          name: loggedInUser.name,
+          email: loggedInUser.email,
+          role: loggedInUser.role,
+          avatar: loggedInUser.avatar,
+        }
+
+        setUser(userObj)
+        setIsAuthenticated(true)
+        localStorage.setItem('biztrack_user', JSON.stringify(userObj))
+        
+        // Refresh staff list after successful login
+        try {
+          const staff = await usersAPI.getAll()
+          const formattedStaff: StaffMember[] = staff.map((s: any) => ({
+            id: s._id || s.id,
+            name: s.name,
+            email: s.email,
+            username: s.username,
+            role: s.role,
+            active: s.active,
+            dateAdded: s.dateAdded 
+              ? new Date(s.dateAdded).toISOString().split('T')[0]
+              : new Date().toISOString().split('T')[0],
+          }))
+          setStaffMembers(formattedStaff)
+        } catch (error) {
+          console.error('Failed to refresh staff list:', error)
+        }
+
+        navigate('/', { replace: true })
+        return true
+      } catch (error: any) {
+        console.error('Google login failed:', error)
+        return false
       }
-
-      setUser(loggedInUser)
-      setIsAuthenticated(true)
-      localStorage.setItem('biztrack_user', JSON.stringify(loggedInUser))
-
-      navigate('/', { replace: true })
     },
     [navigate],
   )
@@ -242,6 +289,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setUser(null)
     setIsAuthenticated(false)
     localStorage.removeItem('biztrack_user')
+    tokenManager.removeToken()
     navigate('/login', { replace: true })
   }, [navigate])
 

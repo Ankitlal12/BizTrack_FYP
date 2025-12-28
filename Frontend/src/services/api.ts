@@ -2,6 +2,19 @@
 // @ts-ignore - Vite environment variables
 const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
 
+// Token management
+const getToken = (): string | null => {
+  return localStorage.getItem('biztrack_token');
+};
+
+const setToken = (token: string): void => {
+  localStorage.setItem('biztrack_token', token);
+};
+
+const removeToken = (): void => {
+  localStorage.removeItem('biztrack_token');
+};
+
 // Generic API request function
 async function apiRequest<T>(
   endpoint: string,
@@ -9,9 +22,13 @@ async function apiRequest<T>(
 ): Promise<T> {
   const url = `${API_BASE_URL}${endpoint}`;
   
+  // Get token from localStorage
+  const token = getToken();
+  
   const config: RequestInit = {
     headers: {
       'Content-Type': 'application/json',
+      ...(token && { Authorization: `Bearer ${token}` }),
       ...options.headers,
     },
     ...options,
@@ -129,9 +146,20 @@ export const usersAPI = {
     method: 'POST',
     body: JSON.stringify({ username, password }),
   }),
+  googleLogin: (credential: string) => apiRequest<any>('/users/google-login', {
+    method: 'POST',
+    body: JSON.stringify({ credential }),
+  }),
   updateStatus: (id: string, active: boolean) => apiRequest<any>(`/users/${id}/status`, {
     method: 'PUT',
     body: JSON.stringify({ active }),
   }),
+};
+
+// Export token management functions
+export const tokenManager = {
+  getToken,
+  setToken,
+  removeToken,
 };
 
