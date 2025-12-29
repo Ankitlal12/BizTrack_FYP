@@ -157,6 +157,104 @@ exports.getUserById = async (req, res) => {
   }
 };
 
+// Update user (username and/or password)
+exports.updateUser = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { username, password } = req.body;
+
+    // Find user
+    const user = await User.findById(id);
+
+    if (!user) {
+      return res.status(404).json({ error: "User not found" });
+    }
+
+    // Prepare update object
+    const updateData = {};
+
+    // Update username if provided
+    if (username !== undefined) {
+      if (!username || username.trim() === '') {
+        return res.status(400).json({ 
+          error: "Username cannot be empty" 
+        });
+      }
+
+      // Check if new username is already taken by another user
+      const existingUser = await User.findOne({ 
+        username: username.trim(),
+        _id: { $ne: id } // Exclude current user
+      });
+
+      if (existingUser) {
+        return res.status(400).json({ 
+          error: "Username is already taken" 
+        });
+      }
+
+      updateData.username = username.trim();
+    }
+
+    // Update password if provided
+    if (password !== undefined) {
+      if (!password || password.length < 6) {
+        return res.status(400).json({ 
+          error: "Password must be at least 6 characters long" 
+        });
+      }
+
+      // Hash new password
+      const saltRounds = 10;
+      updateData.password = await bcrypt.hash(password, saltRounds);
+    }
+
+    // If no updates provided
+    if (Object.keys(updateData).length === 0) {
+      return res.status(400).json({ 
+        error: "No valid fields to update. Provide username and/or password." 
+      });
+    }
+
+    // Update user
+    const updatedUser = await User.findByIdAndUpdate(
+      id,
+      updateData,
+      { new: true }
+    ).select('-password');
+
+    res.json(updatedUser);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+};
+
+// Delete user
+exports.deleteUser = async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    // Find and delete user
+    const user = await User.findByIdAndDelete(id);
+
+    if (!user) {
+      return res.status(404).json({ error: "User not found" });
+    }
+
+    res.json({ 
+      message: "User deleted successfully",
+      deletedUser: {
+        id: user._id,
+        name: user.name,
+        email: user.email,
+        username: user.username
+      }
+    });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+};
+
 // Google Login
 exports.googleLogin = async (req, res) => {
   try {

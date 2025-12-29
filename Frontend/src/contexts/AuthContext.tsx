@@ -41,6 +41,8 @@ interface AuthContextType {
   logout: () => void
   addStaffMember: (staff: Omit<StaffMember, 'id'>) => Promise<StaffMember>
   toggleStaffStatus: (id: string) => Promise<void>
+  updateStaffMember: (id: string, data: { username?: string; password?: string }) => Promise<StaffMember>
+  deleteStaffMember: (id: string) => Promise<void>
 }
 
 // =====================
@@ -56,6 +58,8 @@ const AuthContext = createContext<AuthContextType>({
   logout: () => {},
   addStaffMember: async () => ({ id: '', name: '', email: '', username: '', role: 'staff', active: true, dateAdded: '' }),
   toggleStaffStatus: async () => {},
+  updateStaffMember: async () => ({ id: '', name: '', email: '', username: '', role: 'staff', active: true, dateAdded: '' }),
+  deleteStaffMember: async () => {},
 })
 
 // =====================
@@ -372,6 +376,62 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   }, [staffMembers])
 
   // =====================
+  // UPDATE STAFF
+  // =====================
+  const updateStaffMember = useCallback(async (id: string, data: { username?: string; password?: string }) => {
+    try {
+      // Update staff member via API
+      const updatedStaff = await usersAPI.update(id, data)
+
+      // Find current staff member to preserve other fields
+      const currentStaff = staffMembers.find((s) => s.id === id)
+      if (!currentStaff) {
+        console.error('Staff member not found')
+        throw new Error('Staff member not found')
+      }
+
+      // Convert MongoDB _id to id and format dateAdded
+      const formattedStaff: StaffMember = {
+        id: updatedStaff._id || updatedStaff.id,
+        name: updatedStaff.name || currentStaff.name,
+        email: updatedStaff.email || currentStaff.email,
+        username: updatedStaff.username || currentStaff.username,
+        role: updatedStaff.role || currentStaff.role,
+        active: updatedStaff.active !== undefined ? updatedStaff.active : currentStaff.active,
+        dateAdded: updatedStaff.dateAdded 
+          ? new Date(updatedStaff.dateAdded).toISOString().split('T')[0]
+          : currentStaff.dateAdded,
+      }
+
+      // Update local state
+      setStaffMembers((prev) =>
+        prev.map((s) => (s.id === id ? formattedStaff : s))
+      )
+
+      return formattedStaff
+    } catch (error: any) {
+      console.error('Failed to update staff member:', error)
+      throw error
+    }
+  }, [staffMembers])
+
+  // =====================
+  // DELETE STAFF
+  // =====================
+  const deleteStaffMember = useCallback(async (id: string) => {
+    try {
+      // Delete staff member via API
+      await usersAPI.delete(id)
+
+      // Update local state
+      setStaffMembers((prev) => prev.filter((s) => s.id !== id))
+    } catch (error: any) {
+      console.error('Failed to delete staff member:', error)
+      throw error
+    }
+  }, [])
+
+  // =====================
   // CONTEXT VALUE
   // =====================
   const value = useMemo(
@@ -385,6 +445,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       logout,
       addStaffMember,
       toggleStaffStatus,
+      updateStaffMember,
+      deleteStaffMember,
     }),
     [
       user,
@@ -396,6 +458,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       logout,
       addStaffMember,
       toggleStaffStatus,
+      updateStaffMember,
+      deleteStaffMember,
     ],
   )
 

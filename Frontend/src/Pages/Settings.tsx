@@ -26,7 +26,7 @@ const tabs: { id: TabId; label: string; icon: React.ReactNode }[] = [
 
 const Settings = () => {
   const [activeTab, setActiveTab] = useState<TabId>('profile')
-  const { user, staffMembers, toggleStaffStatus, addStaffMember } = useAuth()
+  const { user, staffMembers, toggleStaffStatus, addStaffMember, updateStaffMember, deleteStaffMember } = useAuth()
   const handleAddStaff = (member: any) => addStaffMember(member)
 
   const renderTabContent = () => {
@@ -39,6 +39,8 @@ const Settings = () => {
             staffMembers={staffMembers || []}
             toggleStaffStatus={toggleStaffStatus}
             addStaffMember={handleAddStaff}
+            updateStaffMember={updateStaffMember}
+            deleteStaffMember={deleteStaffMember}
           />
         )
       case 'notifications':

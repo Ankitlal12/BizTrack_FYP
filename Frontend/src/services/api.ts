@@ -154,6 +154,13 @@ export const usersAPI = {
     method: 'PUT',
     body: JSON.stringify({ active }),
   }),
+  update: (id: string, data: { username?: string; password?: string }) => apiRequest<any>(`/users/${id}`, {
+    method: 'PUT',
+    body: JSON.stringify(data),
+  }),
+  delete: (id: string) => apiRequest<{ message: string; deletedUser: any }>(`/users/${id}`, {
+    method: 'DELETE',
+  }),
 };
 
 // Export token management functions
