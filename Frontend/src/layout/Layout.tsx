@@ -3,6 +3,8 @@ import Sidebar from './Sidebar'
 import { FaBell } from "react-icons/fa";
 import { FiLogOut, FiUser, FiMail, FiShield, FiHash } from "react-icons/fi";
 import { useAuth } from '../contexts/AuthContext';
+import NotificationDropdown from '../components/NotificationDropdown';
+import { notificationsAPI } from '../services/api';
 
 interface LayoutProps {
   children: React.ReactNode
@@ -12,6 +14,7 @@ const Layout: React.FC<LayoutProps> = memo(({ children }) => {
   const { user, logout } = useAuth()
   const [showProfileModal, setShowProfileModal] = useState(false)
   const [showNotifications, setShowNotifications] = useState(false)
+  const [unreadCount, setUnreadCount] = useState(0)
   const profileRef = useRef<HTMLDivElement>(null)
   const notificationRef = useRef<HTMLDivElement>(null)
 
@@ -22,6 +25,25 @@ const Layout: React.FC<LayoutProps> = memo(({ children }) => {
       .join('')
       .toUpperCase()
   }
+
+  // Load unread count
+  useEffect(() => {
+    if (user?.role === 'owner') {
+      const loadUnreadCount = async () => {
+        try {
+          const result = await notificationsAPI.getUnreadCount()
+          setUnreadCount(result.count)
+        } catch (error) {
+          console.error('Failed to load unread count:', error)
+        }
+      }
+      
+      loadUnreadCount()
+      // Poll for new notifications every 30 seconds
+      const interval = setInterval(loadUnreadCount, 30000)
+      return () => clearInterval(interval)
+    }
+  }, [user?.role])
 
   // Close modals when clicking outside
   useEffect(() => {
@@ -79,20 +101,19 @@ const Layout: React.FC<LayoutProps> = memo(({ children }) => {
                     title="Notifications"
                   >
                     <FaBell className="h-5 w-5 text-gray-500" />
-                    <span className="absolute top-1 right-1 h-2 w-2 rounded-full bg-red-500"></span>
+                    {unreadCount > 0 && (
+                      <span className="absolute top-0 right-0 h-5 w-5 rounded-full bg-red-500 text-white text-xs flex items-center justify-center font-semibold">
+                        {unreadCount > 9 ? '9+' : unreadCount}
+                      </span>
+                    )}
                   </button>
                   
                   {/* Notifications Dropdown */}
-                  {showNotifications && (
-                    <div className="absolute right-0 mt-2 w-80 bg-white rounded-lg shadow-lg border border-gray-200 py-2 z-50">
-                      <div className="px-4 py-2 border-b border-gray-200">
-                        <h3 className="text-sm font-semibold text-gray-900">Notifications</h3>
-                      </div>
-                      <div className="px-4 py-8 text-center text-sm text-gray-500">
-                        No new notifications
-                      </div>
-                    </div>
-                  )}
+                  <NotificationDropdown
+                    isOpen={showNotifications}
+                    onClose={() => setShowNotifications(false)}
+                    onUnreadCountChange={setUnreadCount}
+                  />
                 </div>
               )}
 

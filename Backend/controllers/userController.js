@@ -1,4 +1,5 @@
 const User = require("../models/User");
+const Notification = require("../models/Notification");
 const bcrypt = require("bcryptjs");
 const { OAuth2Client } = require("google-auth-library");
 const { generateToken } = require("../utils/jwt");
@@ -40,6 +41,26 @@ exports.createUser = async (req, res) => {
       active: true,
       dateAdded: new Date(),
     });
+
+    // Create notification for new staff member
+    try {
+      await Notification.create({
+        type: "system",
+        title: "New Staff Member Added",
+        message: `${name} has been added as a ${role || 'staff'} member.`,
+        relatedId: user._id,
+        relatedModel: "User",
+        metadata: {
+          userName: name,
+          email: email,
+          role: role || 'staff',
+          username: username,
+        },
+      });
+    } catch (notifError) {
+      // Don't fail the user creation if notification fails
+      console.error("Failed to create notification:", notifError);
+    }
 
     // Return user without password
     const userResponse = user.toObject();
@@ -234,12 +255,35 @@ exports.deleteUser = async (req, res) => {
   try {
     const { id } = req.params;
 
-    // Find and delete user
-    const user = await User.findByIdAndDelete(id);
+    // Find user before deletion to get their info
+    const user = await User.findById(id);
 
     if (!user) {
       return res.status(404).json({ error: "User not found" });
     }
+
+    // Create notification for staff deletion
+    try {
+      await Notification.create({
+        type: "system",
+        title: "Staff Member Deleted",
+        message: `${user.name} (${user.email}) has been removed from the system.`,
+        relatedId: user._id,
+        relatedModel: "User",
+        metadata: {
+          userName: user.name,
+          email: user.email,
+          role: user.role,
+          username: user.username,
+        },
+      });
+    } catch (notifError) {
+      // Don't fail the deletion if notification fails
+      console.error("Failed to create notification:", notifError);
+    }
+
+    // Delete user
+    await User.findByIdAndDelete(id);
 
     res.json({ 
       message: "User deleted successfully",

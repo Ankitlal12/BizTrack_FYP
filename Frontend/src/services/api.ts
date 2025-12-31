@@ -163,6 +163,31 @@ export const usersAPI = {
   }),
 };
 
+// Notifications API
+export const notificationsAPI = {
+  getAll: (params?: { read?: boolean; limit?: number }) => {
+    const queryParams = new URLSearchParams();
+    if (params?.read !== undefined) queryParams.append('read', params.read.toString());
+    if (params?.limit !== undefined) queryParams.append('limit', params.limit.toString());
+    const query = queryParams.toString();
+    return apiRequest<any[]>(`/notifications${query ? `?${query}` : ''}`);
+  },
+  getUnreadCount: () => apiRequest<{ count: number }>('/notifications/unread/count'),
+  getById: (id: string) => apiRequest<any>(`/notifications/${id}`),
+  markAsRead: (id: string) => apiRequest<any>(`/notifications/${id}/read`, {
+    method: 'PATCH',
+  }),
+  markAllAsRead: () => apiRequest<{ message: string; updatedCount: number }>('/notifications/read/all', {
+    method: 'PATCH',
+  }),
+  delete: (id: string) => apiRequest<{ message: string }>(`/notifications/${id}`, {
+    method: 'DELETE',
+  }),
+  deleteAllRead: () => apiRequest<{ message: string; deletedCount: number }>('/notifications/read/all', {
+    method: 'DELETE',
+  }),
+};
+
 // Export token management functions
 export const tokenManager = {
   getToken,

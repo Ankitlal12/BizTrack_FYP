@@ -1,5 +1,62 @@
 const Purchase = require("../models/Purchase");
 const Inventory = require("../models/Inventory");
+const Notification = require("../models/Notification");
+
+// Helper function to check and create low stock notifications
+const checkAndCreateStockNotification = async (item) => {
+  try {
+    // Check if stock is out
+    if (item.stock <= 0) {
+      const existingNotif = await Notification.findOne({
+        type: "out_of_stock",
+        relatedId: item._id,
+        read: false,
+      });
+      
+      if (!existingNotif) {
+        await Notification.create({
+          type: "out_of_stock",
+          title: "Item Out of Stock",
+          message: `${item.name} (SKU: ${item.sku}) is out of stock. Please restock immediately.`,
+          relatedId: item._id,
+          relatedModel: "Inventory",
+          metadata: {
+            itemName: item.name,
+            sku: item.sku,
+            stock: item.stock,
+            reorderLevel: item.reorderLevel,
+          },
+        });
+      }
+    }
+    // Check if stock is low (below reorder level)
+    else if (item.stock <= item.reorderLevel) {
+      const existingNotif = await Notification.findOne({
+        type: "low_stock",
+        relatedId: item._id,
+        read: false,
+      });
+      
+      if (!existingNotif) {
+        await Notification.create({
+          type: "low_stock",
+          title: "Low Stock Alert",
+          message: `${item.name} (SKU: ${item.sku}) is running low. Current stock: ${item.stock}, Reorder level: ${item.reorderLevel}.`,
+          relatedId: item._id,
+          relatedModel: "Inventory",
+          metadata: {
+            itemName: item.name,
+            sku: item.sku,
+            stock: item.stock,
+            reorderLevel: item.reorderLevel,
+          },
+        });
+      }
+    }
+  } catch (notifError) {
+    console.error("Failed to create stock notification:", notifError);
+  }
+};
 
 // Get all purchases
 exports.getAllPurchases = async (req, res) => {
@@ -48,6 +105,9 @@ exports.createPurchase = async (req, res) => {
           inventoryItem.price = item.sellingPrice;
         }
         await inventoryItem.save();
+        
+        // Check for low stock after update
+        await checkAndCreateStockNotification(inventoryItem);
       } else {
         // Create new inventory item
         // Generate SKU from item name
@@ -84,6 +144,27 @@ exports.createPurchase = async (req, res) => {
     
     const purchase = await Purchase.create(purchaseData);
 
+    // Create notification for new purchase
+    try {
+      const totalItems = processedItems.reduce((sum, item) => sum + item.quantity, 0);
+      await Notification.create({
+        type: "purchase",
+        title: "New Purchase Order Created",
+        message: `Purchase order ${purchase.purchaseNumber} has been created with ${totalItems} item(s) from ${req.body.supplierName || 'supplier'}.`,
+        relatedId: purchase._id,
+        relatedModel: "Purchase",
+        metadata: {
+          purchaseNumber: purchase.purchaseNumber,
+          supplierName: req.body.supplierName,
+          totalItems: totalItems,
+          total: purchase.total,
+        },
+      });
+    } catch (notifError) {
+      // Don't fail the purchase creation if notification fails
+      console.error("Failed to create notification:", notifError);
+    }
+
     const populatedPurchase = await Purchase.findById(purchase._id).populate("items.inventoryId");
     res.status(201).json(populatedPurchase);
   } catch (err) {
@@ -95,6 +176,10 @@ exports.createPurchase = async (req, res) => {
 exports.updatePurchase = async (req, res) => {
   try {
     const oldPurchase = await Purchase.findById(req.params.id);
+    if (!oldPurchase) {
+      return res.status(404).json({ error: "Purchase not found" });
+    }
+
     const purchase = await Purchase.findByIdAndUpdate(
       req.params.id,
       req.body,
@@ -114,6 +199,50 @@ exports.updatePurchase = async (req, res) => {
           });
         }
       }
+    }
+
+    // Create notification for purchase update
+    try {
+      const totalItems = purchase.items.reduce((sum, item) => sum + item.quantity, 0);
+      let updateMessage = `Purchase order ${purchase.purchaseNumber} has been updated.`;
+      
+      // Check what was updated
+      const changes = [];
+      if (req.body.status && req.body.status !== oldPurchase.status) {
+        changes.push(`status changed to ${req.body.status}`);
+      }
+      if (req.body.items) {
+        changes.push("items have been modified");
+      }
+      if (req.body.supplierName && req.body.supplierName !== oldPurchase.supplierName) {
+        changes.push(`supplier changed to ${req.body.supplierName}`);
+      }
+      if (req.body.total && req.body.total !== oldPurchase.total) {
+        changes.push(`total amount updated to ${req.body.total}`);
+      }
+      
+      if (changes.length > 0) {
+        updateMessage = `Purchase order ${purchase.purchaseNumber} has been updated: ${changes.join(", ")}.`;
+      }
+
+      await Notification.create({
+        type: "purchase",
+        title: "Purchase Order Updated",
+        message: updateMessage,
+        relatedId: purchase._id,
+        relatedModel: "Purchase",
+        metadata: {
+          purchaseNumber: purchase.purchaseNumber,
+          supplierName: purchase.supplierName,
+          totalItems: totalItems,
+          total: purchase.total,
+          status: purchase.status,
+          changes: changes,
+        },
+      });
+    } catch (notifError) {
+      // Don't fail the purchase update if notification fails
+      console.error("Failed to create notification:", notifError);
     }
 
     res.json(purchase);
