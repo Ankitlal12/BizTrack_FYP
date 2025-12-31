@@ -1,19 +1,14 @@
 import React from 'react'
-import { EditIcon, TrashIcon } from 'lucide-react'
 import { InventoryItem, getStatusClass, getStockStatus } from './helpers'
 
 type InventoryTableProps = {
   items: InventoryItem[]
   isLoading: boolean
-  onEditItem: (item: InventoryItem) => void
-  onDeleteItem: (id: string) => void
 }
 
 const InventoryTable: React.FC<InventoryTableProps> = ({
   items,
   isLoading,
-  onEditItem,
-  onDeleteItem,
 }) => {
   return (
     <div className="overflow-x-auto">
@@ -27,20 +22,19 @@ const InventoryTable: React.FC<InventoryTableProps> = ({
             <th className="px-4 py-3 text-left text-xs text-gray-500">Stock</th>
             <th className="px-4 py-3 text-left text-xs text-gray-500">Status</th>
             <th className="px-4 py-3 text-left text-xs text-gray-500">Location</th>
-            <th className="px-4 py-3 text-right text-xs text-gray-500">Actions</th>
           </tr>
         </thead>
 
         <tbody className="bg-white divide-y divide-gray-200">
           {isLoading ? (
             <tr>
-              <td colSpan={8} className="px-4 py-8 text-center text-gray-500">
+              <td colSpan={7} className="px-4 py-8 text-center text-gray-500">
                 Loading inventory...
               </td>
             </tr>
           ) : items.length === 0 ? (
             <tr>
-              <td colSpan={8} className="px-4 py-8 text-center text-gray-500">
+              <td colSpan={7} className="px-4 py-8 text-center text-gray-500">
                 No items found
               </td>
             </tr>
@@ -86,23 +80,6 @@ const InventoryTable: React.FC<InventoryTableProps> = ({
                   </td>
 
                   <td className="px-4 py-4">{item.location}</td>
-
-                  <td className="px-4 py-4 text-right">
-                    <button
-                      onClick={() => onEditItem(item)}
-                      className="text-teal-600 mr-3 hover:text-teal-700"
-                    >
-                      <EditIcon size={16} />
-                    </button>
-                    {item._id && (
-                      <button
-                        onClick={() => onDeleteItem(item._id!)}
-                        className="text-red-600 hover:text-red-700"
-                      >
-                        <TrashIcon size={16} />
-                      </button>
-                    )}
-                  </td>
                 </tr>
               )
             })

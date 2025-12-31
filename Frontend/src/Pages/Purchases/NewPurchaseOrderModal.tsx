@@ -91,8 +91,10 @@ const NewPurchaseOrderModal: React.FC<NewPurchaseOrderModalProps> = ({
       supplierName: supplier,
       items: items.map((item) => ({
         name: item.name,
+        category: item.category,
         quantity: item.quantity,
         cost: item.costPrice,
+        sellingPrice: item.sellingPrice,
         total: item.total,
       })),
       subtotal,

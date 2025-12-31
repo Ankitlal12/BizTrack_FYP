@@ -5,27 +5,13 @@ import { inventoryAPI } from '../services/api'
 import { InventoryItem } from './Inventory/helpers'
 import InventoryFilters from './Inventory/InventoryFilters'
 import InventoryTable from './Inventory/InventoryTable'
-import InventoryModal from './Inventory/InventoryModal'
 import InventorySummary from './Inventory/InventorySummary'
 
 const Inventory = () => {
   const [searchTerm, setSearchTerm] = useState('')
   const [categoryFilter, setCategoryFilter] = useState('all')
-  const [showAddModal, setShowAddModal] = useState(false)
-  const [selectedItem, setSelectedItem] = useState<InventoryItem | null>(null)
   const [inventoryItems, setInventoryItems] = useState<InventoryItem[]>([])
   const [isLoading, setIsLoading] = useState(false)
-  const [formData, setFormData] = useState<InventoryItem>({
-    name: '',
-    sku: '',
-    category: '',
-    price: 0,
-    cost: 0,
-    stock: 0,
-    reorderLevel: 5,
-    supplier: '',
-    location: '',
-  })
 
   useEffect(() => {
     loadInventory()
@@ -93,74 +79,6 @@ const Inventory = () => {
     }
   }
 
-  const handleAddItem = () => {
-    setSelectedItem(null)
-    setFormData({
-      name: '',
-      sku: '',
-      category: '',
-      price: 0,
-      cost: 0,
-      stock: 0,
-      reorderLevel: 5,
-      supplier: '',
-      location: '',
-    })
-    setShowAddModal(true)
-  }
-
-  const handleEditItem = (item: InventoryItem) => {
-    setSelectedItem(item)
-    setFormData({
-      name: item.name,
-      sku: item.sku,
-      category: item.category,
-      price: item.price,
-      cost: item.cost,
-      stock: item.stock,
-      reorderLevel: item.reorderLevel,
-      supplier: item.supplier,
-      location: item.location,
-    })
-    setShowAddModal(true)
-  }
-
-  const handleDeleteItem = async (id: string) => {
-    if (!confirm('Are you sure you want to delete this item?')) return
-
-    try {
-      await inventoryAPI.delete(id)
-      toast.success('Item deleted successfully')
-      loadInventory()
-    } catch (error: any) {
-      toast.error('Failed to delete item', {
-        description: error.message || 'Please try again.',
-      })
-    }
-  }
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault()
-    try {
-      if (selectedItem?._id) {
-        await inventoryAPI.update(selectedItem._id, formData)
-        toast.success('Item updated successfully')
-      } else {
-        await inventoryAPI.create(formData)
-        toast.success('Item added successfully')
-      }
-      setShowAddModal(false)
-      loadInventory()
-    } catch (error: any) {
-      toast.error(
-        selectedItem?._id ? 'Failed to update item' : 'Failed to add item',
-        {
-          description: error.message || 'Please try again.',
-        },
-      )
-    }
-  }
-
   const categories = useMemo(
     () => ['all', ...new Set(inventoryItems.map((i) => i.category))],
     [inventoryItems],
@@ -194,27 +112,15 @@ const Inventory = () => {
             categoryFilter={categoryFilter}
             onCategoryChange={setCategoryFilter}
             categories={categories}
-            onAddItem={handleAddItem}
           />
 
           <InventoryTable
             items={filteredItems}
             isLoading={isLoading}
-            onEditItem={handleEditItem}
-            onDeleteItem={handleDeleteItem}
           />
         </div>
 
         <InventorySummary items={inventoryItems} />
-
-        <InventoryModal
-          isOpen={showAddModal}
-          onClose={() => setShowAddModal(false)}
-          onSubmit={handleSubmit}
-          formData={formData}
-          setFormData={setFormData}
-          selectedItem={selectedItem}
-        />
       </div>
     </Layout>
   )

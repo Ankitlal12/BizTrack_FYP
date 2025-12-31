@@ -1,5 +1,5 @@
 import React from 'react'
-import { SearchIcon, PlusIcon } from 'lucide-react'
+import { SearchIcon } from 'lucide-react'
 
 type InventoryFiltersProps = {
   searchTerm: string
@@ -7,7 +7,6 @@ type InventoryFiltersProps = {
   categoryFilter: string
   onCategoryChange: (value: string) => void
   categories: string[]
-  onAddItem: () => void
 }
 
 const InventoryFilters: React.FC<InventoryFiltersProps> = ({
@@ -16,7 +15,6 @@ const InventoryFilters: React.FC<InventoryFiltersProps> = ({
   categoryFilter,
   onCategoryChange,
   categories,
-  onAddItem,
 }) => {
   return (
     <div className="flex flex-col md:flex-row gap-4 mb-6">
@@ -42,13 +40,6 @@ const InventoryFilters: React.FC<InventoryFiltersProps> = ({
           </option>
         ))}
       </select>
-
-      <button
-        onClick={onAddItem}
-        className="bg-teal-500 text-white px-4 py-2 rounded-lg flex items-center justify-center hover:bg-teal-600 transition-colors"
-      >
-        <PlusIcon size={18} className="mr-1" /> Add Item
-      </button>
     </div>
   )
 }
