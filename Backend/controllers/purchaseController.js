@@ -29,18 +29,60 @@ exports.getPurchaseById = async (req, res) => {
 // Create new purchase
 exports.createPurchase = async (req, res) => {
   try {
-    const purchase = await Purchase.create(req.body);
-
-    // Update inventory stock when purchase is received
-    if (req.body.status === "received") {
-      for (const item of req.body.items) {
-        if (item.inventoryId) {
-          await Inventory.findByIdAndUpdate(item.inventoryId, {
-            $inc: { stock: item.quantity },
-          });
+    // Process items and create/update inventory
+    const processedItems = [];
+    
+    for (const item of req.body.items) {
+      let inventoryItem;
+      
+      // Check if item already exists in inventory by name
+      inventoryItem = await Inventory.findOne({ name: item.name });
+      
+      if (inventoryItem) {
+        // Item exists, update stock and cost/price if needed
+        inventoryItem.stock += item.quantity;
+        if (item.cost && item.cost > 0) {
+          inventoryItem.cost = item.cost;
         }
+        if (item.sellingPrice && item.sellingPrice > 0) {
+          inventoryItem.price = item.sellingPrice;
+        }
+        await inventoryItem.save();
+      } else {
+        // Create new inventory item
+        // Generate SKU from item name
+        const sku = item.name
+          .toUpperCase()
+          .replace(/[^A-Z0-9]/g, '')
+          .substring(0, 8) + '-' + Date.now().toString().slice(-6);
+        
+        inventoryItem = await Inventory.create({
+          name: item.name,
+          sku: sku,
+          category: item.category || 'Other',
+          price: item.sellingPrice || item.cost || 0,
+          cost: item.cost || 0,
+          stock: item.quantity,
+          reorderLevel: 5,
+          supplier: req.body.supplierName || 'Unknown',
+          location: 'Warehouse',
+        });
       }
+      
+      // Add inventoryId to the item
+      processedItems.push({
+        ...item,
+        inventoryId: inventoryItem._id,
+      });
     }
+    
+    // Create purchase with processed items
+    const purchaseData = {
+      ...req.body,
+      items: processedItems,
+    };
+    
+    const purchase = await Purchase.create(purchaseData);
 
     const populatedPurchase = await Purchase.findById(purchase._id).populate("items.inventoryId");
     res.status(201).json(populatedPurchase);
