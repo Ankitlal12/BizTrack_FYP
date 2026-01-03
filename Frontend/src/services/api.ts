@@ -188,6 +188,48 @@ export const notificationsAPI = {
   }),
 };
 
+// Billing API
+export const billingAPI = {
+  // Customer endpoints
+  getAllCustomers: (search?: string) => {
+    const query = search ? `?search=${encodeURIComponent(search)}` : '';
+    return apiRequest<any[]>(`/billing/customers${query}`);
+  },
+  getCustomerById: (id: string) => apiRequest<any>(`/billing/customers/${id}`),
+  createCustomer: (data: any) => apiRequest<any>('/billing/customers', {
+    method: 'POST',
+    body: JSON.stringify(data),
+  }),
+  updateCustomer: (id: string, data: any) => apiRequest<any>(`/billing/customers/${id}`, {
+    method: 'PUT',
+    body: JSON.stringify(data),
+  }),
+  deleteCustomer: (id: string) => apiRequest<{ message: string }>(`/billing/customers/${id}`, {
+    method: 'DELETE',
+  }),
+  
+  // Product endpoints for billing
+  getBillingProducts: (search?: string) => {
+    const query = search ? `?search=${encodeURIComponent(search)}` : '';
+    return apiRequest<any[]>(`/billing/products${query}`);
+  },
+  getBillingProductById: (id: string) => apiRequest<any>(`/billing/products/${id}`),
+  
+  // Billing/Sale endpoints
+  createBill: (data: any) => apiRequest<any>('/billing/bills', {
+    method: 'POST',
+    body: JSON.stringify(data),
+  }),
+  getAllBills: (params?: { limit?: number; skip?: number }) => {
+    const queryParams = new URLSearchParams();
+    if (params?.limit) queryParams.append('limit', params.limit.toString());
+    if (params?.skip) queryParams.append('skip', params.skip.toString());
+    const query = queryParams.toString();
+    return apiRequest<any[]>(`/billing/bills${query ? `?${query}` : ''}`);
+  },
+  getBillById: (id: string) => apiRequest<any>(`/billing/bills/${id}`),
+};
+
 // Export token management functions
 export const tokenManager = {
   getToken,
