@@ -1,6 +1,63 @@
 const Customer = require("../models/Customer");
 const Inventory = require("../models/Inventory");
 const Sale = require("../models/Sale");
+const Notification = require("../models/Notification");
+
+// Helper function to check and create low stock notifications
+const checkAndCreateStockNotification = async (item) => {
+  try {
+    // Check if stock is out
+    if (item.stock <= 0) {
+      const existingNotif = await Notification.findOne({
+        type: "out_of_stock",
+        relatedId: item._id,
+        read: false,
+      });
+      
+      if (!existingNotif) {
+        await Notification.create({
+          type: "out_of_stock",
+          title: "Item Out of Stock",
+          message: `${item.name} (SKU: ${item.sku}) is out of stock. Please restock immediately.`,
+          relatedId: item._id,
+          relatedModel: "Inventory",
+          metadata: {
+            itemName: item.name,
+            sku: item.sku,
+            stock: item.stock,
+            reorderLevel: item.reorderLevel,
+          },
+        });
+      }
+    }
+    // Check if stock is low (below reorder level)
+    else if (item.stock <= item.reorderLevel) {
+      const existingNotif = await Notification.findOne({
+        type: "low_stock",
+        relatedId: item._id,
+        read: false,
+      });
+      
+      if (!existingNotif) {
+        await Notification.create({
+          type: "low_stock",
+          title: "Low Stock Alert",
+          message: `${item.name} (SKU: ${item.sku}) is running low. Current stock: ${item.stock}, Reorder level: ${item.reorderLevel}.`,
+          relatedId: item._id,
+          relatedModel: "Inventory",
+          metadata: {
+            itemName: item.name,
+            sku: item.sku,
+            stock: item.stock,
+            reorderLevel: item.reorderLevel,
+          },
+        });
+      }
+    }
+  } catch (notifError) {
+    console.error("Failed to create stock notification:", notifError);
+  }
+};
 
 // ==================== CUSTOMER ENDPOINTS ====================
 
@@ -322,6 +379,31 @@ exports.createBill = async (req, res) => {
           details: `Stock changed for ${item.name}. Please refresh and try again.`,
         });
       }
+
+      // Check for low stock after update
+      await checkAndCreateStockNotification(updatedInventory);
+    }
+
+    // Create notification for new sale
+    try {
+      const totalItems = saleItems.reduce((sum, item) => sum + item.quantity, 0);
+      await Notification.create({
+        type: "sale",
+        title: "New Sale Completed",
+        message: `Sale ${sale.invoiceNumber} has been completed with ${totalItems} item(s) for ${customerInfo.customerName || 'customer'}. Total: $${sale.total.toFixed(2)}.`,
+        relatedId: sale._id,
+        relatedModel: "Sale",
+        metadata: {
+          invoiceNumber: sale.invoiceNumber,
+          customerName: customerInfo.customerName,
+          totalItems: totalItems,
+          total: sale.total,
+          paymentMethod: sale.paymentMethod,
+        },
+      });
+    } catch (notifError) {
+      // Don't fail the sale creation if notification fails
+      console.error("Failed to create notification:", notifError);
     }
 
     // Populate and return the sale

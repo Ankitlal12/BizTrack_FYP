@@ -4,7 +4,7 @@ const notificationSchema = new mongoose.Schema({
   type: {
     type: String,
     required: true,
-    enum: ["purchase", "low_stock", "out_of_stock", "system"],
+    enum: ["purchase", "sale", "low_stock", "out_of_stock", "system"],
   },
   title: {
     type: String,
@@ -24,7 +24,7 @@ const notificationSchema = new mongoose.Schema({
   },
   relatedModel: {
     type: String,
-    enum: ["Purchase", "Inventory", "User", null],
+    enum: ["Purchase", "Sale", "Inventory", "User", null],
   },
   metadata: {
     type: mongoose.Schema.Types.Mixed,
