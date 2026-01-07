@@ -163,6 +163,11 @@ export const usersAPI = {
   }),
 };
 
+// Transactions API
+export const transactionsAPI = {
+  getAll: () => apiRequest<any[]>('/transactions'),
+};
+
 // Notifications API
 export const notificationsAPI = {
   getAll: (params?: { read?: boolean; limit?: number }) => {
