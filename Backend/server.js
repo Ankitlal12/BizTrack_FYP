@@ -59,6 +59,7 @@ const purchaseRoutes = require("./routes/purchaseRoutes");
 const invoiceRoutes = require("./routes/invoiceRoutes");
 const notificationRoutes = require("./routes/notificationRoutes");
 const billingRoutes = require("./routes/billingRoutes");
+const transactionRoutes = require("./routes/transactionRoutes");
 
 app.use("/api/users", userRoutes);
 app.use("/api/inventory", inventoryRoutes);
@@ -67,6 +68,7 @@ app.use("/api/purchases", purchaseRoutes);
 app.use("/api/invoices", invoiceRoutes);
 app.use("/api/notifications", notificationRoutes);
 app.use("/api/billing", billingRoutes);
+app.use("/api/transactions", transactionRoutes);
 
 const PORT = process.env.PORT || 5000;
 
