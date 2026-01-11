@@ -47,7 +47,7 @@ const InventoryTable: React.FC<InventoryTableProps> = ({
                 <tr
                   key={itemId}
                   className={`hover:bg-gray-50 ${
-                    item.stock < 10 ? 'bg-red-50 text-red-700' : ''
+                    item.stock < 10 ? 'text-red-700' : ''//bg-red-50
                   }`}
                 >
                   <td className="px-4 py-4">

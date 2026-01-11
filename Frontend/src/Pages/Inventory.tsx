@@ -10,6 +10,15 @@ import InventorySummary from './Inventory/InventorySummary'
 const Inventory = () => {
   const [searchTerm, setSearchTerm] = useState('')
   const [categoryFilter, setCategoryFilter] = useState('all')
+  const [statusFilter, setStatusFilter] = useState('all')
+  const [supplierFilter, setSupplierFilter] = useState('all')
+  const [locationFilter, setLocationFilter] = useState('all')
+  const [stockMin, setStockMin] = useState('')
+  const [stockMax, setStockMax] = useState('')
+  const [priceMin, setPriceMin] = useState('')
+  const [priceMax, setPriceMax] = useState('')
+  const [costMin, setCostMin] = useState('')
+  const [costMax, setCostMax] = useState('')
   const [inventoryItems, setInventoryItems] = useState<InventoryItem[]>([])
   const [isLoading, setIsLoading] = useState(false)
 
@@ -84,19 +93,127 @@ const Inventory = () => {
     [inventoryItems],
   )
 
+  const suppliers = useMemo(
+    () => Array.from(new Set(inventoryItems.map((i) => i.supplier))).sort(),
+    [inventoryItems],
+  )
+
+  const locations = useMemo(
+    () => Array.from(new Set(inventoryItems.map((i) => i.location))).sort(),
+    [inventoryItems],
+  )
+
+  const clearFilters = () => {
+    setCategoryFilter('all')
+    setStatusFilter('all')
+    setSupplierFilter('all')
+    setLocationFilter('all')
+    setStockMin('')
+    setStockMax('')
+    setPriceMin('')
+    setPriceMax('')
+    setCostMin('')
+    setCostMax('')
+  }
+
   const filteredItems = useMemo(
-    () =>
-      inventoryItems.filter((item) => {
+    () => {
+      return inventoryItems.filter((item) => {
+        // Search filter
         const matchesSearch =
           item.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
           item.sku.toLowerCase().includes(searchTerm.toLowerCase())
 
+        // Category filter
         const matchesCategory =
           categoryFilter === 'all' || item.category === categoryFilter
 
-        return matchesSearch && matchesCategory
-      }),
-    [inventoryItems, searchTerm, categoryFilter],
+        // Status filter
+        let matchesStatus = true
+        if (statusFilter !== 'all') {
+          const itemStatus = item.stock <= 0 ? 'out-of-stock' : item.stock < 5 ? 'low' : 'in-stock'
+          matchesStatus = itemStatus === statusFilter
+        }
+
+        // Supplier filter
+        const matchesSupplier =
+          supplierFilter === 'all' || item.supplier === supplierFilter
+
+        // Location filter
+        const matchesLocation =
+          locationFilter === 'all' || item.location === locationFilter
+
+        // Stock range filter
+        let matchesStock = true
+        if (stockMin !== '') {
+          const min = parseFloat(stockMin)
+          if (!isNaN(min)) {
+            matchesStock = matchesStock && item.stock >= min
+          }
+        }
+        if (stockMax !== '') {
+          const max = parseFloat(stockMax)
+          if (!isNaN(max)) {
+            matchesStock = matchesStock && item.stock <= max
+          }
+        }
+
+        // Price range filter
+        let matchesPrice = true
+        if (priceMin !== '') {
+          const min = parseFloat(priceMin)
+          if (!isNaN(min)) {
+            matchesPrice = matchesPrice && item.price >= min
+          }
+        }
+        if (priceMax !== '') {
+          const max = parseFloat(priceMax)
+          if (!isNaN(max)) {
+            matchesPrice = matchesPrice && item.price <= max
+          }
+        }
+
+        // Cost range filter
+        let matchesCost = true
+        if (costMin !== '') {
+          const min = parseFloat(costMin)
+          if (!isNaN(min)) {
+            matchesCost = matchesCost && item.cost >= min
+          }
+        }
+        if (costMax !== '') {
+          const max = parseFloat(costMax)
+          if (!isNaN(max)) {
+            matchesCost = matchesCost && item.cost <= max
+          }
+        }
+
+        return (
+          matchesSearch &&
+          matchesCategory &&
+          matchesStatus &&
+          matchesSupplier &&
+          matchesLocation &&
+          matchesStock &&
+          matchesPrice &&
+          matchesCost
+        )
+      })
+    },
+    [
+      inventoryItems,
+      searchTerm,
+      categoryFilter,
+      statusFilter,
+      supplierFilter,
+      locationFilter,
+      stockMin,
+      stockMax,
+      priceMin,
+      priceMax,
+      costMin,
+      costMax,
+    ],
   )
 
   return (
@@ -112,6 +229,27 @@ const Inventory = () => {
             categoryFilter={categoryFilter}
             onCategoryChange={setCategoryFilter}
             categories={categories}
+            statusFilter={statusFilter}
+            onStatusChange={setStatusFilter}
+            supplierFilter={supplierFilter}
+            onSupplierChange={setSupplierFilter}
+            suppliers={suppliers}
+            locationFilter={locationFilter}
+            onLocationChange={setLocationFilter}
+            locations={locations}
+            stockMin={stockMin}
+            onStockMinChange={setStockMin}
+            stockMax={stockMax}
+            onStockMaxChange={setStockMax}
+            priceMin={priceMin}
+            onPriceMinChange={setPriceMin}
+            priceMax={priceMax}
+            onPriceMaxChange={setPriceMax}
+            costMin={costMin}
+            onCostMinChange={setCostMin}
+            costMax={costMax}
+            onCostMaxChange={setCostMax}
+            onClearFilters={clearFilters}
           />
 
           <InventoryTable
