@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react'
+import React, { useEffect, useState, useMemo } from 'react'
 import { PlusIcon } from 'lucide-react'
 import { toast } from 'sonner'
 import Layout from '../layout/Layout'
@@ -14,6 +14,21 @@ const Purchases: React.FC = () => {
   const [sortField, setSortField] = useState('date')
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('desc')
   const [filterStatus, setFilterStatus] = useState('all')
+  const [paymentStatusFilter, setPaymentStatusFilter] = useState('all')
+  const [paymentMethodFilter, setPaymentMethodFilter] = useState('all')
+  const [supplierFilter, setSupplierFilter] = useState('all')
+  const [dateFrom, setDateFrom] = useState('')
+  const [dateTo, setDateTo] = useState('')
+  const [totalMin, setTotalMin] = useState('')
+  const [totalMax, setTotalMax] = useState('')
+  const [subtotalMin, setSubtotalMin] = useState('')
+  const [subtotalMax, setSubtotalMax] = useState('')
+  const [taxMin, setTaxMin] = useState('')
+  const [taxMax, setTaxMax] = useState('')
+  const [shippingMin, setShippingMin] = useState('')
+  const [shippingMax, setShippingMax] = useState('')
+  const [quantityMin, setQuantityMin] = useState('')
+  const [quantityMax, setQuantityMax] = useState('')
   const [expandedPurchase, setExpandedPurchase] = useState<string | null>(null)
   const [showNewPurchaseModal, setShowNewPurchaseModal] = useState(false)
   const [editingPaymentStatus, setEditingPaymentStatus] = useState<string | null>(null)
@@ -90,13 +105,75 @@ const Purchases: React.FC = () => {
     }
   }
 
-  const filteredPurchases = filterAndSortPurchases(
+  const suppliers = useMemo(
+    () => Array.from(new Set(purchases.map((p) => p.supplierName))).sort(),
+    [purchases],
+  )
+
+  const clearFilters = () => {
+    setFilterStatus('all')
+    setPaymentStatusFilter('all')
+    setPaymentMethodFilter('all')
+    setSupplierFilter('all')
+    setDateFrom('')
+    setDateTo('')
+    setTotalMin('')
+    setTotalMax('')
+    setSubtotalMin('')
+    setSubtotalMax('')
+    setTaxMin('')
+    setTaxMax('')
+    setShippingMin('')
+    setShippingMax('')
+    setQuantityMin('')
+    setQuantityMax('')
+  }
+
+  const filteredPurchases = useMemo(() => {
+    return filterAndSortPurchases(
+      purchases,
+      searchTerm,
+      filterStatus,
+      paymentStatusFilter,
+      paymentMethodFilter,
+      supplierFilter,
+      dateFrom,
+      dateTo,
+      totalMin,
+      totalMax,
+      subtotalMin,
+      subtotalMax,
+      taxMin,
+      taxMax,
+      shippingMin,
+      shippingMax,
+      quantityMin,
+      quantityMax,
+      sortField,
+      sortDirection
+    )
+  }, [
     purchases,
     searchTerm,
     filterStatus,
+    paymentStatusFilter,
+    paymentMethodFilter,
+    supplierFilter,
+    dateFrom,
+    dateTo,
+    totalMin,
+    totalMax,
+    subtotalMin,
+    subtotalMax,
+    taxMin,
+    taxMax,
+    shippingMin,
+    shippingMax,
+    quantityMin,
+    quantityMax,
     sortField,
-    sortDirection
-  )
+    sortDirection,
+  ])
 
   return (
     <Layout>
@@ -117,6 +194,38 @@ const Purchases: React.FC = () => {
             onSearchChange={setSearchTerm}
             filterStatus={filterStatus}
             onFilterStatusChange={setFilterStatus}
+            paymentStatusFilter={paymentStatusFilter}
+            onPaymentStatusChange={setPaymentStatusFilter}
+            paymentMethodFilter={paymentMethodFilter}
+            onPaymentMethodChange={setPaymentMethodFilter}
+            supplierFilter={supplierFilter}
+            onSupplierChange={setSupplierFilter}
+            suppliers={suppliers}
+            dateFrom={dateFrom}
+            onDateFromChange={setDateFrom}
+            dateTo={dateTo}
+            onDateToChange={setDateTo}
+            totalMin={totalMin}
+            onTotalMinChange={setTotalMin}
+            totalMax={totalMax}
+            onTotalMaxChange={setTotalMax}
+            subtotalMin={subtotalMin}
+            onSubtotalMinChange={setSubtotalMin}
+            subtotalMax={subtotalMax}
+            onSubtotalMaxChange={setSubtotalMax}
+            taxMin={taxMin}
+            onTaxMinChange={setTaxMin}
+            taxMax={taxMax}
+            onTaxMaxChange={setTaxMax}
+            shippingMin={shippingMin}
+            onShippingMinChange={setShippingMin}
+            shippingMax={shippingMax}
+            onShippingMaxChange={setShippingMax}
+            quantityMin={quantityMin}
+            onQuantityMinChange={setQuantityMin}
+            quantityMax={quantityMax}
+            onQuantityMaxChange={setQuantityMax}
+            onClearFilters={clearFilters}
           />
           <PurchaseTable
             purchases={filteredPurchases}

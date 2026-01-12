@@ -39,14 +39,27 @@ export const filterAndSortPurchases = (
   purchases: Purchase[],
   searchTerm: string,
   filterStatus: string,
+  paymentStatusFilter: string,
+  paymentMethodFilter: string,
+  supplierFilter: string,
+  dateFrom: string,
+  dateTo: string,
+  totalMin: string,
+  totalMax: string,
+  subtotalMin: string,
+  subtotalMax: string,
+  taxMin: string,
+  taxMax: string,
+  shippingMin: string,
+  shippingMax: string,
+  quantityMin: string,
+  quantityMax: string,
   sortField: string,
   sortDirection: 'asc' | 'desc'
 ): Purchase[] => {
   return [...purchases]
     .filter((purchase) => {
-      if (filterStatus !== 'all' && purchase.status !== filterStatus) {
-        return false
-      }
+      // Search filter
       if (
         searchTerm &&
         !purchase.purchaseNumber
@@ -58,6 +71,116 @@ export const filterAndSortPurchases = (
       ) {
         return false
       }
+
+      // Status filter
+      if (filterStatus !== 'all' && purchase.status !== filterStatus) {
+        return false
+      }
+
+      // Payment Status filter
+      if (paymentStatusFilter !== 'all') {
+        const purchasePaymentStatus = purchase.paymentStatus || 'unpaid'
+        if (purchasePaymentStatus !== paymentStatusFilter) {
+          return false
+        }
+      }
+
+      // Payment Method filter
+      if (paymentMethodFilter !== 'all' && purchase.paymentMethod !== paymentMethodFilter) {
+        return false
+      }
+
+      // Supplier filter
+      if (supplierFilter !== 'all' && purchase.supplierName !== supplierFilter) {
+        return false
+      }
+
+      // Date range filter
+      const purchaseDate = new Date(purchase.expectedDeliveryDate || purchase.createdAt || '')
+      if (dateFrom && purchaseDate < new Date(dateFrom)) {
+        return false
+      }
+      if (dateTo) {
+        const toDate = new Date(dateTo)
+        toDate.setHours(23, 59, 59, 999) // Include the entire end date
+        if (purchaseDate > toDate) {
+          return false
+        }
+      }
+
+      // Total range filter
+      if (totalMin !== '') {
+        const min = parseFloat(totalMin)
+        if (!isNaN(min) && purchase.total < min) {
+          return false
+        }
+      }
+      if (totalMax !== '') {
+        const max = parseFloat(totalMax)
+        if (!isNaN(max) && purchase.total > max) {
+          return false
+        }
+      }
+
+      // Subtotal range filter
+      if (subtotalMin !== '') {
+        const min = parseFloat(subtotalMin)
+        if (!isNaN(min) && purchase.subtotal < min) {
+          return false
+        }
+      }
+      if (subtotalMax !== '') {
+        const max = parseFloat(subtotalMax)
+        if (!isNaN(max) && purchase.subtotal > max) {
+          return false
+        }
+      }
+
+      // Tax range filter
+      const tax = purchase.tax || 0
+      if (taxMin !== '') {
+        const min = parseFloat(taxMin)
+        if (!isNaN(min) && tax < min) {
+          return false
+        }
+      }
+      if (taxMax !== '') {
+        const max = parseFloat(taxMax)
+        if (!isNaN(max) && tax > max) {
+          return false
+        }
+      }
+
+      // Shipping range filter
+      const shipping = purchase.shipping || 0
+      if (shippingMin !== '') {
+        const min = parseFloat(shippingMin)
+        if (!isNaN(min) && shipping < min) {
+          return false
+        }
+      }
+      if (shippingMax !== '') {
+        const max = parseFloat(shippingMax)
+        if (!isNaN(max) && shipping > max) {
+          return false
+        }
+      }
+
+      // Quantity range filter (total items quantity)
+      const totalQuantity = purchase.items.reduce((sum, item) => sum + item.quantity, 0)
+      if (quantityMin !== '') {
+        const min = parseFloat(quantityMin)
+        if (!isNaN(min) && totalQuantity < min) {
+          return false
+        }
+      }
+      if (quantityMax !== '') {
+        const max = parseFloat(quantityMax)
+        if (!isNaN(max) && totalQuantity > max) {
+          return false
+        }
+      }
+
       return true
     })
     .sort((a, b) => {
