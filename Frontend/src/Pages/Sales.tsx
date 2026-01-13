@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react'
+import React, { useEffect, useState, useMemo } from 'react'
 import { PlusIcon } from 'lucide-react'
 import { toast } from 'sonner'
 import Layout from '../layout/Layout'
@@ -14,6 +14,19 @@ const Sales: React.FC = () => {
   const [sortField, setSortField] = useState('date')
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('desc')
   const [filterStatus, setFilterStatus] = useState('all')
+  const [paymentStatusFilter, setPaymentStatusFilter] = useState('all')
+  const [paymentMethodFilter, setPaymentMethodFilter] = useState('all')
+  const [customerFilter, setCustomerFilter] = useState('all')
+  const [dateFrom, setDateFrom] = useState('')
+  const [dateTo, setDateTo] = useState('')
+  const [totalMin, setTotalMin] = useState('')
+  const [totalMax, setTotalMax] = useState('')
+  const [subtotalMin, setSubtotalMin] = useState('')
+  const [subtotalMax, setSubtotalMax] = useState('')
+  const [taxMin, setTaxMin] = useState('')
+  const [taxMax, setTaxMax] = useState('')
+  const [quantityMin, setQuantityMin] = useState('')
+  const [quantityMax, setQuantityMax] = useState('')
   const [expandedSale, setExpandedSale] = useState<string | null>(null)
   const [showNewSaleModal, setShowNewSaleModal] = useState(false)
   const [sales, setSales] = useState<Sale[]>([])
@@ -65,13 +78,69 @@ const Sales: React.FC = () => {
     }
   }
 
-  const filteredSales = filterAndSortSales(
+  const customers = useMemo(
+    () => Array.from(new Set(sales.map((s) => s.customer.name))).sort(),
+    [sales],
+  )
+
+  const clearFilters = () => {
+    setFilterStatus('all')
+    setPaymentStatusFilter('all')
+    setPaymentMethodFilter('all')
+    setCustomerFilter('all')
+    setDateFrom('')
+    setDateTo('')
+    setTotalMin('')
+    setTotalMax('')
+    setSubtotalMin('')
+    setSubtotalMax('')
+    setTaxMin('')
+    setTaxMax('')
+    setQuantityMin('')
+    setQuantityMax('')
+  }
+
+  const filteredSales = useMemo(() => {
+    return filterAndSortSales(
+      sales,
+      searchTerm,
+      filterStatus,
+      paymentStatusFilter,
+      paymentMethodFilter,
+      customerFilter,
+      dateFrom,
+      dateTo,
+      totalMin,
+      totalMax,
+      subtotalMin,
+      subtotalMax,
+      taxMin,
+      taxMax,
+      quantityMin,
+      quantityMax,
+      sortField,
+      sortDirection
+    )
+  }, [
     sales,
     searchTerm,
     filterStatus,
+    paymentStatusFilter,
+    paymentMethodFilter,
+    customerFilter,
+    dateFrom,
+    dateTo,
+    totalMin,
+    totalMax,
+    subtotalMin,
+    subtotalMax,
+    taxMin,
+    taxMax,
+    quantityMin,
+    quantityMax,
     sortField,
-    sortDirection
-  )
+    sortDirection,
+  ])
 
   return (
     <Layout>
@@ -92,6 +161,34 @@ const Sales: React.FC = () => {
             onSearchChange={setSearchTerm}
             filterStatus={filterStatus}
             onFilterStatusChange={setFilterStatus}
+            paymentStatusFilter={paymentStatusFilter}
+            onPaymentStatusChange={setPaymentStatusFilter}
+            paymentMethodFilter={paymentMethodFilter}
+            onPaymentMethodChange={setPaymentMethodFilter}
+            customerFilter={customerFilter}
+            onCustomerChange={setCustomerFilter}
+            customers={customers}
+            dateFrom={dateFrom}
+            onDateFromChange={setDateFrom}
+            dateTo={dateTo}
+            onDateToChange={setDateTo}
+            totalMin={totalMin}
+            onTotalMinChange={setTotalMin}
+            totalMax={totalMax}
+            onTotalMaxChange={setTotalMax}
+            subtotalMin={subtotalMin}
+            onSubtotalMinChange={setSubtotalMin}
+            subtotalMax={subtotalMax}
+            onSubtotalMaxChange={setSubtotalMax}
+            taxMin={taxMin}
+            onTaxMinChange={setTaxMin}
+            taxMax={taxMax}
+            onTaxMaxChange={setTaxMax}
+            quantityMin={quantityMin}
+            onQuantityMinChange={setQuantityMin}
+            quantityMax={quantityMax}
+            onQuantityMaxChange={setQuantityMax}
+            onClearFilters={clearFilters}
           />
           <SalesTable
             sales={filteredSales}

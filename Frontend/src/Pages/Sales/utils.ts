@@ -74,23 +74,124 @@ export const filterAndSortSales = (
   sales: Sale[],
   searchTerm: string,
   filterStatus: string,
+  paymentStatusFilter: string,
+  paymentMethodFilter: string,
+  customerFilter: string,
+  dateFrom: string,
+  dateTo: string,
+  totalMin: string,
+  totalMax: string,
+  subtotalMin: string,
+  subtotalMax: string,
+  taxMin: string,
+  taxMax: string,
+  quantityMin: string,
+  quantityMax: string,
   sortField: string,
   sortDirection: 'asc' | 'desc'
 ): Sale[] => {
   return [...sales]
     .filter((sale) => {
-      // Filter by status
-      if (filterStatus !== 'all' && sale.status !== filterStatus) {
-        return false
-      }
-      // Filter by search term
+      // Search filter
       if (
         searchTerm &&
         !sale.id.toLowerCase().includes(searchTerm.toLowerCase()) &&
+        !(sale.invoiceNumber?.toLowerCase().includes(searchTerm.toLowerCase())) &&
         !sale.customer.name.toLowerCase().includes(searchTerm.toLowerCase())
       ) {
         return false
       }
+
+      // Status filter
+      if (filterStatus !== 'all' && sale.status !== filterStatus) {
+        return false
+      }
+
+      // Payment Status filter
+      if (paymentStatusFilter !== 'all' && sale.paymentStatus !== paymentStatusFilter) {
+        return false
+      }
+
+      // Payment Method filter
+      if (paymentMethodFilter !== 'all' && sale.paymentMethod !== paymentMethodFilter) {
+        return false
+      }
+
+      // Customer filter
+      if (customerFilter !== 'all' && sale.customer.name !== customerFilter) {
+        return false
+      }
+
+      // Date range filter
+      const saleDate = new Date(sale.date)
+      if (dateFrom && saleDate < new Date(dateFrom)) {
+        return false
+      }
+      if (dateTo) {
+        const toDate = new Date(dateTo)
+        toDate.setHours(23, 59, 59, 999) // Include the entire end date
+        if (saleDate > toDate) {
+          return false
+        }
+      }
+
+      // Total range filter
+      if (totalMin !== '') {
+        const min = parseFloat(totalMin)
+        if (!isNaN(min) && sale.total < min) {
+          return false
+        }
+      }
+      if (totalMax !== '') {
+        const max = parseFloat(totalMax)
+        if (!isNaN(max) && sale.total > max) {
+          return false
+        }
+      }
+
+      // Subtotal range filter
+      if (subtotalMin !== '') {
+        const min = parseFloat(subtotalMin)
+        if (!isNaN(min) && sale.subtotal < min) {
+          return false
+        }
+      }
+      if (subtotalMax !== '') {
+        const max = parseFloat(subtotalMax)
+        if (!isNaN(max) && sale.subtotal > max) {
+          return false
+        }
+      }
+
+      // Tax range filter
+      if (taxMin !== '') {
+        const min = parseFloat(taxMin)
+        if (!isNaN(min) && sale.tax < min) {
+          return false
+        }
+      }
+      if (taxMax !== '') {
+        const max = parseFloat(taxMax)
+        if (!isNaN(max) && sale.tax > max) {
+          return false
+        }
+      }
+
+      // Quantity range filter (total items quantity)
+      const totalQuantity = sale.items.reduce((sum, item) => sum + item.quantity, 0)
+      if (quantityMin !== '') {
+        const min = parseFloat(quantityMin)
+        if (!isNaN(min) && totalQuantity < min) {
+          return false
+        }
+      }
+      if (quantityMax !== '') {
+        const max = parseFloat(quantityMax)
+        if (!isNaN(max) && totalQuantity > max) {
+          return false
+        }
+      }
+
       return true
     })
     .sort((a, b) => {
