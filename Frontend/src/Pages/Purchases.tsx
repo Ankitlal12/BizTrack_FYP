@@ -21,12 +21,6 @@ const Purchases: React.FC = () => {
   const [dateTo, setDateTo] = useState('')
   const [totalMin, setTotalMin] = useState('')
   const [totalMax, setTotalMax] = useState('')
-  const [subtotalMin, setSubtotalMin] = useState('')
-  const [subtotalMax, setSubtotalMax] = useState('')
-  const [taxMin, setTaxMin] = useState('')
-  const [taxMax, setTaxMax] = useState('')
-  const [shippingMin, setShippingMin] = useState('')
-  const [shippingMax, setShippingMax] = useState('')
   const [quantityMin, setQuantityMin] = useState('')
   const [quantityMax, setQuantityMax] = useState('')
   const [expandedPurchase, setExpandedPurchase] = useState<string | null>(null)
@@ -119,12 +113,6 @@ const Purchases: React.FC = () => {
     setDateTo('')
     setTotalMin('')
     setTotalMax('')
-    setSubtotalMin('')
-    setSubtotalMax('')
-    setTaxMin('')
-    setTaxMax('')
-    setShippingMin('')
-    setShippingMax('')
     setQuantityMin('')
     setQuantityMax('')
   }
@@ -141,12 +129,6 @@ const Purchases: React.FC = () => {
       dateTo,
       totalMin,
       totalMax,
-      subtotalMin,
-      subtotalMax,
-      taxMin,
-      taxMax,
-      shippingMin,
-      shippingMax,
       quantityMin,
       quantityMax,
       sortField,
@@ -163,12 +145,6 @@ const Purchases: React.FC = () => {
     dateTo,
     totalMin,
     totalMax,
-    subtotalMin,
-    subtotalMax,
-    taxMin,
-    taxMax,
-    shippingMin,
-    shippingMax,
     quantityMin,
     quantityMax,
     sortField,
@@ -209,18 +185,6 @@ const Purchases: React.FC = () => {
             onTotalMinChange={setTotalMin}
             totalMax={totalMax}
             onTotalMaxChange={setTotalMax}
-            subtotalMin={subtotalMin}
-            onSubtotalMinChange={setSubtotalMin}
-            subtotalMax={subtotalMax}
-            onSubtotalMaxChange={setSubtotalMax}
-            taxMin={taxMin}
-            onTaxMinChange={setTaxMin}
-            taxMax={taxMax}
-            onTaxMaxChange={setTaxMax}
-            shippingMin={shippingMin}
-            onShippingMinChange={setShippingMin}
-            shippingMax={shippingMax}
-            onShippingMaxChange={setShippingMax}
             quantityMin={quantityMin}
             onQuantityMinChange={setQuantityMin}
             quantityMax={quantityMax}

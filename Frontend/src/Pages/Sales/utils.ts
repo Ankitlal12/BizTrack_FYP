@@ -81,10 +81,6 @@ export const filterAndSortSales = (
   dateTo: string,
   totalMin: string,
   totalMax: string,
-  subtotalMin: string,
-  subtotalMax: string,
-  taxMin: string,
-  taxMax: string,
   quantityMin: string,
   quantityMax: string,
   sortField: string,
@@ -145,34 +141,6 @@ export const filterAndSortSales = (
       if (totalMax !== '') {
         const max = parseFloat(totalMax)
         if (!isNaN(max) && sale.total > max) {
-          return false
-        }
-      }
-
-      // Subtotal range filter
-      if (subtotalMin !== '') {
-        const min = parseFloat(subtotalMin)
-        if (!isNaN(min) && sale.subtotal < min) {
-          return false
-        }
-      }
-      if (subtotalMax !== '') {
-        const max = parseFloat(subtotalMax)
-        if (!isNaN(max) && sale.subtotal > max) {
-          return false
-        }
-      }
-
-      // Tax range filter
-      if (taxMin !== '') {
-        const min = parseFloat(taxMin)
-        if (!isNaN(min) && sale.tax < min) {
-          return false
-        }
-      }
-      if (taxMax !== '') {
-        const max = parseFloat(taxMax)
-        if (!isNaN(max) && sale.tax > max) {
           return false
         }
       }

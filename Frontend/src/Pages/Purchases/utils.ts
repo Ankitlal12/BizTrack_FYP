@@ -46,12 +46,6 @@ export const filterAndSortPurchases = (
   dateTo: string,
   totalMin: string,
   totalMax: string,
-  subtotalMin: string,
-  subtotalMax: string,
-  taxMin: string,
-  taxMax: string,
-  shippingMin: string,
-  shippingMax: string,
   quantityMin: string,
   quantityMax: string,
   sortField: string,
@@ -118,50 +112,6 @@ export const filterAndSortPurchases = (
       if (totalMax !== '') {
         const max = parseFloat(totalMax)
         if (!isNaN(max) && purchase.total > max) {
-          return false
-        }
-      }
-
-      // Subtotal range filter
-      if (subtotalMin !== '') {
-        const min = parseFloat(subtotalMin)
-        if (!isNaN(min) && purchase.subtotal < min) {
-          return false
-        }
-      }
-      if (subtotalMax !== '') {
-        const max = parseFloat(subtotalMax)
-        if (!isNaN(max) && purchase.subtotal > max) {
-          return false
-        }
-      }
-
-      // Tax range filter
-      const tax = purchase.tax || 0
-      if (taxMin !== '') {
-        const min = parseFloat(taxMin)
-        if (!isNaN(min) && tax < min) {
-          return false
-        }
-      }
-      if (taxMax !== '') {
-        const max = parseFloat(taxMax)
-        if (!isNaN(max) && tax > max) {
-          return false
-        }
-      }
-
-      // Shipping range filter
-      const shipping = purchase.shipping || 0
-      if (shippingMin !== '') {
-        const min = parseFloat(shippingMin)
-        if (!isNaN(min) && shipping < min) {
-          return false
-        }
-      }
-      if (shippingMax !== '') {
-        const max = parseFloat(shippingMax)
-        if (!isNaN(max) && shipping > max) {
           return false
         }
       }

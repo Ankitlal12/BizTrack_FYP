@@ -21,10 +21,6 @@ const Sales: React.FC = () => {
   const [dateTo, setDateTo] = useState('')
   const [totalMin, setTotalMin] = useState('')
   const [totalMax, setTotalMax] = useState('')
-  const [subtotalMin, setSubtotalMin] = useState('')
-  const [subtotalMax, setSubtotalMax] = useState('')
-  const [taxMin, setTaxMin] = useState('')
-  const [taxMax, setTaxMax] = useState('')
   const [quantityMin, setQuantityMin] = useState('')
   const [quantityMax, setQuantityMax] = useState('')
   const [expandedSale, setExpandedSale] = useState<string | null>(null)
@@ -92,10 +88,6 @@ const Sales: React.FC = () => {
     setDateTo('')
     setTotalMin('')
     setTotalMax('')
-    setSubtotalMin('')
-    setSubtotalMax('')
-    setTaxMin('')
-    setTaxMax('')
     setQuantityMin('')
     setQuantityMax('')
   }
@@ -112,10 +104,6 @@ const Sales: React.FC = () => {
       dateTo,
       totalMin,
       totalMax,
-      subtotalMin,
-      subtotalMax,
-      taxMin,
-      taxMax,
       quantityMin,
       quantityMax,
       sortField,
@@ -132,10 +120,6 @@ const Sales: React.FC = () => {
     dateTo,
     totalMin,
     totalMax,
-    subtotalMin,
-    subtotalMax,
-    taxMin,
-    taxMax,
     quantityMin,
     quantityMax,
     sortField,
@@ -176,14 +160,6 @@ const Sales: React.FC = () => {
             onTotalMinChange={setTotalMin}
             totalMax={totalMax}
             onTotalMaxChange={setTotalMax}
-            subtotalMin={subtotalMin}
-            onSubtotalMinChange={setSubtotalMin}
-            subtotalMax={subtotalMax}
-            onSubtotalMaxChange={setSubtotalMax}
-            taxMin={taxMin}
-            onTaxMinChange={setTaxMin}
-            taxMax={taxMax}
-            onTaxMaxChange={setTaxMax}
             quantityMin={quantityMin}
             onQuantityMinChange={setQuantityMin}
             quantityMax={quantityMax}

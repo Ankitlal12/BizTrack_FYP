@@ -21,14 +21,6 @@ interface SalesFiltersProps {
   onTotalMinChange: (value: string) => void
   totalMax: string
   onTotalMaxChange: (value: string) => void
-  subtotalMin: string
-  onSubtotalMinChange: (value: string) => void
-  subtotalMax: string
-  onSubtotalMaxChange: (value: string) => void
-  taxMin: string
-  onTaxMinChange: (value: string) => void
-  taxMax: string
-  onTaxMaxChange: (value: string) => void
   quantityMin: string
   onQuantityMinChange: (value: string) => void
   quantityMax: string
@@ -56,14 +48,6 @@ const SalesFilters: React.FC<SalesFiltersProps> = ({
   onTotalMinChange,
   totalMax,
   onTotalMaxChange,
-  subtotalMin,
-  onSubtotalMinChange,
-  subtotalMax,
-  onSubtotalMaxChange,
-  taxMin,
-  onTaxMinChange,
-  taxMax,
-  onTaxMaxChange,
   quantityMin,
   onQuantityMinChange,
   quantityMax,
@@ -85,10 +69,6 @@ const SalesFilters: React.FC<SalesFiltersProps> = ({
     dateTo !== '' ||
     totalMin !== '' ||
     totalMax !== '' ||
-    subtotalMin !== '' ||
-    subtotalMax !== '' ||
-    taxMin !== '' ||
-    taxMax !== '' ||
     quantityMin !== '' ||
     quantityMax !== ''
 
@@ -244,58 +224,6 @@ const SalesFilters: React.FC<SalesFiltersProps> = ({
                   className="border border-gray-300 rounded-lg py-2 px-3 w-full text-sm focus:outline-none focus:ring-2 focus:ring-teal-500"
                   value={totalMax}
                   onChange={(e) => onTotalMaxChange(e.target.value)}
-                />
-              </div>
-            </div>
-
-            {/* Subtotal Range */}
-            <div className="space-y-2">
-              <label className="text-xs font-medium text-gray-600 block">Subtotal ($)</label>
-              <div className="flex gap-2 items-center">
-                <input
-                  type="number"
-                  placeholder="Min"
-                  min="0"
-                  step="0.01"
-                  className="border border-gray-300 rounded-lg py-2 px-3 w-full text-sm focus:outline-none focus:ring-2 focus:ring-teal-500"
-                  value={subtotalMin}
-                  onChange={(e) => onSubtotalMinChange(e.target.value)}
-                />
-                <span className="text-gray-400">-</span>
-                <input
-                  type="number"
-                  placeholder="Max"
-                  min="0"
-                  step="0.01"
-                  className="border border-gray-300 rounded-lg py-2 px-3 w-full text-sm focus:outline-none focus:ring-2 focus:ring-teal-500"
-                  value={subtotalMax}
-                  onChange={(e) => onSubtotalMaxChange(e.target.value)}
-                />
-              </div>
-            </div>
-
-            {/* Tax Range */}
-            <div className="space-y-2">
-              <label className="text-xs font-medium text-gray-600 block">Tax ($)</label>
-              <div className="flex gap-2 items-center">
-                <input
-                  type="number"
-                  placeholder="Min"
-                  min="0"
-                  step="0.01"
-                  className="border border-gray-300 rounded-lg py-2 px-3 w-full text-sm focus:outline-none focus:ring-2 focus:ring-teal-500"
-                  value={taxMin}
-                  onChange={(e) => onTaxMinChange(e.target.value)}
-                />
-                <span className="text-gray-400">-</span>
-                <input
-                  type="number"
-                  placeholder="Max"
-                  min="0"
-                  step="0.01"
-                  className="border border-gray-300 rounded-lg py-2 px-3 w-full text-sm focus:outline-none focus:ring-2 focus:ring-teal-500"
-                  value={taxMax}
-                  onChange={(e) => onTaxMaxChange(e.target.value)}
                 />
               </div>
             </div>
