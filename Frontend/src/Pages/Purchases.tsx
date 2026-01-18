@@ -8,6 +8,7 @@ import { filterAndSortPurchases } from './Purchases/utils'
 import PurchaseFilters from './Purchases/PurchaseFilters'
 import PurchaseTable from './Purchases/PurchaseTable'
 import NewPurchaseOrderModal from './Purchases/NewPurchaseOrderModal'
+import PaymentEntryModal from '../components/PaymentEntryModal'
 
 const Purchases: React.FC = () => {
   const [searchTerm, setSearchTerm] = useState('')
@@ -28,6 +29,8 @@ const Purchases: React.FC = () => {
   const [editingPaymentStatus, setEditingPaymentStatus] = useState<string | null>(null)
   const [purchases, setPurchases] = useState<Purchase[]>([])
   const [isLoading, setIsLoading] = useState(false)
+  const [showPaymentModal, setShowPaymentModal] = useState(false)
+  const [selectedPurchase, setSelectedPurchase] = useState<Purchase | null>(null)
 
   useEffect(() => {
     loadPurchases()
@@ -96,6 +99,32 @@ const Purchases: React.FC = () => {
       toast.error('Failed to update payment status', {
         description: error?.message || 'Please try again.',
       })
+    }
+  }
+
+  const handleRecordPayment = (purchase: Purchase) => {
+    setSelectedPurchase(purchase)
+    setShowPaymentModal(true)
+  }
+
+  const handleSavePayment = async (paymentData: { amount: number; date: string; method: string; notes?: string }) => {
+    if (!selectedPurchase?._id) {
+      toast.error('No purchase selected')
+      return
+    }
+
+    try {
+      const updatedPurchase = await purchasesAPI.recordPayment(selectedPurchase._id, paymentData)
+      
+      // Update the purchase in the list
+      setPurchases((prevPurchases) =>
+        prevPurchases.map((purchase) => (purchase._id === selectedPurchase._id ? updatedPurchase : purchase))
+      )
+      
+      // Reload to ensure consistency
+      await loadPurchases()
+    } catch (error: any) {
+      throw error // Let the modal handle the error display
     }
   }
 
@@ -201,6 +230,7 @@ const Purchases: React.FC = () => {
             onToggleExpand={toggleExpandPurchase}
             onPaymentStatusChange={updatePaymentStatus}
             onEditPaymentStatus={setEditingPaymentStatus}
+            onRecordPayment={handleRecordPayment}
           />
           {isLoading && (
             <div className="p-6 text-center text-gray-500">
@@ -238,6 +268,20 @@ const Purchases: React.FC = () => {
           onClose={() => setShowNewPurchaseModal(false)}
           onSave={handleAddPurchase}
         />
+        {selectedPurchase && (
+          <PaymentEntryModal
+            isOpen={showPaymentModal}
+            onClose={() => {
+              setShowPaymentModal(false)
+              setSelectedPurchase(null)
+            }}
+            onSave={handleSavePayment}
+            totalAmount={selectedPurchase.total}
+            paidAmount={selectedPurchase.paidAmount || 0}
+            title={`Record Payment - ${selectedPurchase.purchaseNumber}`}
+            paymentMethods={['cash', 'card', 'bank_transfer', 'credit', 'other']}
+          />
+        )}
       </div>
     </Layout>
   )

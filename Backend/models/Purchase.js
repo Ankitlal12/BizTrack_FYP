@@ -64,6 +64,28 @@ const purchaseSchema = new mongoose.Schema({
     enum: ["unpaid", "partial", "paid"],
     default: "unpaid",
   },
+  paidAmount: {
+    type: Number,
+    default: 0,
+  },
+  payments: [{
+    amount: {
+      type: Number,
+      required: true,
+    },
+    date: {
+      type: Date,
+      default: Date.now,
+    },
+    method: {
+      type: String,
+      enum: ["cash", "card", "bank_transfer", "credit", "other"],
+      required: true,
+    },
+    notes: {
+      type: String,
+    },
+  }],
   status: {
     type: String,
     enum: ["pending", "received", "cancelled"],

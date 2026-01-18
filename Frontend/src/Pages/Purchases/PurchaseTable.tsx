@@ -13,6 +13,7 @@ interface PurchaseTableProps {
   onToggleExpand: (id: string | null) => void
   onPaymentStatusChange: (purchaseId: string, newStatus: string) => void
   onEditPaymentStatus: (purchaseKey: string | null) => void
+  onRecordPayment?: (purchase: Purchase) => void
 }
 
 const PurchaseTable: React.FC<PurchaseTableProps> = ({
@@ -25,6 +26,7 @@ const PurchaseTable: React.FC<PurchaseTableProps> = ({
   onToggleExpand,
   onPaymentStatusChange,
   onEditPaymentStatus,
+  onRecordPayment,
 }) => {
   return (
     <div className="overflow-x-auto">
@@ -44,6 +46,7 @@ const PurchaseTable: React.FC<PurchaseTableProps> = ({
               onToggleExpand={onToggleExpand}
               onPaymentStatusChange={onPaymentStatusChange}
               onEditPaymentStatus={onEditPaymentStatus}
+              onRecordPayment={onRecordPayment}
             />
           ))}
         </tbody>

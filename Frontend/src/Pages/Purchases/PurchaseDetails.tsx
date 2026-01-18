@@ -5,9 +5,10 @@ import { getStatusBadgeClass, getPaymentStatusBadgeClass, getPurchaseDate, getPu
 
 interface PurchaseDetailsProps {
   purchase: Purchase
-  editingPaymentStatus: string | null
-  onPaymentStatusChange: (purchaseId: string, newStatus: string) => void
-  onEditPaymentStatus: (purchaseKey: string | null) => void
+  editingPaymentStatus?: string | null
+  onPaymentStatusChange?: (purchaseId: string, newStatus: string) => void
+  onEditPaymentStatus?: (purchaseKey: string | null) => void
+  onRecordPayment?: () => void
 }
 
 const PurchaseDetails: React.FC<PurchaseDetailsProps> = ({
@@ -15,10 +16,12 @@ const PurchaseDetails: React.FC<PurchaseDetailsProps> = ({
   editingPaymentStatus,
   onPaymentStatusChange,
   onEditPaymentStatus,
+  onRecordPayment,
 }) => {
   const purchaseKey = getPurchaseKey(purchase)
   const paymentStatusValue = purchase.paymentStatus || 'unpaid'
-  const isEditingInDetails = editingPaymentStatus === `detail-${purchaseKey}`
+  const paidAmount = purchase.paidAmount || 0
+  const remainingBalance = purchase.total - paidAmount
 
   return (
     <tr>
@@ -54,38 +57,43 @@ const PurchaseDetails: React.FC<PurchaseDetailsProps> = ({
               <h3 className="text-sm font-medium text-gray-700 mb-2">
                 Payment Information
               </h3>
-              <div className="grid grid-cols-2 gap-2">
-                <div className="text-sm text-gray-500">Total Amount:</div>
-                <div className="text-sm font-medium flex items-center">
-                  <DollarSignIcon size={14} className="mr-1 text-gray-400" />
-                  ${purchase.total.toFixed(2)}
+              <div className="space-y-2">
+                <div className="grid grid-cols-2 text-sm">
+                  <p className="text-gray-500">Total Amount:</p>
+                  <p className="text-gray-900 font-medium">${purchase.total.toFixed(2)}</p>
                 </div>
-                <div className="text-sm text-gray-500">Payment Status:</div>
-                <div className="text-sm">
-                  {isEditingInDetails ? (
-                    <select
-                      className="border border-gray-300 rounded text-sm py-1 px-2 focus:outline-none focus:ring-1 focus:ring-teal-500"
-                      value={paymentStatusValue}
-                      onChange={(e) =>
-                        onPaymentStatusChange(purchaseKey, e.target.value)
-                      }
-                      onBlur={() => onEditPaymentStatus('')}
-                      autoFocus
-                    >
-                      <option value="unpaid">Unpaid</option>
-                      <option value="partial">Partially Paid</option>
-                      <option value="paid">Paid</option>
-                    </select>
-                  ) : (
+                <div className="grid grid-cols-2 text-sm">
+                  <p className="text-gray-500">Paid Amount:</p>
+                  <p className="text-gray-900 font-medium">${paidAmount.toFixed(2)}</p>
+                </div>
+                <div className="grid grid-cols-2 text-sm">
+                  <p className="text-gray-500">Remaining:</p>
+                  <p className={`font-medium ${remainingBalance > 0 ? 'text-red-600' : 'text-green-600'}`}>
+                    ${remainingBalance.toFixed(2)}
+                  </p>
+                </div>
+                <div className="grid grid-cols-2 text-sm">
+                  <p className="text-gray-500">Status:</p>
+                  <p className="font-medium">
                     <span
-                      className={`inline-flex px-2 py-0.5 text-xs font-medium rounded-full cursor-pointer ${getPaymentStatusBadgeClass(paymentStatusValue)}`}
-                      onClick={() => onEditPaymentStatus(`detail-${purchaseKey}`)}
+                      className={`inline-flex px-2 py-0.5 text-xs font-medium rounded-full ${getPaymentStatusBadgeClass(paymentStatusValue)}`}
                     >
                       {paymentStatusValue.charAt(0).toUpperCase() +
                         paymentStatusValue.slice(1)}
                     </span>
-                  )}
+                  </p>
                 </div>
+                {onRecordPayment && remainingBalance > 0 && (
+                  <div className="pt-2 mt-2 border-t">
+                    <button
+                      onClick={onRecordPayment}
+                      className="w-full bg-teal-500 hover:bg-teal-600 text-white py-2 px-3 rounded text-sm flex items-center justify-center"
+                    >
+                      <DollarSignIcon size={16} className="mr-1" />
+                      Record Payment
+                    </button>
+                  </div>
+                )}
               </div>
             </div>
           </div>
@@ -156,6 +164,46 @@ const PurchaseDetails: React.FC<PurchaseDetailsProps> = ({
               </tfoot>
             </table>
           </div>
+          {/* Payment History */}
+          {purchase.payments && purchase.payments.length > 0 && (
+            <div className="mt-4">
+              <h3 className="text-sm font-medium text-gray-700 mb-2">Payment History</h3>
+              <div className="bg-white rounded border border-gray-200 overflow-hidden">
+                <table className="min-w-full divide-y divide-gray-200">
+                  <thead className="bg-gray-50">
+                    <tr>
+                      <th className="py-2 px-3 text-left text-xs font-medium text-gray-500 uppercase">Date</th>
+                      <th className="py-2 px-3 text-right text-xs font-medium text-gray-500 uppercase">Amount</th>
+                      <th className="py-2 px-3 text-left text-xs font-medium text-gray-500 uppercase">Method</th>
+                      <th className="py-2 px-3 text-left text-xs font-medium text-gray-500 uppercase">Notes</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-200">
+                    {purchase.payments.map((payment, index) => (
+                      <tr key={index} className="hover:bg-gray-50">
+                        <td className="py-2 px-3 text-xs text-gray-900">
+                          {new Date(payment.date).toLocaleDateString()}
+                        </td>
+                        <td className="py-2 px-3 text-xs text-gray-900 text-right font-medium">
+                          ${payment.amount.toFixed(2)}
+                        </td>
+                        <td className="py-2 px-3 text-xs text-gray-500">
+                          {payment.method
+                            .split('_')
+                            .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+                            .join(' ')}
+                        </td>
+                        <td className="py-2 px-3 text-xs text-gray-500">
+                          {payment.notes || '-'}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
+
           {purchase.notes && (
             <div className="mt-2">
               <h4 className="text-xs font-medium text-gray-700">Notes:</h4>

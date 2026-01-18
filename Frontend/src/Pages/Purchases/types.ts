@@ -9,6 +9,13 @@ export type PurchaseItem = {
   category?: string
 }
 
+export type PaymentRecord = {
+  amount: number
+  date: string | Date
+  method: string
+  notes?: string
+}
+
 export type Purchase = {
   _id?: string
   purchaseNumber: string
@@ -22,6 +29,8 @@ export type Purchase = {
   total: number
   paymentMethod?: string
   paymentStatus?: 'unpaid' | 'partial' | 'paid'
+  paidAmount?: number
+  payments?: PaymentRecord[]
   status: 'pending' | 'received' | 'cancelled'
   expectedDeliveryDate?: string
   notes?: string

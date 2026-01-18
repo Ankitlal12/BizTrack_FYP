@@ -277,3 +277,96 @@ exports.deletePurchase = async (req, res) => {
   }
 };
 
+// Record payment for a purchase
+exports.recordPayment = async (req, res) => {
+  try {
+    const { amount, date, method, notes } = req.body;
+    
+    if (!amount || amount <= 0) {
+      return res.status(400).json({ error: "Payment amount must be greater than 0" });
+    }
+
+    const purchase = await Purchase.findById(req.params.id);
+    if (!purchase) {
+      return res.status(404).json({ error: "Purchase not found" });
+    }
+
+    const currentPaidAmount = purchase.paidAmount || 0;
+    const remainingBalance = purchase.total - currentPaidAmount;
+
+    if (amount > remainingBalance) {
+      return res.status(400).json({ 
+        error: `Payment amount ($${amount.toFixed(2)}) exceeds remaining balance ($${remainingBalance.toFixed(2)})` 
+      });
+    }
+
+    const newPaidAmount = currentPaidAmount + amount;
+    const oldPaymentStatus = purchase.paymentStatus;
+    
+    // Determine new payment status
+    let newPaymentStatus;
+    if (newPaidAmount >= purchase.total) {
+      newPaymentStatus = "paid";
+    } else if (newPaidAmount > 0) {
+      newPaymentStatus = "partial";
+    } else {
+      newPaymentStatus = "unpaid";
+    }
+
+    // Add payment to payments array
+    const paymentRecord = {
+      amount,
+      date: date ? new Date(date) : new Date(),
+      method: method || "cash",
+      notes: notes || "",
+    };
+
+    purchase.payments = purchase.payments || [];
+    purchase.payments.push(paymentRecord);
+    purchase.paidAmount = newPaidAmount;
+    purchase.paymentStatus = newPaymentStatus;
+
+    await purchase.save();
+
+    // Create notification for payment made to supplier
+    try {
+      let notificationTitle, notificationMessage;
+      
+      if (newPaymentStatus === "paid") {
+        notificationTitle = "Purchase Payment Completed";
+        notificationMessage = `Full payment of $${amount.toFixed(2)} made for purchase ${purchase.purchaseNumber} to ${purchase.supplierName}. Total amount: $${purchase.total.toFixed(2)} - Fully Paid.`;
+      } else if (newPaymentStatus === "partial") {
+        const remaining = purchase.total - newPaidAmount;
+        notificationTitle = "Partial Payment Made";
+        notificationMessage = `Partial payment of $${amount.toFixed(2)} made for purchase ${purchase.purchaseNumber} to ${purchase.supplierName}. Total: $${purchase.total.toFixed(2)}, Paid: $${newPaidAmount.toFixed(2)}, Remaining: $${remaining.toFixed(2)}.`;
+      }
+
+      await Notification.create({
+        type: "payment_made",
+        title: notificationTitle,
+        message: notificationMessage,
+        relatedId: purchase._id,
+        relatedModel: "Purchase",
+        metadata: {
+          purchaseNumber: purchase.purchaseNumber,
+          supplierName: purchase.supplierName,
+          paymentAmount: amount,
+          totalAmount: purchase.total,
+          paidAmount: newPaidAmount,
+          remainingAmount: purchase.total - newPaidAmount,
+          paymentStatus: newPaymentStatus,
+          previousPaymentStatus: oldPaymentStatus,
+          paymentMethod: method || "cash",
+        },
+      });
+    } catch (notifError) {
+      // Don't fail the payment recording if notification fails
+      console.error("Failed to create payment notification:", notifError);
+    }
+
+    const populatedPurchase = await Purchase.findById(purchase._id).populate("items.inventoryId");
+    res.json(populatedPurchase);
+  } catch (err) {
+    res.status(400).json({ error: err.message });
+  }
+};

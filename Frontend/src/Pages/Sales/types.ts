@@ -8,6 +8,13 @@ export type SaleItem = {
   total: number
 }
 
+export type PaymentRecord = {
+  amount: number
+  date: string | Date
+  method: string
+  notes?: string
+}
+
 export type Sale = {
   _id?: string
   id: string
@@ -25,6 +32,8 @@ export type Sale = {
   status: 'pending' | 'completed' | 'cancelled' | 'processing'
   paymentStatus: 'paid' | 'unpaid' | 'partial'
   paymentMethod: string
+  paidAmount?: number
+  payments?: PaymentRecord[]
   notes?: string
 }
 

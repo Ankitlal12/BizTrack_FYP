@@ -15,7 +15,7 @@ import {
 
 interface Notification {
   _id: string
-  type: 'purchase' | 'sale' | 'low_stock' | 'out_of_stock' | 'system'
+  type: 'purchase' | 'sale' | 'low_stock' | 'out_of_stock' | 'system' | 'payment_received' | 'payment_made'
   title: string
   message: string
   read: boolean
@@ -149,6 +149,10 @@ const NotificationDropdown: React.FC<NotificationDropdownProps> = ({
         return <FiShoppingBag className="h-5 w-5 text-blue-500" />
       case 'sale':
         return <FiDollarSign className="h-5 w-5 text-green-500" />
+      case 'payment_received':
+        return <FiDollarSign className="h-5 w-5 text-emerald-500" />
+      case 'payment_made':
+        return <FiDollarSign className="h-5 w-5 text-purple-500" />
       case 'low_stock':
         return <FiAlertCircle className="h-5 w-5 text-yellow-500" />
       case 'out_of_stock':
@@ -164,6 +168,10 @@ const NotificationDropdown: React.FC<NotificationDropdownProps> = ({
         return 'bg-blue-50 border-blue-200'
       case 'sale':
         return 'bg-green-50 border-green-200'
+      case 'payment_received':
+        return 'bg-emerald-50 border-emerald-200'
+      case 'payment_made':
+        return 'bg-purple-50 border-purple-200'
       case 'low_stock':
         return 'bg-yellow-50 border-yellow-200'
       case 'out_of_stock':

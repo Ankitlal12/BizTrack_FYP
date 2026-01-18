@@ -98,6 +98,10 @@ export const salesAPI = {
   delete: (id: string) => apiRequest<{ message: string }>(`/sales/${id}`, {
     method: 'DELETE',
   }),
+  recordPayment: (id: string, paymentData: { amount: number; date?: string; method: string; notes?: string }) => apiRequest<any>(`/sales/${id}/payments`, {
+    method: 'POST',
+    body: JSON.stringify(paymentData),
+  }),
 };
 
 // Purchases API
@@ -114,6 +118,10 @@ export const purchasesAPI = {
   }),
   delete: (id: string) => apiRequest<{ message: string }>(`/purchases/${id}`, {
     method: 'DELETE',
+  }),
+  recordPayment: (id: string, paymentData: { amount: number; date?: string; method: string; notes?: string }) => apiRequest<any>(`/purchases/${id}/payments`, {
+    method: 'POST',
+    body: JSON.stringify(paymentData),
   }),
 };
 

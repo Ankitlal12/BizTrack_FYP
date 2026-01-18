@@ -10,6 +10,7 @@ interface PurchaseTableRowProps {
   onToggleExpand: (id: string | null) => void
   onPaymentStatusChange: (purchaseId: string, newStatus: string) => void
   onEditPaymentStatus: (purchaseKey: string | null) => void
+  onRecordPayment?: (purchase: Purchase) => void
 }
 
 const PurchaseTableRow: React.FC<PurchaseTableRowProps> = ({
@@ -19,6 +20,7 @@ const PurchaseTableRow: React.FC<PurchaseTableRowProps> = ({
   onToggleExpand,
   onPaymentStatusChange,
   onEditPaymentStatus,
+  onRecordPayment,
 }) => {
   const purchaseKey = getPurchaseKey(purchase)
   const paymentStatusValue = purchase.paymentStatus || 'unpaid'
@@ -87,6 +89,7 @@ const PurchaseTableRow: React.FC<PurchaseTableRowProps> = ({
           editingPaymentStatus={editingPaymentStatus}
           onPaymentStatusChange={onPaymentStatusChange}
           onEditPaymentStatus={onEditPaymentStatus}
+          onRecordPayment={onRecordPayment ? () => onRecordPayment(purchase) : undefined}
         />
       )}
     </Fragment>
