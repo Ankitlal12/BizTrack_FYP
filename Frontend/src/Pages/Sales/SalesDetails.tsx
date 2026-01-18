@@ -1,13 +1,16 @@
 import React from 'react'
-import { UserIcon } from 'lucide-react'
+import { UserIcon, DollarSignIcon, ClockIcon } from 'lucide-react'
 import { Sale } from '../Sales/types'
 import { getStatusBadgeClass, getPaymentStatusBadgeClass, formatPaymentMethod } from '../Sales/utils'
 
 interface SalesDetailsProps {
   sale: Sale
+  onRecordPayment?: () => void
 }
 
-const SalesDetails: React.FC<SalesDetailsProps> = ({ sale }) => {
+const SalesDetails: React.FC<SalesDetailsProps> = ({ sale, onRecordPayment }) => {
+  const paidAmount = sale.paidAmount || 0
+  const remainingBalance = sale.total - paidAmount
   return (
     <tr>
       <td colSpan={7} className="bg-gray-50 p-4">
@@ -38,14 +41,22 @@ const SalesDetails: React.FC<SalesDetailsProps> = ({ sale }) => {
               <h3 className="text-sm font-medium text-gray-700 mb-2">
                 Payment Information
               </h3>
-              <div>
+              <div className="space-y-2">
                 <div className="grid grid-cols-2 text-sm">
-                  <p className="text-gray-500">Method:</p>
-                  <p className="text-gray-900 font-medium">
-                    {formatPaymentMethod(sale.paymentMethod)}
+                  <p className="text-gray-500">Total Amount:</p>
+                  <p className="text-gray-900 font-medium">${sale.total.toFixed(2)}</p>
+                </div>
+                <div className="grid grid-cols-2 text-sm">
+                  <p className="text-gray-500">Paid Amount:</p>
+                  <p className="text-gray-900 font-medium">${paidAmount.toFixed(2)}</p>
+                </div>
+                <div className="grid grid-cols-2 text-sm">
+                  <p className="text-gray-500">Remaining:</p>
+                  <p className={`font-medium ${remainingBalance > 0 ? 'text-red-600' : 'text-green-600'}`}>
+                    ${remainingBalance.toFixed(2)}
                   </p>
                 </div>
-                <div className="grid grid-cols-2 text-sm mt-1">
+                <div className="grid grid-cols-2 text-sm">
                   <p className="text-gray-500">Status:</p>
                   <p className="font-medium">
                     <span
@@ -56,12 +67,17 @@ const SalesDetails: React.FC<SalesDetailsProps> = ({ sale }) => {
                     </span>
                   </p>
                 </div>
-                <div className="grid grid-cols-2 text-sm mt-1">
-                  <p className="text-gray-500">Date:</p>
-                  <p className="text-gray-900">
-                    {new Date(sale.date).toLocaleDateString()}
-                  </p>
-                </div>
+                {onRecordPayment && remainingBalance > 0 && (
+                  <div className="pt-2 mt-2 border-t">
+                    <button
+                      onClick={onRecordPayment}
+                      className="w-full bg-teal-500 hover:bg-teal-600 text-white py-2 px-3 rounded text-sm flex items-center justify-center"
+                    >
+                      <DollarSignIcon size={16} className="mr-1" />
+                      Record Payment
+                    </button>
+                  </div>
+                )}
               </div>
             </div>
           </div>
@@ -139,6 +155,43 @@ const SalesDetails: React.FC<SalesDetailsProps> = ({ sale }) => {
               </tfoot>
             </table>
           </div>
+          {/* Payment History */}
+          {sale.payments && sale.payments.length > 0 && (
+            <div className="mt-4">
+              <h3 className="text-sm font-medium text-gray-700 mb-2">Payment History</h3>
+              <div className="bg-white rounded border border-gray-200 overflow-hidden">
+                <table className="min-w-full divide-y divide-gray-200">
+                  <thead className="bg-gray-50">
+                    <tr>
+                      <th className="py-2 px-3 text-left text-xs font-medium text-gray-500 uppercase">Date</th>
+                      <th className="py-2 px-3 text-right text-xs font-medium text-gray-500 uppercase">Amount</th>
+                      <th className="py-2 px-3 text-left text-xs font-medium text-gray-500 uppercase">Method</th>
+                      <th className="py-2 px-3 text-left text-xs font-medium text-gray-500 uppercase">Notes</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-200">
+                    {sale.payments.map((payment, index) => (
+                      <tr key={index} className="hover:bg-gray-50">
+                        <td className="py-2 px-3 text-xs text-gray-900">
+                          {new Date(payment.date).toLocaleDateString()}
+                        </td>
+                        <td className="py-2 px-3 text-xs text-gray-900 text-right font-medium">
+                          ${payment.amount.toFixed(2)}
+                        </td>
+                        <td className="py-2 px-3 text-xs text-gray-500">
+                          {formatPaymentMethod(payment.method)}
+                        </td>
+                        <td className="py-2 px-3 text-xs text-gray-500">
+                          {payment.notes || '-'}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
+
           {sale.notes && (
             <div className="mt-2">
               <h4 className="text-xs font-medium text-gray-700">Notes:</h4>

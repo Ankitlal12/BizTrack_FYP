@@ -49,6 +49,21 @@ export const getSaleKey = (sale: Sale): string => {
 }
 
 export const transformBackendSaleToFrontend = (sale: any): Sale => {
+  // Calculate payment status if paidAmount exists, otherwise use legacy logic
+  let paymentStatus: 'paid' | 'unpaid' | 'partial' = 'unpaid'
+  if (sale.paidAmount !== undefined && sale.paidAmount !== null) {
+    if (sale.paidAmount >= (sale.total || 0)) {
+      paymentStatus = 'paid'
+    } else if (sale.paidAmount > 0) {
+      paymentStatus = 'partial'
+    } else {
+      paymentStatus = 'unpaid'
+    }
+  } else {
+    // Legacy: use paymentMethod to determine status
+    paymentStatus = sale.paymentMethod === 'cash' ? 'paid' : 'unpaid'
+  }
+
   return {
     id: sale.invoiceNumber || sale._id,
     _id: sale._id,
@@ -64,8 +79,10 @@ export const transformBackendSaleToFrontend = (sale: any): Sale => {
     tax: sale.tax || 0,
     total: sale.total || 0,
     status: sale.status || 'pending',
-    paymentStatus: sale.paymentMethod === 'cash' ? 'paid' : 'unpaid',
+    paymentStatus: sale.paymentStatus || paymentStatus,
     paymentMethod: sale.paymentMethod || 'cash',
+    paidAmount: sale.paidAmount || 0,
+    payments: sale.payments || [],
     notes: sale.notes || '',
   }
 }

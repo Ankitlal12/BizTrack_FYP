@@ -8,6 +8,7 @@ import { transformBackendSaleToFrontend, filterAndSortSales } from './Sales/util
 import SalesFilters from './Sales/SalesFilters'
 import SalesTable from './Sales/SalesTable'
 import NewSaleModal from './Sales/NewSaleModel'
+import PaymentEntryModal from '../components/PaymentEntryModal'
 
 const Sales: React.FC = () => {
   const [searchTerm, setSearchTerm] = useState('')
@@ -27,6 +28,8 @@ const Sales: React.FC = () => {
   const [showNewSaleModal, setShowNewSaleModal] = useState(false)
   const [sales, setSales] = useState<Sale[]>([])
   const [isLoading, setIsLoading] = useState(false)
+  const [showPaymentModal, setShowPaymentModal] = useState(false)
+  const [selectedSale, setSelectedSale] = useState<Sale | null>(null)
 
   useEffect(() => {
     loadSales()
@@ -71,6 +74,33 @@ const Sales: React.FC = () => {
       toast.success('Sale added successfully')
     } catch (error: any) {
       console.error('Failed to refresh sales:', error)
+    }
+  }
+
+  const handleRecordPayment = (sale: Sale) => {
+    setSelectedSale(sale)
+    setShowPaymentModal(true)
+  }
+
+  const handleSavePayment = async (paymentData: { amount: number; date: string; method: string; notes?: string }) => {
+    if (!selectedSale?._id) {
+      toast.error('No sale selected')
+      return
+    }
+
+    try {
+      const updatedSale = await salesAPI.recordPayment(selectedSale._id, paymentData)
+      const transformedSale = transformBackendSaleToFrontend(updatedSale)
+      
+      // Update the sale in the list
+      setSales((prevSales) =>
+        prevSales.map((sale) => (sale._id === selectedSale._id ? transformedSale : sale))
+      )
+      
+      // Reload to ensure consistency
+      await loadSales()
+    } catch (error: any) {
+      throw error // Let the modal handle the error display
     }
   }
 
@@ -173,6 +203,7 @@ const Sales: React.FC = () => {
             expandedSale={expandedSale}
             onSort={handleSort}
             onToggleExpand={toggleExpandSale}
+            onRecordPayment={handleRecordPayment}
           />
           {isLoading && (
             <div className="p-6 text-center text-gray-500">
@@ -209,6 +240,20 @@ const Sales: React.FC = () => {
           onClose={() => setShowNewSaleModal(false)}
           onSave={handleAddSale}
         />
+        {selectedSale && (
+          <PaymentEntryModal
+            isOpen={showPaymentModal}
+            onClose={() => {
+              setShowPaymentModal(false)
+              setSelectedSale(null)
+            }}
+            onSave={handleSavePayment}
+            totalAmount={selectedSale.total}
+            paidAmount={selectedSale.paidAmount || 0}
+            title={`Record Payment - ${selectedSale.invoiceNumber || selectedSale.id}`}
+            paymentMethods={['cash', 'card', 'bank_transfer', 'other']}
+          />
+        )}
       </div>
     </Layout>
   )

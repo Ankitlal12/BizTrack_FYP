@@ -1,5 +1,62 @@
 const Sale = require("../models/Sale");
 const Inventory = require("../models/Inventory");
+const Notification = require("../models/Notification");
+
+// Helper function to check and create low stock notifications
+const checkAndCreateStockNotification = async (item) => {
+  try {
+    // Check if stock is out
+    if (item.stock <= 0) {
+      const existingNotif = await Notification.findOne({
+        type: "out_of_stock",
+        relatedId: item._id,
+        read: false,
+      });
+      
+      if (!existingNotif) {
+        await Notification.create({
+          type: "out_of_stock",
+          title: "Item Out of Stock",
+          message: `${item.name} (SKU: ${item.sku}) is out of stock. Please restock immediately.`,
+          relatedId: item._id,
+          relatedModel: "Inventory",
+          metadata: {
+            itemName: item.name,
+            sku: item.sku,
+            stock: item.stock,
+            reorderLevel: item.reorderLevel,
+          },
+        });
+      }
+    }
+    // Check if stock is low (below reorder level)
+    else if (item.stock <= item.reorderLevel) {
+      const existingNotif = await Notification.findOne({
+        type: "low_stock",
+        relatedId: item._id,
+        read: false,
+      });
+      
+      if (!existingNotif) {
+        await Notification.create({
+          type: "low_stock",
+          title: "Low Stock Alert",
+          message: `${item.name} (SKU: ${item.sku}) is running low. Current stock: ${item.stock}, Reorder level: ${item.reorderLevel}.`,
+          relatedId: item._id,
+          relatedModel: "Inventory",
+          metadata: {
+            itemName: item.name,
+            sku: item.sku,
+            stock: item.stock,
+            reorderLevel: item.reorderLevel,
+          },
+        });
+      }
+    }
+  } catch (notifError) {
+    console.error("Failed to create stock notification:", notifError);
+  }
+};
 
 // Get all sales
 exports.getAllSales = async (req, res) => {
@@ -51,16 +108,45 @@ exports.createSale = async (req, res) => {
       });
     }
 
-    // Update inventory stock for each item
+    // Update inventory stock for each item and check for low stock notifications
     for (const item of req.body.items) {
       if (item.inventoryId) {
-        await Inventory.findByIdAndUpdate(item.inventoryId, {
-          $inc: { stock: -item.quantity },
-        });
+        const updatedInventory = await Inventory.findByIdAndUpdate(
+          item.inventoryId,
+          { $inc: { stock: -item.quantity } },
+          { new: true }
+        );
+        
+        // Check for low stock after sale
+        if (updatedInventory) {
+          await checkAndCreateStockNotification(updatedInventory);
+        }
       }
     }
 
     const sale = await Sale.create(req.body);
+
+    // Create notification for new sale
+    try {
+      const totalItems = req.body.items.reduce((sum, item) => sum + item.quantity, 0);
+      await Notification.create({
+        type: "sale",
+        title: "New Sale Created",
+        message: `Sale ${sale.invoiceNumber || sale._id} has been created with ${totalItems} item(s) for ${req.body.customerName || 'customer'}.`,
+        relatedId: sale._id,
+        relatedModel: "Sale",
+        metadata: {
+          invoiceNumber: sale.invoiceNumber,
+          customerName: req.body.customerName,
+          totalItems: totalItems,
+          total: sale.total,
+        },
+      });
+    } catch (notifError) {
+      // Don't fail the sale creation if notification fails
+      console.error("Failed to create notification:", notifError);
+    }
+
     const populatedSale = await Sale.findById(sale._id).populate("items.inventoryId");
     res.status(201).json(populatedSale);
   } catch (err) {
@@ -109,3 +195,96 @@ exports.deleteSale = async (req, res) => {
   }
 };
 
+// Record payment for a sale
+exports.recordPayment = async (req, res) => {
+  try {
+    const { amount, date, method, notes } = req.body;
+    
+    if (!amount || amount <= 0) {
+      return res.status(400).json({ error: "Payment amount must be greater than 0" });
+    }
+
+    const sale = await Sale.findById(req.params.id);
+    if (!sale) {
+      return res.status(404).json({ error: "Sale not found" });
+    }
+
+    const currentPaidAmount = sale.paidAmount || 0;
+    const remainingBalance = sale.total - currentPaidAmount;
+
+    if (amount > remainingBalance) {
+      return res.status(400).json({ 
+        error: `Payment amount ($${amount.toFixed(2)}) exceeds remaining balance ($${remainingBalance.toFixed(2)})` 
+      });
+    }
+
+    const newPaidAmount = currentPaidAmount + amount;
+    const oldPaymentStatus = sale.paymentStatus;
+    
+    // Determine new payment status
+    let newPaymentStatus;
+    if (newPaidAmount >= sale.total) {
+      newPaymentStatus = "paid";
+    } else if (newPaidAmount > 0) {
+      newPaymentStatus = "partial";
+    } else {
+      newPaymentStatus = "unpaid";
+    }
+
+    // Add payment to payments array
+    const paymentRecord = {
+      amount,
+      date: date ? new Date(date) : new Date(),
+      method: method || "cash",
+      notes: notes || "",
+    };
+
+    sale.payments = sale.payments || [];
+    sale.payments.push(paymentRecord);
+    sale.paidAmount = newPaidAmount;
+    sale.paymentStatus = newPaymentStatus;
+
+    await sale.save();
+
+    // Create notification for payment received from customer
+    try {
+      let notificationTitle, notificationMessage;
+      
+      if (newPaymentStatus === "paid") {
+        notificationTitle = "Sale Payment Completed";
+        notificationMessage = `Full payment of $${amount.toFixed(2)} received for sale ${sale.invoiceNumber || sale._id} from ${sale.customerName}. Total amount: $${sale.total.toFixed(2)} - Fully Paid.`;
+      } else if (newPaymentStatus === "partial") {
+        const remaining = sale.total - newPaidAmount;
+        notificationTitle = "Partial Payment Received";
+        notificationMessage = `Partial payment of $${amount.toFixed(2)} received for sale ${sale.invoiceNumber || sale._id} from ${sale.customerName}. Total: $${sale.total.toFixed(2)}, Paid: $${newPaidAmount.toFixed(2)}, Remaining: $${remaining.toFixed(2)}.`;
+      }
+
+      await Notification.create({
+        type: "payment_received",
+        title: notificationTitle,
+        message: notificationMessage,
+        relatedId: sale._id,
+        relatedModel: "Sale",
+        metadata: {
+          invoiceNumber: sale.invoiceNumber,
+          customerName: sale.customerName,
+          paymentAmount: amount,
+          totalAmount: sale.total,
+          paidAmount: newPaidAmount,
+          remainingAmount: sale.total - newPaidAmount,
+          paymentStatus: newPaymentStatus,
+          previousPaymentStatus: oldPaymentStatus,
+          paymentMethod: method || "cash",
+        },
+      });
+    } catch (notifError) {
+      // Don't fail the payment recording if notification fails
+      console.error("Failed to create payment notification:", notifError);
+    }
+
+    const populatedSale = await Sale.findById(sale._id).populate("items.inventoryId");
+    res.json(populatedSale);
+  } catch (err) {
+    res.status(400).json({ error: err.message });
+  }
+};

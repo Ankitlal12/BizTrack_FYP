@@ -7,12 +7,14 @@ interface SalesTableRowProps {
   sale: Sale
   expandedSale: string | null
   onToggleExpand: (id: string | null) => void
+  onRecordPayment?: (sale: Sale) => void
 }
 
 const SalesTableRow: React.FC<SalesTableRowProps> = ({
   sale,
   expandedSale,
   onToggleExpand,
+  onRecordPayment,
 }) => {
   const saleKey = getSaleKey(sale)
   const isExpanded = expandedSale === saleKey
@@ -58,7 +60,12 @@ const SalesTableRow: React.FC<SalesTableRowProps> = ({
           </button>
         </td>
       </tr>
-      {isExpanded && <SalesDetails sale={sale} />}
+      {isExpanded && (
+        <SalesDetails 
+          sale={sale} 
+          onRecordPayment={onRecordPayment ? () => onRecordPayment(sale) : undefined}
+        />
+      )}
     </Fragment>
   )
 }
