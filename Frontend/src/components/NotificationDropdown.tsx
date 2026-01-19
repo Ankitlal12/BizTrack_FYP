@@ -10,7 +10,7 @@ import {
   FiPackage,
   FiX,
   FiRefreshCw,
-  FiDollarSign
+  FiCreditCard
 } from 'react-icons/fi'
 
 interface Notification {
@@ -148,11 +148,11 @@ const NotificationDropdown: React.FC<NotificationDropdownProps> = ({
       case 'purchase':
         return <FiShoppingBag className="h-5 w-5 text-blue-500" />
       case 'sale':
-        return <FiDollarSign className="h-5 w-5 text-green-500" />
+        return <FiCreditCard className="h-5 w-5 text-green-500" />
       case 'payment_received':
-        return <FiDollarSign className="h-5 w-5 text-emerald-500" />
+        return <FiCreditCard className="h-5 w-5 text-emerald-500" />
       case 'payment_made':
-        return <FiDollarSign className="h-5 w-5 text-purple-500" />
+        return <FiCreditCard className="h-5 w-5 text-purple-500" />
       case 'low_stock':
         return <FiAlertCircle className="h-5 w-5 text-yellow-500" />
       case 'out_of_stock':

@@ -77,12 +77,12 @@ const TransactionDetails: React.FC<Props> = ({ transaction }) => {
                     <div className="flex justify-between text-sm">
                       <span className="text-gray-500">Unit Price:</span>
                       <span className="font-medium text-gray-900">
-                        ${item.price.toFixed(2)}
+                        Rs {item.price.toFixed(2)}
                       </span>
                     </div>
                     <div className="flex justify-between text-sm pt-1 border-t">
                       <span className="text-gray-700 font-medium">Total:</span>
-                      <span className="font-bold text-gray-900">${item.total.toFixed(2)}</span>
+                      <span className="font-bold text-gray-900">Rs {item.total.toFixed(2)}</span>
                     </div>
                   </div>
                 </div>

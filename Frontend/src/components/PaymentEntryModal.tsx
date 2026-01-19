@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react'
-import { XIcon, DollarSignIcon, AlertCircleIcon } from 'lucide-react'
+import { XIcon, IndianRupeeIcon, AlertCircleIcon } from 'lucide-react'
 import { toast } from 'sonner'
 
 interface PaymentRecord {
@@ -60,7 +60,7 @@ const PaymentEntryModal: React.FC<PaymentEntryModalProps> = ({
     }
 
     if (paymentAmount > remainingBalance) {
-      toast.error(`Payment amount cannot exceed remaining balance of $${remainingBalance.toFixed(2)}`)
+      toast.error(`Payment amount cannot exceed remaining balance of Rs ${remainingBalance.toFixed(2)}`)
       return
     }
 
@@ -114,16 +114,16 @@ const PaymentEntryModal: React.FC<PaymentEntryModalProps> = ({
           <div className="bg-gray-50 p-4 rounded-lg space-y-2">
             <div className="flex justify-between text-sm">
               <span className="text-gray-600">Total Amount:</span>
-              <span className="font-medium">${totalAmount.toFixed(2)}</span>
+              <span className="font-medium">Rs {totalAmount.toFixed(2)}</span>
             </div>
             <div className="flex justify-between text-sm">
               <span className="text-gray-600">Already Paid:</span>
-              <span className="font-medium">${(paidAmount || 0).toFixed(2)}</span>
+              <span className="font-medium">Rs {(paidAmount || 0).toFixed(2)}</span>
             </div>
             <div className="flex justify-between text-sm border-t pt-2">
               <span className="text-gray-700 font-medium">Remaining Balance:</span>
               <span className={`font-semibold ${remainingBalance > 0 ? 'text-red-600' : 'text-green-600'}`}>
-                ${remainingBalance.toFixed(2)}
+                Rs {remainingBalance.toFixed(2)}
               </span>
             </div>
           </div>
@@ -134,7 +134,7 @@ const PaymentEntryModal: React.FC<PaymentEntryModalProps> = ({
               Payment Amount <span className="text-red-500">*</span>
             </label>
             <div className="relative">
-              <DollarSignIcon className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={18} />
+              <IndianRupeeIcon className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={18} />
               <input
                 type="number"
                 step="0.01"

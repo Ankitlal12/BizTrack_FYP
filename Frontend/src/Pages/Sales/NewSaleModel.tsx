@@ -320,7 +320,7 @@ const NewSaleModal: React.FC<NewSaleModalProps> = ({
                             {p.stock <= 0 ? 'Out of stock' : `In stock: ${p.stock}`}
                           </div>
                         </div>
-                        <div className="font-medium">${p.price.toFixed(2)}</div>
+                        <div className="font-medium">Rs {p.price.toFixed(2)}</div>
                       </div>
                     ))}
                     {filteredProducts.length === 0 && (
@@ -361,7 +361,7 @@ const NewSaleModal: React.FC<NewSaleModalProps> = ({
                           <div className="font-medium">{item.name}</div>
                         </td>
                         <td className="px-4 py-3 text-right">
-                          ${item.price.toFixed(2)}
+                          Rs {item.price.toFixed(2)}
                         </td>
                         <td className="px-4 py-3 text-right">
                           <div className="flex items-center justify-end">
@@ -389,7 +389,7 @@ const NewSaleModal: React.FC<NewSaleModalProps> = ({
                           </div>
                         </td>
                         <td className="px-4 py-3 text-right font-medium">
-                          ${item.total.toFixed(2)}
+                          Rs {item.total.toFixed(2)}
                         </td>
                         <td className="px-4 py-3 text-right">
                           <button
@@ -412,7 +412,7 @@ const NewSaleModal: React.FC<NewSaleModalProps> = ({
                         Subtotal:
                       </td>
                       <td className="px-4 py-2 text-right text-sm font-medium">
-                        ${calculateSubtotal().toFixed(2)}
+                        Rs {calculateSubtotal().toFixed(2)}
                       </td>
                       <td></td>
                     </tr>
@@ -424,7 +424,7 @@ const NewSaleModal: React.FC<NewSaleModalProps> = ({
                         Tax (7%):
                       </td>
                       <td className="px-4 py-2 text-right text-sm font-medium">
-                        ${calculateTax().toFixed(2)}
+                        Rs {calculateTax().toFixed(2)}
                       </td>
                       <td></td>
                     </tr>
@@ -436,7 +436,7 @@ const NewSaleModal: React.FC<NewSaleModalProps> = ({
                         Total:
                       </td>
                       <td className="px-4 py-2 text-right font-bold">
-                        ${calculateTotal().toFixed(2)}
+                        Rs {calculateTotal().toFixed(2)}
                       </td>
                       <td></td>
                     </tr>

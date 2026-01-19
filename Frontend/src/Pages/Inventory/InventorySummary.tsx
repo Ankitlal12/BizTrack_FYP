@@ -36,7 +36,7 @@ const InventorySummary: React.FC<InventorySummaryProps> = ({ items }) => {
 
       <div className="bg-white p-5 rounded-lg shadow-sm">
         <h3 className="text-sm text-gray-500">Inventory Value</h3>
-        <p className="text-2xl font-bold">${totals.inventoryValue}</p>
+        <p className="text-2xl font-bold">Rs {totals.inventoryValue}</p>
       </div>
     </div>
   )

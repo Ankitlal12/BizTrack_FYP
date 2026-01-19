@@ -9,7 +9,7 @@ import {
   FiAlertCircle,
   FiPackage,
   FiRefreshCw,
-  FiDollarSign
+  FiCreditCard
 } from 'react-icons/fi'
 
 interface Notification {
@@ -120,7 +120,7 @@ const NotificationsTab: React.FC = () => {
       case 'purchase':
         return <FiShoppingBag className="h-5 w-5 text-blue-500" />
       case 'sale':
-        return <FiDollarSign className="h-5 w-5 text-green-500" />
+        return <FiCreditCard className="h-5 w-5 text-green-500" />
       case 'low_stock':
         return <FiAlertCircle className="h-5 w-5 text-yellow-500" />
       case 'out_of_stock':

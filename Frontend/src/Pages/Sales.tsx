@@ -1,5 +1,4 @@
 import React, { useEffect, useState, useMemo } from 'react'
-import { PlusIcon } from 'lucide-react'
 import { toast } from 'sonner'
 import Layout from '../layout/Layout'
 import { salesAPI } from '../services/api'
@@ -7,7 +6,6 @@ import { Sale } from './Sales/types'
 import { transformBackendSaleToFrontend, filterAndSortSales } from './Sales/utils'
 import SalesFilters from './Sales/SalesFilters'
 import SalesTable from './Sales/SalesTable'
-import NewSaleModal from './Sales/NewSaleModel'
 import PaymentEntryModal from '../components/PaymentEntryModal'
 
 const Sales: React.FC = () => {
@@ -25,7 +23,6 @@ const Sales: React.FC = () => {
   const [quantityMin, setQuantityMin] = useState('')
   const [quantityMax, setQuantityMax] = useState('')
   const [expandedSale, setExpandedSale] = useState<string | null>(null)
-  const [showNewSaleModal, setShowNewSaleModal] = useState(false)
   const [sales, setSales] = useState<Sale[]>([])
   const [isLoading, setIsLoading] = useState(false)
   const [showPaymentModal, setShowPaymentModal] = useState(false)
@@ -65,16 +62,6 @@ const Sales: React.FC = () => {
 
   const toggleExpandSale = (id: string | null) => {
     setExpandedSale(expandedSale === id ? null : id)
-  }
-
-  const handleAddSale = async (newSale: any) => {
-    try {
-      // Reload sales from backend to get the latest data
-      await loadSales()
-      toast.success('Sale added successfully')
-    } catch (error: any) {
-      console.error('Failed to refresh sales:', error)
-    }
   }
 
   const handleRecordPayment = (sale: Sale) => {
@@ -161,13 +148,6 @@ const Sales: React.FC = () => {
       <div className="space-y-6">
         <div className="flex items-center justify-between">
           <h1 className="text-2xl font-bold text-gray-800">Sales</h1>
-          <button
-            className="bg-teal-500 hover:bg-teal-600 text-white py-2 px-4 rounded-lg flex items-center"
-            onClick={() => setShowNewSaleModal(true)}
-          >
-            <PlusIcon size={18} className="mr-1" />
-            New Sale
-          </button>
         </div>
         <div className="bg-white rounded-lg shadow-sm">
           <SalesFilters
@@ -235,11 +215,6 @@ const Sales: React.FC = () => {
             </div>
           </div>
         </div>
-        <NewSaleModal
-          isOpen={showNewSaleModal}
-          onClose={() => setShowNewSaleModal(false)}
-          onSave={handleAddSale}
-        />
         {selectedSale && (
           <PaymentEntryModal
             isOpen={showPaymentModal}

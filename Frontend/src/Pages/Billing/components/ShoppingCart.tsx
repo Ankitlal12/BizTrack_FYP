@@ -40,7 +40,7 @@ const ShoppingCart: React.FC<ShoppingCartProps> = ({
                 {item.name}
               </h4>
               <div className="text-sm text-gray-500">
-                ${item.price.toFixed(2)} each
+                Rs {item.price.toFixed(2)} each
               </div>
             </div>
             <div className="flex items-center space-x-3">
@@ -60,7 +60,7 @@ const ShoppingCart: React.FC<ShoppingCartProps> = ({
                 </button>
               </div>
               <div className="text-sm font-medium text-gray-900 w-16 text-right">
-                ${item.total.toFixed(2)}
+                Rs {item.total.toFixed(2)}
               </div>
               <button
                 onClick={() => onRemoveItem(item.id)}
@@ -75,15 +75,15 @@ const ShoppingCart: React.FC<ShoppingCartProps> = ({
       <div className="border-t pt-4">
         <div className="flex justify-between text-sm">
           <span className="text-gray-600">Subtotal</span>
-          <span className="font-medium">${subtotal.toFixed(2)}</span>
+          <span className="font-medium">Rs {subtotal.toFixed(2)}</span>
         </div>
         <div className="flex justify-between text-sm mt-2">
           <span className="text-gray-600">Tax (7%)</span>
-          <span className="font-medium">${tax.toFixed(2)}</span>
+          <span className="font-medium">Rs {tax.toFixed(2)}</span>
         </div>
         <div className="flex justify-between text-lg font-bold mt-2 pt-2 border-t">
           <span>Total</span>
-          <span>${total.toFixed(2)}</span>
+          <span>Rs {total.toFixed(2)}</span>
         </div>
       </div>
     </div>

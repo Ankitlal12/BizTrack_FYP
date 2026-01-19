@@ -69,8 +69,8 @@ const SaleReceipt: React.FC<SaleReceiptProps> = ({
               <tr key={item.id} className="border-b">
                 <td className="py-2">{item.name}</td>
                 <td className="text-right py-2">{item.quantity}</td>
-                <td className="text-right py-2">${item.price.toFixed(2)}</td>
-                <td className="text-right py-2">${item.total.toFixed(2)}</td>
+                <td className="text-right py-2">Rs {item.price.toFixed(2)}</td>
+                <td className="text-right py-2">Rs {item.total.toFixed(2)}</td>
               </tr>
             ))}
           </tbody>
@@ -80,21 +80,21 @@ const SaleReceipt: React.FC<SaleReceiptProps> = ({
                 Subtotal:
               </td>
               <td className="text-right py-2">
-                ${saleData.subtotal.toFixed(2)}
+                Rs {saleData.subtotal.toFixed(2)}
               </td>
             </tr>
             <tr>
               <td colSpan={3} className="text-right py-2 font-medium">
                 Tax (7%):
               </td>
-              <td className="text-right py-2">${saleData.tax.toFixed(2)}</td>
+              <td className="text-right py-2">Rs {saleData.tax.toFixed(2)}</td>
             </tr>
             <tr>
               <td colSpan={3} className="text-right py-2 font-bold">
                 Total:
               </td>
               <td className="text-right py-2 font-bold">
-                ${saleData.total.toFixed(2)}
+                Rs {saleData.total.toFixed(2)}
               </td>
             </tr>
           </tfoot>

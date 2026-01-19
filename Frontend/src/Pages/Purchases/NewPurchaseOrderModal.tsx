@@ -305,7 +305,7 @@ const NewPurchaseOrderModal: React.FC<NewPurchaseOrderModalProps> = ({
                         />
                       </td>
                       <td className="px-4 py-2 text-right font-medium">
-                        ${item.total.toFixed(2)}
+                        Rs {item.total.toFixed(2)}
                       </td>
                       <td className="px-4 py-2 text-right">
                         <button
@@ -329,7 +329,7 @@ const NewPurchaseOrderModal: React.FC<NewPurchaseOrderModalProps> = ({
                       Total Cost:
                     </td>
                     <td className="px-4 py-3 text-right font-bold">
-                      ${calculateSubtotal().toFixed(2)}
+                      Rs {calculateSubtotal().toFixed(2)}
                     </td>
                     <td></td>
                   </tr>

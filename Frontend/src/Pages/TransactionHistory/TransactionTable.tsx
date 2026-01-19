@@ -75,7 +75,7 @@ const TransactionTable: React.FC<Props> = ({ transactions, expandedId, onToggle 
                 </td>
                 <td className="py-4 px-4 whitespace-nowrap">
                   <div className="text-sm font-medium text-gray-900">
-                    ${transaction.total.toFixed(2)}
+                    Rs {transaction.total.toFixed(2)}
                   </div>
                 </td>
                 <td className="py-4 px-4 whitespace-nowrap text-sm text-gray-500">

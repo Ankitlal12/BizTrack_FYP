@@ -59,9 +59,9 @@ const InventoryTable: React.FC<InventoryTableProps> = ({
                   <td className="px-4 py-4">{item.category}</td>
 
                   <td className="px-4 py-4">
-                    <div className="font-medium">${item.price.toFixed(2)}</div>
+                    <div className="font-medium">Rs {item.price.toFixed(2)}</div>
                     <div className="text-xs text-gray-500">
-                      Cost: ${item.cost.toFixed(2)}
+                      Cost: Rs {item.cost.toFixed(2)}
                     </div>
                   </td>
 

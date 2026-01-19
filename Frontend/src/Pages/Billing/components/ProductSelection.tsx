@@ -64,7 +64,7 @@ const ProductSelection: React.FC<ProductSelectionProps> = ({
                   {product.category}
                 </td>
                 <td className="px-4 py-3 whitespace-nowrap text-right text-sm font-medium text-gray-900">
-                  ${product.price.toFixed(2)}
+                  Rs {product.price.toFixed(2)}
                 </td>
                 <td className="px-4 py-3 whitespace-nowrap text-right">
                   <span

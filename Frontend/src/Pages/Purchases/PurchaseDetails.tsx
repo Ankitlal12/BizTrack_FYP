@@ -60,16 +60,16 @@ const PurchaseDetails: React.FC<PurchaseDetailsProps> = ({
               <div className="space-y-2">
                 <div className="grid grid-cols-2 text-sm">
                   <p className="text-gray-500">Total Amount:</p>
-                  <p className="text-gray-900 font-medium">${purchase.total.toFixed(2)}</p>
+                  <p className="text-gray-900 font-medium">Rs {purchase.total.toFixed(2)}</p>
                 </div>
                 <div className="grid grid-cols-2 text-sm">
                   <p className="text-gray-500">Paid Amount:</p>
-                  <p className="text-gray-900 font-medium">${paidAmount.toFixed(2)}</p>
+                  <p className="text-gray-900 font-medium">Rs {paidAmount.toFixed(2)}</p>
                 </div>
                 <div className="grid grid-cols-2 text-sm">
                   <p className="text-gray-500">Remaining:</p>
                   <p className={`font-medium ${remainingBalance > 0 ? 'text-red-600' : 'text-green-600'}`}>
-                    ${remainingBalance.toFixed(2)}
+                    Rs {remainingBalance.toFixed(2)}
                   </p>
                 </div>
                 <div className="grid grid-cols-2 text-sm">
@@ -140,10 +140,10 @@ const PurchaseDetails: React.FC<PurchaseDetailsProps> = ({
                         {item.quantity}
                       </td>
                       <td className="py-2 px-3 whitespace-nowrap text-sm text-gray-500 text-right">
-                        ${unitCost.toFixed(2)}
+                        Rs {unitCost.toFixed(2)}
                       </td>
                       <td className="py-2 px-3 whitespace-nowrap text-sm text-gray-900 font-medium text-right">
-                        ${item.total.toFixed(2)}
+                        Rs {item.total.toFixed(2)}
                       </td>
                     </tr>
                   )
@@ -158,7 +158,7 @@ const PurchaseDetails: React.FC<PurchaseDetailsProps> = ({
                     Total
                   </td>
                   <td className="py-2 px-3 text-right text-sm font-medium text-gray-900">
-                    ${purchase.total.toFixed(2)}
+                    Rs {purchase.total.toFixed(2)}
                   </td>
                 </tr>
               </tfoot>
@@ -185,7 +185,7 @@ const PurchaseDetails: React.FC<PurchaseDetailsProps> = ({
                           {new Date(payment.date).toLocaleDateString()}
                         </td>
                         <td className="py-2 px-3 text-xs text-gray-900 text-right font-medium">
-                          ${payment.amount.toFixed(2)}
+                          Rs {payment.amount.toFixed(2)}
                         </td>
                         <td className="py-2 px-3 text-xs text-gray-500">
                           {payment.method

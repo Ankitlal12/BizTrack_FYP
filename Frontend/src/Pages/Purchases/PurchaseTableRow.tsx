@@ -41,7 +41,7 @@ const PurchaseTableRow: React.FC<PurchaseTableRowProps> = ({
         </td>
         <td className="py-4 px-4 whitespace-nowrap">
           <div className="text-sm font-medium text-gray-900">
-            ${purchase.total.toFixed(2)}
+            Rs {purchase.total.toFixed(2)}
           </div>
         </td>
         <td className="py-4 px-4 whitespace-nowrap">
