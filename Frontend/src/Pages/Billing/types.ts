@@ -31,6 +31,7 @@ export interface SaleData {
   tax: number
   total: number
   paymentMethod: string
+  paidAmount: number
   notes: string
 }
 
@@ -38,6 +39,7 @@ export interface ValidationErrors {
   customer?: string
   cart?: string
   payment?: string
+  paidAmount?: string
   name?: string
   email?: string
   phone?: string

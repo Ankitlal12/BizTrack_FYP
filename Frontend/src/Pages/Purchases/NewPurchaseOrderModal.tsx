@@ -13,6 +13,7 @@ const NewPurchaseOrderModal: React.FC<NewPurchaseOrderModalProps> = ({
   const [supplier, setSupplier] = useState('')
   const [expectedDeliveryDate, setExpectedDeliveryDate] = useState('')
   const [paymentMethod, setPaymentMethod] = useState('cash')
+  const [paidAmount, setPaidAmount] = useState(0)
   const [items, setItems] = useState([
     {
       id: 1,
@@ -25,7 +26,7 @@ const NewPurchaseOrderModal: React.FC<NewPurchaseOrderModalProps> = ({
     },
   ])
   const [notes, setNotes] = useState('')
-  const [paymentStatus, setPaymentStatus] = useState('unpaid')
+  const [errors, setErrors] = useState<{[key: string]: string}>({})
   // Common product categories
   const categories = [
     'Electronics',
@@ -64,6 +65,26 @@ const NewPurchaseOrderModal: React.FC<NewPurchaseOrderModalProps> = ({
             ...item,
             [field]: value,
           }
+          
+          // Validate selling price vs cost price
+          if (field === 'sellingPrice' || field === 'costPrice') {
+            const costPrice = field === 'costPrice' ? value : item.costPrice
+            const sellingPrice = field === 'sellingPrice' ? value : item.sellingPrice
+            
+            if (sellingPrice > 0 && costPrice > 0 && sellingPrice < costPrice) {
+              setErrors(prev => ({
+                ...prev,
+                [`item_${id}_sellingPrice`]: `Selling price (Rs ${sellingPrice}) cannot be less than cost price (Rs ${costPrice})`
+              }))
+            } else {
+              setErrors(prev => {
+                const newErrors = { ...prev }
+                delete newErrors[`item_${id}_sellingPrice`]
+                return newErrors
+              })
+            }
+          }
+          
           // Recalculate total if quantity or cost price changes
           if (field === 'quantity' || field === 'costPrice') {
             const quantity = field === 'quantity' ? value : item.quantity
@@ -79,9 +100,41 @@ const NewPurchaseOrderModal: React.FC<NewPurchaseOrderModalProps> = ({
   const calculateSubtotal = () => {
     return items.reduce((sum, item) => sum + item.total, 0)
   }
+
+  const calculatePaymentStatus = (paidAmount: number, total: number) => {
+    if (paidAmount >= total) return 'paid'
+    if (paidAmount > 0) return 'partial'
+    return 'unpaid'
+  }
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
+    
+    // Validate all items for selling price vs cost price
+    const validationErrors: {[key: string]: string} = {}
+    let hasErrors = false
+    
+    items.forEach(item => {
+      if (item.sellingPrice > 0 && item.costPrice > 0 && item.sellingPrice < item.costPrice) {
+        validationErrors[`item_${item.id}_sellingPrice`] = `Selling price (Rs ${item.sellingPrice}) cannot be less than cost price (Rs ${item.costPrice}) for ${item.name}`
+        hasErrors = true
+      }
+    })
+    
     const subtotal = calculateSubtotal()
+    
+    // Validate payment amount
+    if (paidAmount > subtotal) {
+      validationErrors.paidAmount = `Payment amount (Rs ${paidAmount.toFixed(2)}) cannot exceed total amount (Rs ${subtotal.toFixed(2)})`
+      hasErrors = true
+    }
+    
+    if (hasErrors) {
+      setErrors(validationErrors)
+      return
+    }
+    
+    const paymentStatus = calculatePaymentStatus(paidAmount, subtotal)
+    
     const newPurchaseOrder = {
       purchaseNumber: `PO-${new Date().getFullYear()}-${Math.floor(
         Math.random() * 1000,
@@ -102,8 +155,9 @@ const NewPurchaseOrderModal: React.FC<NewPurchaseOrderModalProps> = ({
       shipping: 0,
       total: subtotal,
       paymentMethod,
-      status: 'pending',
+      paidAmount,
       paymentStatus,
+      status: 'pending',
       expectedDeliveryDate:
         expectedDeliveryDate || new Date().toISOString().split('T')[0],
       notes,
@@ -141,38 +195,6 @@ const NewPurchaseOrderModal: React.FC<NewPurchaseOrderModalProps> = ({
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
-                Payment Status
-              </label>
-              <select
-                className="w-full border border-gray-300 rounded-lg py-2 px-4 focus:outline-none focus:ring-2 focus:ring-teal-500"
-                value={paymentStatus}
-                onChange={(e) => setPaymentStatus(e.target.value)}
-              >
-                <option value="unpaid">Unpaid</option>
-                <option value="partial">Partially Paid</option>
-                <option value="paid">Paid</option>
-              </select>
-            </div>
-          </div>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Payment Method
-              </label>
-              <select
-                className="w-full border border-gray-300 rounded-lg py-2 px-4 focus:outline-none focus:ring-2 focus:ring-teal-500"
-                value={paymentMethod}
-                onChange={(e) => setPaymentMethod(e.target.value)}
-              >
-                <option value="cash">Cash</option>
-                <option value="card">Card</option>
-                <option value="bank_transfer">Bank Transfer</option>
-                <option value="credit">Credit</option>
-                <option value="other">Other</option>
-              </select>
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
                 Expected Delivery Date
               </label>
               <input
@@ -183,6 +205,141 @@ const NewPurchaseOrderModal: React.FC<NewPurchaseOrderModalProps> = ({
               />
             </div>
           </div>
+          
+          {/* Payment Section */}
+          <div className="bg-gray-50 rounded-lg p-4 space-y-4">
+            <h3 className="text-md font-medium text-gray-700">Payment Information</h3>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Payment Method
+                </label>
+                <select
+                  className="w-full border border-gray-300 rounded-lg py-2 px-4 focus:outline-none focus:ring-2 focus:ring-teal-500"
+                  value={paymentMethod}
+                  onChange={(e) => setPaymentMethod(e.target.value)}
+                >
+                  <option value="cash">Cash</option>
+                  <option value="card">Card</option>
+                  <option value="bank_transfer">Bank Transfer</option>
+                  <option value="credit">Credit</option>
+                  <option value="other">Other</option>
+                </select>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Payment Amount
+                </label>
+                <div className="relative">
+                  <span className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-500">
+                    Rs
+                  </span>
+                  <input
+                    type="number"
+                    min="0"
+                    max={calculateSubtotal()}
+                    step="0.01"
+                    className={`w-full border ${errors.paidAmount ? 'border-red-500' : 'border-gray-300'} rounded-lg py-2 pl-10 pr-4 focus:outline-none focus:ring-2 focus:ring-teal-500`}
+                    value={paidAmount || ''}
+                    onChange={(e) => {
+                      const amount = parseFloat(e.target.value) || 0
+                      if (amount > calculateSubtotal()) {
+                        setErrors(prev => ({
+                          ...prev,
+                          paidAmount: `Payment amount cannot exceed total amount of Rs ${calculateSubtotal().toFixed(2)}`
+                        }))
+                      } else {
+                        setErrors(prev => {
+                          const newErrors = { ...prev }
+                          delete newErrors.paidAmount
+                          return newErrors
+                        })
+                        setPaidAmount(amount)
+                      }
+                    }}
+                    placeholder="0.00"
+                  />
+                </div>
+                
+                {errors.paidAmount && (
+                  <div className="text-red-500 text-sm mt-1">
+                    {errors.paidAmount}
+                  </div>
+                )}
+                
+                {/* Quick payment buttons */}
+                <div className="flex gap-2 mt-2">
+                  <button
+                    type="button"
+                    onClick={() => setPaidAmount(calculateSubtotal())}
+                    className="text-xs bg-teal-100 hover:bg-teal-200 text-teal-700 px-2 py-1 rounded"
+                  >
+                    Full Amount
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setPaidAmount(0)}
+                    className="text-xs bg-gray-100 hover:bg-gray-200 text-gray-700 px-2 py-1 rounded"
+                  >
+                    Clear
+                  </button>
+                </div>
+              </div>
+            </div>
+            
+            {/* Payment Status Display */}
+            {calculateSubtotal() > 0 && (
+              <div className="bg-white rounded-lg p-3 space-y-2">
+                <div className="flex justify-between text-sm">
+                  <span className="text-gray-600">Total Amount:</span>
+                  <span className="font-medium">Rs {calculateSubtotal().toFixed(2)}</span>
+                </div>
+                <div className="flex justify-between text-sm">
+                  <span className="text-gray-600">Paid Amount:</span>
+                  <span className="font-medium">Rs {paidAmount.toFixed(2)}</span>
+                </div>
+                {paidAmount < calculateSubtotal() && (
+                  <div className="flex justify-between text-sm">
+                    <span className="text-gray-600">Remaining:</span>
+                    <span className="font-medium text-orange-600">Rs {(calculateSubtotal() - paidAmount).toFixed(2)}</span>
+                  </div>
+                )}
+                
+                {/* Payment Status Badge */}
+                <div className="flex justify-end mt-2">
+                  {paidAmount >= calculateSubtotal() ? (
+                    <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
+                      Fully Paid
+                    </span>
+                  ) : paidAmount > 0 ? (
+                    <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-orange-100 text-orange-800">
+                      Partial Payment
+                    </span>
+                  ) : (
+                    <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-800">
+                      Unpaid
+                    </span>
+                  )}
+                </div>
+              </div>
+            )}
+          </div>
+          
+          {/* Error Messages */}
+          {Object.keys(errors).length > 0 && (
+            <div className="bg-red-50 border border-red-200 rounded-lg p-4">
+              <h4 className="text-sm font-medium text-red-800 mb-2">Please fix the following errors:</h4>
+              <ul className="text-sm text-red-700 space-y-1">
+                {Object.entries(errors).map(([key, error]) => (
+                  <li key={key} className="flex items-start">
+                    <span className="text-red-500 mr-1">•</span>
+                    {error}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+          
           <div>
             <div className="flex justify-between items-center mb-2">
               <h3 className="text-md font-medium text-gray-700">Items</h3>
@@ -290,7 +447,7 @@ const NewPurchaseOrderModal: React.FC<NewPurchaseOrderModalProps> = ({
                       <td className="px-4 py-2">
                         <input
                           type="number"
-                          className="w-24 border border-gray-300 rounded py-1 px-2 text-right focus:outline-none focus:ring-1 focus:ring-teal-500"
+                          className={`w-24 border ${errors[`item_${item.id}_sellingPrice`] ? 'border-red-500' : 'border-gray-300'} rounded py-1 px-2 text-right focus:outline-none focus:ring-1 focus:ring-teal-500`}
                           value={item.sellingPrice}
                           onChange={(e) =>
                             updateItem(
@@ -303,6 +460,11 @@ const NewPurchaseOrderModal: React.FC<NewPurchaseOrderModalProps> = ({
                           min="0"
                           required
                         />
+                        {errors[`item_${item.id}_sellingPrice`] && (
+                          <div className="text-red-500 text-xs mt-1">
+                            {errors[`item_${item.id}_sellingPrice`]}
+                          </div>
+                        )}
                       </td>
                       <td className="px-4 py-2 text-right font-medium">
                         Rs {item.total.toFixed(2)}

@@ -40,10 +40,36 @@ const SaleReceipt: React.FC<SaleReceiptProps> = ({
           <span className="font-medium">Date:</span>
           <span>{formatDate(saleData.date)}</span>
         </div>
-        <div className="flex justify-between">
+        <div className="flex justify-between mb-2">
           <span className="font-medium">Payment Method:</span>
           <span>
-            {paymentMethod === 'cash' ? 'Cash' : 'Credit/Debit Card'}
+            {paymentMethod === 'cash' ? 'Cash' : 
+             paymentMethod === 'card' ? 'Credit/Debit Card' :
+             paymentMethod === 'bank_transfer' ? 'Bank Transfer' : 
+             'Other'}
+          </span>
+        </div>
+        <div className="flex justify-between mb-2">
+          <span className="font-medium">Paid Amount:</span>
+          <span>Rs {saleData.paidAmount.toFixed(2)}</span>
+        </div>
+        {saleData.paidAmount < saleData.total && (
+          <div className="flex justify-between mb-2">
+            <span className="font-medium text-orange-600">Remaining Balance:</span>
+            <span className="text-orange-600">Rs {(saleData.total - saleData.paidAmount).toFixed(2)}</span>
+          </div>
+        )}
+        <div className="flex justify-between">
+          <span className="font-medium">Payment Status:</span>
+          <span className={`px-2 py-1 rounded-full text-xs font-medium ${
+            saleData.paidAmount >= saleData.total 
+              ? 'bg-green-100 text-green-800' 
+              : saleData.paidAmount > 0 
+                ? 'bg-orange-100 text-orange-800' 
+                : 'bg-red-100 text-red-800'
+          }`}>
+            {saleData.paidAmount >= saleData.total ? 'Fully Paid' : 
+             saleData.paidAmount > 0 ? 'Partial Payment' : 'Unpaid'}
           </span>
         </div>
       </div>

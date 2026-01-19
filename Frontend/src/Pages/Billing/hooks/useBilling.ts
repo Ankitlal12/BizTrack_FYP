@@ -20,6 +20,7 @@ export const useBilling = () => {
   const [cartItems, setCartItems] = useState<CartItem[]>([])
   const [showCustomerForm, setShowCustomerForm] = useState(false)
   const [paymentMethod, setPaymentMethod] = useState('cash')
+  const [paidAmount, setPaidAmount] = useState(0)
   const [notes, setNotes] = useState('')
   const [saleCompleted, setSaleCompleted] = useState(false)
   const [saleData, setSaleData] = useState<SaleData | null>(null)
@@ -176,6 +177,12 @@ export const useBilling = () => {
     if (!paymentMethod) {
       errors.payment = 'Please select a payment method'
     }
+    if (paidAmount < 0) {
+      errors.paidAmount = 'Payment amount cannot be negative'
+    }
+    if (paidAmount > total) {
+      errors.paidAmount = `Payment amount cannot exceed total amount of Rs ${total.toFixed(2)}`
+    }
     setValidationErrors(errors)
     return Object.keys(errors).length === 0
   }
@@ -271,6 +278,7 @@ export const useBilling = () => {
         discount: 0,
         total,
         paymentMethod,
+        paidAmount,
         notes,
       }
 
@@ -287,6 +295,7 @@ export const useBilling = () => {
         tax: createdSale.tax,
         total: createdSale.total,
         paymentMethod: createdSale.paymentMethod,
+        paidAmount: createdSale.paidAmount || paidAmount,
         notes: createdSale.notes || notes,
       }
 
@@ -341,10 +350,15 @@ export const useBilling = () => {
     setCartItems([])
     setSelectedCustomer(null)
     setPaymentMethod('cash')
+    setPaidAmount(0)
     setNotes('')
     setSaleCompleted(false)
     setSaleData(null)
     setValidationErrors({})
+  }
+
+  const handlePaidAmountChange = (amount: number) => {
+    setPaidAmount(amount)
   }
 
   return {
@@ -355,6 +369,7 @@ export const useBilling = () => {
     cartItems,
     showCustomerForm,
     paymentMethod,
+    paidAmount,
     notes,
     saleCompleted,
     saleData,
@@ -382,6 +397,7 @@ export const useBilling = () => {
     removeItem,
     handleSaveCustomer,
     handlePaymentMethodChange,
+    handlePaidAmountChange,
     handleCompleteSale,
     handleStartNewSale,
     loadCustomers,

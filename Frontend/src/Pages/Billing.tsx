@@ -17,6 +17,7 @@ const BillingSystem = () => {
     cartItems,
     showCustomerForm,
     paymentMethod,
+    paidAmount,
     notes,
     saleCompleted,
     saleData,
@@ -41,6 +42,7 @@ const BillingSystem = () => {
     removeItem,
     handleSaveCustomer,
     handlePaymentMethodChange,
+    handlePaidAmountChange,
     handleCompleteSale,
     handleStartNewSale,
   } = useBilling()
@@ -156,6 +158,9 @@ const BillingSystem = () => {
               <PaymentSection
                 paymentMethod={paymentMethod}
                 onPaymentMethodChange={handlePaymentMethodChange}
+                paidAmount={paidAmount}
+                onPaidAmountChange={handlePaidAmountChange}
+                totalAmount={total}
                 notes={notes}
                 onNotesChange={setNotes}
                 validationErrors={validationErrors}

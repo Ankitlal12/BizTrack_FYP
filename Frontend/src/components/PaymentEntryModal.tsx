@@ -33,6 +33,7 @@ const PaymentEntryModal: React.FC<PaymentEntryModalProps> = ({
   const [date, setDate] = useState(new Date().toISOString().split('T')[0])
   const [notes, setNotes] = useState('')
   const [isSubmitting, setIsSubmitting] = useState(false)
+  const [amountError, setAmountError] = useState('')
 
   const remainingBalance = totalAmount - (paidAmount || 0)
 
@@ -44,11 +45,24 @@ const PaymentEntryModal: React.FC<PaymentEntryModalProps> = ({
       setDate(new Date().toISOString().split('T')[0])
       setNotes('')
       setIsSubmitting(false)
+      setAmountError('')
     }
   }, [isOpen])
 
   if (!isOpen) return null
 
+  const handleAmountChange = (value: string) => {
+    setAmount(value)
+    const paymentAmount = parseFloat(value)
+    
+    if (value && paymentAmount > remainingBalance) {
+      setAmountError(`Payment amount cannot exceed remaining balance of Rs ${remainingBalance.toFixed(2)}`)
+    } else if (value && paymentAmount <= 0) {
+      setAmountError('Payment amount must be greater than 0')
+    } else {
+      setAmountError('')
+    }
+  }
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
 
@@ -61,6 +75,11 @@ const PaymentEntryModal: React.FC<PaymentEntryModalProps> = ({
 
     if (paymentAmount > remainingBalance) {
       toast.error(`Payment amount cannot exceed remaining balance of Rs ${remainingBalance.toFixed(2)}`)
+      return
+    }
+
+    if (amountError) {
+      toast.error('Please fix the validation errors before submitting')
       return
     }
 
@@ -142,12 +161,18 @@ const PaymentEntryModal: React.FC<PaymentEntryModalProps> = ({
                 max={remainingBalance}
                 required
                 value={amount}
-                onChange={(e) => setAmount(e.target.value)}
-                className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-500"
+                onChange={(e) => handleAmountChange(e.target.value)}
+                className={`w-full pl-10 pr-4 py-2 border ${amountError ? 'border-red-500' : 'border-gray-300'} rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-500`}
                 placeholder="0.00"
                 disabled={isSubmitting || remainingBalance <= 0}
               />
             </div>
+            {amountError && (
+              <p className="text-red-500 text-xs mt-1 flex items-center">
+                <AlertCircleIcon size={14} className="mr-1" />
+                {amountError}
+              </p>
+            )}
             {remainingBalance <= 0 && (
               <p className="text-green-600 text-xs mt-1 flex items-center">
                 <AlertCircleIcon size={14} className="mr-1" />
