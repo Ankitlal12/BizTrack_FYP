@@ -214,7 +214,7 @@ exports.recordPayment = async (req, res) => {
 
     if (amount > remainingBalance) {
       return res.status(400).json({ 
-        error: `Payment amount (Rs ${amount.toFixed(2)}) exceeds remaining balance (Rs ${remainingBalance.toFixed(2)})` 
+        error: `Payment amount (Rs ${amount.toFixed(2)}) cannot exceed remaining balance (Rs ${remainingBalance.toFixed(2)})` 
       });
     }
 

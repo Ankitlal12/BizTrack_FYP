@@ -263,6 +263,7 @@ exports.createBill = async (req, res) => {
       discount,
       total,
       paymentMethod,
+      paidAmount,
       notes,
     } = req.body;
 
@@ -339,6 +340,23 @@ exports.createBill = async (req, res) => {
     // Generate invoice number
     const invoiceNumber = `INV-${Date.now().toString().slice(-6)}`;
 
+    // Calculate payment status based on paid amount
+    const actualPaidAmount = paidAmount || 0;
+    
+    // Validate payment amount doesn't exceed total
+    if (actualPaidAmount > total) {
+      return res.status(400).json({
+        error: `Payment amount (Rs ${actualPaidAmount.toFixed(2)}) cannot exceed total amount (Rs ${total.toFixed(2)})`
+      });
+    }
+    
+    let paymentStatus = 'unpaid';
+    if (actualPaidAmount >= total) {
+      paymentStatus = 'paid';
+    } else if (actualPaidAmount > 0) {
+      paymentStatus = 'partial';
+    }
+
     // Create sale
     const saleData = {
       invoiceNumber,
@@ -349,9 +367,21 @@ exports.createBill = async (req, res) => {
       discount: discount || 0,
       total,
       paymentMethod: paymentMethod || "cash",
+      paymentStatus,
+      paidAmount: actualPaidAmount,
       status: "completed",
       notes: notes || "",
     };
+
+    // If there's a payment, add it to the payments array
+    if (actualPaidAmount > 0) {
+      saleData.payments = [{
+        amount: actualPaidAmount,
+        date: new Date(),
+        method: paymentMethod || "cash",
+        notes: notes || "",
+      }];
+    }
 
     const sale = await Sale.create(saleData);
 

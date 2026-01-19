@@ -141,6 +141,35 @@ exports.createPurchase = async (req, res) => {
       ...req.body,
       items: processedItems,
     };
+
+    // Calculate payment status based on paid amount
+    const paidAmount = req.body.paidAmount || 0;
+    const total = req.body.total || 0;
+    
+    // Validate payment amount doesn't exceed total
+    if (paidAmount > total) {
+      return res.status(400).json({
+        error: `Payment amount (Rs ${paidAmount.toFixed(2)}) cannot exceed total amount (Rs ${total.toFixed(2)})`
+      });
+    }
+    
+    if (paidAmount >= total) {
+      purchaseData.paymentStatus = 'paid';
+    } else if (paidAmount > 0) {
+      purchaseData.paymentStatus = 'partial';
+    } else {
+      purchaseData.paymentStatus = 'unpaid';
+    }
+
+    // If there's an initial payment, add it to the payments array
+    if (paidAmount > 0) {
+      purchaseData.payments = [{
+        amount: paidAmount,
+        date: new Date(),
+        method: req.body.paymentMethod || 'cash',
+        notes: req.body.notes || '',
+      }];
+    }
     
     const purchase = await Purchase.create(purchaseData);
 
@@ -296,7 +325,7 @@ exports.recordPayment = async (req, res) => {
 
     if (amount > remainingBalance) {
       return res.status(400).json({ 
-        error: `Payment amount (Rs ${amount.toFixed(2)}) exceeds remaining balance (Rs ${remainingBalance.toFixed(2)})` 
+        error: `Payment amount (Rs ${amount.toFixed(2)}) cannot exceed remaining balance (Rs ${remainingBalance.toFixed(2)})` 
       });
     }
 
