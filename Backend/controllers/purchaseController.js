@@ -296,7 +296,7 @@ exports.recordPayment = async (req, res) => {
 
     if (amount > remainingBalance) {
       return res.status(400).json({ 
-        error: `Payment amount ($${amount.toFixed(2)}) exceeds remaining balance ($${remainingBalance.toFixed(2)})` 
+        error: `Payment amount (Rs ${amount.toFixed(2)}) exceeds remaining balance (Rs ${remainingBalance.toFixed(2)})` 
       });
     }
 
@@ -334,11 +334,11 @@ exports.recordPayment = async (req, res) => {
       
       if (newPaymentStatus === "paid") {
         notificationTitle = "Purchase Payment Completed";
-        notificationMessage = `Full payment of $${amount.toFixed(2)} made for purchase ${purchase.purchaseNumber} to ${purchase.supplierName}. Total amount: $${purchase.total.toFixed(2)} - Fully Paid.`;
+        notificationMessage = `Full payment of Rs ${amount.toFixed(2)} made for purchase ${purchase.purchaseNumber} to ${purchase.supplierName}. Total amount: Rs ${purchase.total.toFixed(2)} - Fully Paid.`;
       } else if (newPaymentStatus === "partial") {
         const remaining = purchase.total - newPaidAmount;
         notificationTitle = "Partial Payment Made";
-        notificationMessage = `Partial payment of $${amount.toFixed(2)} made for purchase ${purchase.purchaseNumber} to ${purchase.supplierName}. Total: $${purchase.total.toFixed(2)}, Paid: $${newPaidAmount.toFixed(2)}, Remaining: $${remaining.toFixed(2)}.`;
+        notificationMessage = `Partial payment of Rs ${amount.toFixed(2)} made for purchase ${purchase.purchaseNumber} to ${purchase.supplierName}. Total: Rs ${purchase.total.toFixed(2)}, Paid: Rs ${newPaidAmount.toFixed(2)}, Remaining: Rs ${remaining.toFixed(2)}.`;
       }
 
       await Notification.create({

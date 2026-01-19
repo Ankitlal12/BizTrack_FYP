@@ -390,7 +390,7 @@ exports.createBill = async (req, res) => {
       await Notification.create({
         type: "sale",
         title: "New Sale Completed",
-        message: `Sale ${sale.invoiceNumber} has been completed with ${totalItems} item(s) for ${customerInfo.customerName || 'customer'}. Total: $${sale.total.toFixed(2)}.`,
+        message: `Sale ${sale.invoiceNumber} has been completed with ${totalItems} item(s) for ${customerInfo.customerName || 'customer'}. Total: Rs ${sale.total.toFixed(2)}.`,
         relatedId: sale._id,
         relatedModel: "Sale",
         metadata: {
