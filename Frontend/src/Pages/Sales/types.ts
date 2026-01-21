@@ -35,5 +35,9 @@ export type Sale = {
   paidAmount?: number
   payments?: PaymentRecord[]
   notes?: string
+  createdBy?: {
+    name: string
+    role: string
+  }
 }
 

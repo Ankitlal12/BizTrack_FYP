@@ -1,4 +1,5 @@
 import { Purchase } from './types'
+import { formatNepaliDate } from '../../utils/dateUtils'
 
 export const getStatusBadgeClass = (status: string): string => {
   switch (status) {
@@ -28,7 +29,7 @@ export const getPaymentStatusBadgeClass = (status: string): string => {
 
 export const getPurchaseDate = (purchase: Purchase): string => {
   const dateValue = purchase.expectedDeliveryDate || purchase.createdAt
-  return dateValue ? new Date(dateValue).toLocaleDateString() : 'N/A'
+  return dateValue ? formatNepaliDate(dateValue) : 'N/A'
 }
 
 export const getPurchaseKey = (purchase: Purchase): string => {

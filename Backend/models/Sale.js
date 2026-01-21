@@ -95,6 +95,18 @@ const saleSchema = new mongoose.Schema({
   notes: {
     type: String,
   },
+  // User tracking fields
+  createdBy: {
+    userId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "User",
+    },
+    name: String,
+    role: {
+      type: String,
+      enum: ["owner", "manager", "staff"],
+    },
+  },
 }, {
   timestamps: true,
 });

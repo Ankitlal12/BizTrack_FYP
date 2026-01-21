@@ -1,6 +1,7 @@
 const Sale = require("../models/Sale");
 const Inventory = require("../models/Inventory");
 const Notification = require("../models/Notification");
+const { getNepaliCurrentDateTime } = require("../utils/dateUtils");
 
 // Helper function to check and create low stock notifications
 const checkAndCreateStockNotification = async (item) => {
@@ -234,7 +235,7 @@ exports.recordPayment = async (req, res) => {
     // Add payment to payments array
     const paymentRecord = {
       amount,
-      date: date ? new Date(date) : new Date(),
+      date: date ? new Date(date) : getNepaliCurrentDateTime(),
       method: method || "cash",
       notes: notes || "",
     };

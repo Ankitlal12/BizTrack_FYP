@@ -33,6 +33,10 @@ export interface SaleData {
   paymentMethod: string
   paidAmount: number
   notes: string
+  createdBy?: {
+    name: string
+    role: string
+  }
 }
 
 export interface ValidationErrors {

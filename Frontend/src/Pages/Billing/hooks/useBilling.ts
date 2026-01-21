@@ -10,8 +10,10 @@ import {
 } from '../types'
 import { billingAPI } from '../../../services/api'
 import { calculateTotals } from '../utils/billingUtils'
+import { useAuth } from '../../../contexts/AuthContext'
 
 export const useBilling = () => {
+  const { user } = useAuth()
   const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(
     null,
   )
@@ -297,6 +299,10 @@ export const useBilling = () => {
         paymentMethod: createdSale.paymentMethod,
         paidAmount: createdSale.paidAmount || paidAmount,
         notes: createdSale.notes || notes,
+        createdBy: {
+          name: user?.name || 'Unknown User',
+          role: user?.role || 'staff',
+        },
       }
 
       // Check for low stock items and show notifications

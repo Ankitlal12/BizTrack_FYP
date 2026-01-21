@@ -1,5 +1,6 @@
 import React, { useState } from 'react'
 import { XIcon, PlusIcon, TrashIcon } from 'lucide-react'
+import { useAuth } from '../../contexts/AuthContext'
 interface NewPurchaseOrderModalProps {
   isOpen: boolean
   onClose: () => void
@@ -10,6 +11,7 @@ const NewPurchaseOrderModal: React.FC<NewPurchaseOrderModalProps> = ({
   onClose,
   onSave,
 }) => {
+  const { user } = useAuth()
   const [supplier, setSupplier] = useState('')
   const [expectedDeliveryDate, setExpectedDeliveryDate] = useState('')
   const [paymentMethod, setPaymentMethod] = useState('cash')

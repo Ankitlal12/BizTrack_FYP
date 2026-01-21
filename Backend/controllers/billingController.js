@@ -2,6 +2,7 @@ const Customer = require("../models/Customer");
 const Inventory = require("../models/Inventory");
 const Sale = require("../models/Sale");
 const Notification = require("../models/Notification");
+const { getNepaliCurrentDateTime } = require("../utils/dateUtils");
 
 // Helper function to check and create low stock notifications
 const checkAndCreateStockNotification = async (item) => {
@@ -371,13 +372,19 @@ exports.createBill = async (req, res) => {
       paidAmount: actualPaidAmount,
       status: "completed",
       notes: notes || "",
+      // Add user tracking information
+      createdBy: {
+        userId: req.user?.id || req.user?._id,
+        name: req.user?.name || "Unknown User",
+        role: req.user?.role || "staff",
+      },
     };
 
     // If there's a payment, add it to the payments array
     if (actualPaidAmount > 0) {
       saleData.payments = [{
         amount: actualPaidAmount,
-        date: new Date(),
+        date: getNepaliCurrentDateTime(),
         method: paymentMethod || "cash",
         notes: notes || "",
       }];

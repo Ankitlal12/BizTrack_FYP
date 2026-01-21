@@ -35,6 +35,10 @@ export type Purchase = {
   expectedDeliveryDate?: string
   notes?: string
   createdAt?: string
+  createdBy?: {
+    name: string
+    role: string
+  }
 }
 
 

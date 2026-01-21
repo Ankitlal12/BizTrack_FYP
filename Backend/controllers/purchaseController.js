@@ -1,6 +1,7 @@
 const Purchase = require("../models/Purchase");
 const Inventory = require("../models/Inventory");
 const Notification = require("../models/Notification");
+const { getNepaliCurrentDateTime } = require("../utils/dateUtils");
 
 // Helper function to check and create low stock notifications
 const checkAndCreateStockNotification = async (item) => {
@@ -140,6 +141,12 @@ exports.createPurchase = async (req, res) => {
     const purchaseData = {
       ...req.body,
       items: processedItems,
+      // Add user tracking information
+      createdBy: {
+        userId: req.user?.id || req.user?._id,
+        name: req.user?.name || "Unknown User",
+        role: req.user?.role || "staff",
+      },
     };
 
     // Calculate payment status based on paid amount
@@ -165,7 +172,7 @@ exports.createPurchase = async (req, res) => {
     if (paidAmount > 0) {
       purchaseData.payments = [{
         amount: paidAmount,
-        date: new Date(),
+        date: getNepaliCurrentDateTime(),
         method: req.body.paymentMethod || 'cash',
         notes: req.body.notes || '',
       }];
@@ -345,7 +352,7 @@ exports.recordPayment = async (req, res) => {
     // Add payment to payments array
     const paymentRecord = {
       amount,
-      date: date ? new Date(date) : new Date(),
+      date: date ? new Date(date) : getNepaliCurrentDateTime(),
       method: method || "cash",
       notes: notes || "",
     };

@@ -1,4 +1,5 @@
 import { Sale } from './types'
+import { formatNepaliDate } from '../../utils/dateUtils'
 
 export const getStatusBadgeClass = (status: string): string => {
   switch (status) {
@@ -74,7 +75,7 @@ export const transformBackendSaleToFrontend = (sale: any): Sale => {
       phone: sale.customerPhone || '',
     },
     items: sale.items || [],
-    date: sale.createdAt ? new Date(sale.createdAt).toISOString().split('T')[0] : new Date().toISOString().split('T')[0],
+    date: sale.createdAt ? formatNepaliDate(sale.createdAt) : formatNepaliDate(new Date()),
     subtotal: sale.subtotal || 0,
     tax: sale.tax || 0,
     total: sale.total || 0,
@@ -84,6 +85,10 @@ export const transformBackendSaleToFrontend = (sale: any): Sale => {
     paidAmount: sale.paidAmount || 0,
     payments: sale.payments || [],
     notes: sale.notes || '',
+    createdBy: sale.createdBy ? {
+      name: sale.createdBy.name || 'Unknown User',
+      role: sale.createdBy.role || 'staff',
+    } : undefined,
   }
 }
 

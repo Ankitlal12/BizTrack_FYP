@@ -2,6 +2,7 @@ import React from 'react'
 import { UserIcon, DollarSignIcon, ClockIcon } from 'lucide-react'
 import { Sale } from '../Sales/types'
 import { getStatusBadgeClass, getPaymentStatusBadgeClass, formatPaymentMethod } from '../Sales/utils'
+import { formatNepaliDateTime } from '../../utils/dateUtils'
 
 interface SalesDetailsProps {
   sale: Sale
@@ -163,7 +164,9 @@ const SalesDetails: React.FC<SalesDetailsProps> = ({ sale, onRecordPayment }) =>
                 <table className="min-w-full divide-y divide-gray-200">
                   <thead className="bg-gray-50">
                     <tr>
-                      <th className="py-2 px-3 text-left text-xs font-medium text-gray-500 uppercase">Date</th>
+                      <th className="py-2 px-3 text-left text-xs font-medium text-gray-500 uppercase">
+                        Date & Time (NPT)
+                      </th>
                       <th className="py-2 px-3 text-right text-xs font-medium text-gray-500 uppercase">Amount</th>
                       <th className="py-2 px-3 text-left text-xs font-medium text-gray-500 uppercase">Method</th>
                       <th className="py-2 px-3 text-left text-xs font-medium text-gray-500 uppercase">Notes</th>
@@ -173,7 +176,15 @@ const SalesDetails: React.FC<SalesDetailsProps> = ({ sale, onRecordPayment }) =>
                     {sale.payments.map((payment, index) => (
                       <tr key={index} className="hover:bg-gray-50">
                         <td className="py-2 px-3 text-xs text-gray-900">
-                          {new Date(payment.date).toLocaleDateString()}
+                          {formatNepaliDateTime(payment.date, {
+                            timeZone: 'Asia/Kathmandu',
+                            year: 'numeric',
+                            month: 'short',
+                            day: 'numeric',
+                            hour: '2-digit',
+                            minute: '2-digit',
+                            hour12: true,
+                          })}
                         </td>
                         <td className="py-2 px-3 text-xs text-gray-900 text-right font-medium">
                           Rs {payment.amount.toFixed(2)}
@@ -196,6 +207,34 @@ const SalesDetails: React.FC<SalesDetailsProps> = ({ sale, onRecordPayment }) =>
             <div className="mt-2">
               <h4 className="text-xs font-medium text-gray-700">Notes:</h4>
               <p className="text-sm text-gray-600">{sale.notes}</p>
+            </div>
+          )}
+
+          {/* User Information */}
+          {sale.createdBy && (
+            <div className="mt-4 bg-blue-50 p-3 rounded-lg">
+              <h4 className="text-sm font-medium text-blue-800 mb-2 flex items-center">
+                <UserIcon size={16} className="mr-1" />
+                Transaction Details
+              </h4>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-2 text-sm">
+                <div>
+                  <span className="text-blue-600">Processed by:</span>
+                  <span className="ml-2 font-medium text-blue-900">{sale.createdBy.name}</span>
+                </div>
+                <div>
+                  <span className="text-blue-600">Role:</span>
+                  <span className="ml-2 font-medium text-blue-900 capitalize">{sale.createdBy.role}</span>
+                </div>
+                <div className="flex items-center">
+                  <ClockIcon size={14} className="text-blue-600 mr-1" />
+                  <span className="text-blue-600">Date & Time:</span>
+                  <div className="ml-2">
+                    <span className="font-medium text-blue-900">{formatNepaliDateTime(sale.date)}</span>
+                    <div className="text-xs text-blue-600 mt-1">Nepal Time (NPT)</div>
+                  </div>
+                </div>
+              </div>
             </div>
           )}
           <div className="flex justify-end space-x-2">

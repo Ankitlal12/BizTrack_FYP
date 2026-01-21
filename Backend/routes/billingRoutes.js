@@ -1,4 +1,5 @@
 const express = require("express");
+const { authenticate } = require("../middleware/auth");
 const {
   // Customer endpoints
   getAllCustomers,
@@ -15,6 +16,9 @@ const {
   getBillById,
 } = require("../controllers/billingController");
 const router = express.Router();
+
+// Apply authentication to all routes
+router.use(authenticate);
 
 // Customer routes
 router.get("/customers", getAllCustomers);

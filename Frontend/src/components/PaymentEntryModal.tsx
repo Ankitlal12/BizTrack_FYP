@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react'
 import { XIcon, IndianRupeeIcon, AlertCircleIcon } from 'lucide-react'
 import { toast } from 'sonner'
+import { formatNepaliDate } from '../utils/dateUtils'
 
 interface PaymentRecord {
   amount: number
@@ -30,7 +31,11 @@ const PaymentEntryModal: React.FC<PaymentEntryModalProps> = ({
 }) => {
   const [amount, setAmount] = useState('')
   const [method, setMethod] = useState('cash')
-  const [date, setDate] = useState(new Date().toISOString().split('T')[0])
+  const [date, setDate] = useState(() => {
+    // Set default date to current Nepali date
+    const nepaliDate = new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Kathmandu' })
+    return nepaliDate
+  })
   const [notes, setNotes] = useState('')
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [amountError, setAmountError] = useState('')
@@ -42,7 +47,9 @@ const PaymentEntryModal: React.FC<PaymentEntryModalProps> = ({
       // Reset form when modal opens
       setAmount('')
       setMethod('cash')
-      setDate(new Date().toISOString().split('T')[0])
+      // Set to current Nepali date
+      const nepaliDate = new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Kathmandu' })
+      setDate(nepaliDate)
       setNotes('')
       setIsSubmitting(false)
       setAmountError('')

@@ -1,4 +1,5 @@
 const express = require("express");
+const { authenticate } = require("../middleware/auth");
 const {
   getAllSales,
   getSaleById,
@@ -8,6 +9,9 @@ const {
   recordPayment,
 } = require("../controllers/saleController");
 const router = express.Router();
+
+// Apply authentication to all routes
+router.use(authenticate);
 
 router.get("/", getAllSales);
 router.get("/:id", getSaleById);

@@ -2,6 +2,8 @@ import React from 'react'
 import { CheckCircleIcon, XIcon, PrinterIcon } from 'lucide-react'
 import { SaleData } from '../types'
 import { formatDate } from '../utils/billingUtils'
+import { formatNepaliDateTime } from '../../../utils/dateUtils'
+import TimezoneIndicator from '../../../components/TimezoneIndicator'
 
 interface SaleReceiptProps {
   saleData: SaleData
@@ -130,6 +132,30 @@ const SaleReceipt: React.FC<SaleReceiptProps> = ({
         <div className="mb-4">
           <h3 className="font-medium mb-2">Notes</h3>
           <p className="text-gray-600 text-sm">{saleData.notes}</p>
+        </div>
+      )}
+      
+      {/* User Information */}
+      {saleData.createdBy && (
+        <div className="mb-4 bg-gray-50 p-3 rounded-lg">
+          <h3 className="font-medium mb-2 text-gray-700">Transaction Details</h3>
+          <div className="grid grid-cols-2 gap-2 text-sm">
+            <div>
+              <span className="text-gray-500">Processed by:</span>
+              <span className="ml-2 font-medium">{saleData.createdBy.name}</span>
+            </div>
+            <div>
+              <span className="text-gray-500">Role:</span>
+              <span className="ml-2 font-medium capitalize">{saleData.createdBy.role}</span>
+            </div>
+            <div>
+              <span className="text-gray-500">Date & Time:</span>
+              <span className="ml-2 font-medium">{formatNepaliDateTime(saleData.date)}</span>
+              <div className="mt-1">
+                <TimezoneIndicator />
+              </div>
+            </div>
+          </div>
         </div>
       )}
       <div className="flex justify-end space-x-3 mt-6">

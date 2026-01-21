@@ -1,7 +1,8 @@
 import React from 'react'
-import { CalendarIcon, DollarSignIcon } from 'lucide-react'
+import { CalendarIcon, DollarSignIcon, UserIcon } from 'lucide-react'
 import { Purchase } from './types'
 import { getStatusBadgeClass, getPaymentStatusBadgeClass, getPurchaseDate, getPurchaseKey } from './utils'
+import { formatNepaliDateTime } from '../../utils/dateUtils'
 
 interface PurchaseDetailsProps {
   purchase: Purchase
@@ -172,7 +173,9 @@ const PurchaseDetails: React.FC<PurchaseDetailsProps> = ({
                 <table className="min-w-full divide-y divide-gray-200">
                   <thead className="bg-gray-50">
                     <tr>
-                      <th className="py-2 px-3 text-left text-xs font-medium text-gray-500 uppercase">Date</th>
+                      <th className="py-2 px-3 text-left text-xs font-medium text-gray-500 uppercase">
+                        Date & Time (NPT)
+                      </th>
                       <th className="py-2 px-3 text-right text-xs font-medium text-gray-500 uppercase">Amount</th>
                       <th className="py-2 px-3 text-left text-xs font-medium text-gray-500 uppercase">Method</th>
                       <th className="py-2 px-3 text-left text-xs font-medium text-gray-500 uppercase">Notes</th>
@@ -182,7 +185,15 @@ const PurchaseDetails: React.FC<PurchaseDetailsProps> = ({
                     {purchase.payments.map((payment, index) => (
                       <tr key={index} className="hover:bg-gray-50">
                         <td className="py-2 px-3 text-xs text-gray-900">
-                          {new Date(payment.date).toLocaleDateString()}
+                          {formatNepaliDateTime(payment.date, {
+                            timeZone: 'Asia/Kathmandu',
+                            year: 'numeric',
+                            month: 'short',
+                            day: 'numeric',
+                            hour: '2-digit',
+                            minute: '2-digit',
+                            hour12: true,
+                          })}
                         </td>
                         <td className="py-2 px-3 text-xs text-gray-900 text-right font-medium">
                           Rs {payment.amount.toFixed(2)}
@@ -208,6 +219,38 @@ const PurchaseDetails: React.FC<PurchaseDetailsProps> = ({
             <div className="mt-2">
               <h4 className="text-xs font-medium text-gray-700">Notes:</h4>
               <p className="text-sm text-gray-600">{purchase.notes}</p>
+            </div>
+          )}
+
+          {/* User Information */}
+          {purchase.createdBy && (
+            <div className="mt-4 bg-green-50 p-3 rounded-lg">
+              <h4 className="text-sm font-medium text-green-800 mb-2 flex items-center">
+                <UserIcon size={16} className="mr-1" />
+                Purchase Order Details
+              </h4>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-2 text-sm">
+                <div>
+                  <span className="text-green-600">Created by:</span>
+                  <span className="ml-2 font-medium text-green-900">{purchase.createdBy.name}</span>
+                </div>
+                <div>
+                  <span className="text-green-600">Role:</span>
+                  <span className="ml-2 font-medium text-green-900 capitalize">{purchase.createdBy.role}</span>
+                </div>
+                <div className="flex items-center">
+                  <CalendarIcon size={14} className="text-green-600 mr-1" />
+                  <span className="text-green-600">Created:</span>
+                  <div className="ml-2">
+                    <span className="font-medium text-green-900">
+                      {purchase.createdAt ? formatNepaliDateTime(purchase.createdAt) : 'N/A'}
+                    </span>
+                    {purchase.createdAt && (
+                      <div className="text-xs text-green-600 mt-1">Nepal Time (NPT)</div>
+                    )}
+                  </div>
+                </div>
+              </div>
             </div>
           )}
           <div className="flex justify-end space-x-2">
