@@ -1,8 +1,10 @@
 const User = require("../models/User");
+const LoginHistory = require("../models/LoginHistory");
 const Notification = require("../models/Notification");
 const bcrypt = require("bcryptjs");
 const { OAuth2Client } = require("google-auth-library");
 const { generateToken } = require("../utils/jwt");
+const { getNepaliCurrentDateTime } = require("../utils/dateUtils");
 
 // Create a new user (staff member)
 exports.createUser = async (req, res) => {
@@ -113,9 +115,41 @@ exports.login = async (req, res) => {
     const isPasswordValid = await bcrypt.compare(password, user.password);
 
     if (!isPasswordValid) {
+      // Record failed login attempt
+      try {
+        await LoginHistory.create({
+          userId: user._id,
+          userName: user.name,
+          userRole: user.role,
+          ipAddress: req.ip || req.connection.remoteAddress,
+          userAgent: req.get('User-Agent'),
+          loginMethod: "credentials",
+          success: false,
+          loginTime: getNepaliCurrentDateTime(),
+        });
+      } catch (historyError) {
+        console.error("Failed to record failed login:", historyError);
+      }
+      
       return res.status(401).json({ 
         error: "Invalid username or password" 
       });
+    }
+
+    // Record successful login
+    try {
+      await LoginHistory.create({
+        userId: user._id,
+        userName: user.name,
+        userRole: user.role,
+        ipAddress: req.ip || req.connection.remoteAddress,
+        userAgent: req.get('User-Agent'),
+        loginMethod: "credentials",
+        success: true,
+        loginTime: getNepaliCurrentDateTime(),
+      });
+    } catch (historyError) {
+      console.error("Failed to record login history:", historyError);
     }
 
     // Generate JWT token
@@ -419,6 +453,22 @@ exports.googleLogin = async (req, res) => {
           throw createError;
         }
       }
+    }
+
+    // Record successful Google login
+    try {
+      await LoginHistory.create({
+        userId: user._id,
+        userName: user.name,
+        userRole: user.role,
+        ipAddress: req.ip || req.connection.remoteAddress,
+        userAgent: req.get('User-Agent'),
+        loginMethod: "google",
+        success: true,
+        loginTime: getNepaliCurrentDateTime(),
+      });
+    } catch (historyError) {
+      console.error("Failed to record Google login history:", historyError);
     }
 
     // Generate JWT token

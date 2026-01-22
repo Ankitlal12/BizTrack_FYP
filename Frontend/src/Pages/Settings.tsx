@@ -5,6 +5,7 @@ import {
   BellIcon,
   ShieldIcon,
   DatabaseIcon,
+  ClockIcon,
 } from 'lucide-react'
 import { useAuth } from '../contexts/AuthContext'
 import Layout from '../layout/Layout'
@@ -13,8 +14,9 @@ import StaffTab from './Settings/StaffTab'
 import NotificationsTab from './Settings/NotificationsTab'
 import SecurityTab from './Settings/SecurityTab'
 import DataTab from './Settings/DataTab'
+import LoginHistoryTab from './Settings/LoginHistoryTab'
 
-type TabId = 'profile' | 'staff' | 'notifications' | 'security' | 'data'
+type TabId = 'profile' | 'staff' | 'notifications' | 'security' | 'data' | 'loginHistory'
 
 const tabs: { id: TabId; label: string; icon: React.ReactNode }[] = [
   { id: 'profile', label: 'Profile', icon: <UserIcon size={18} /> },
@@ -22,12 +24,22 @@ const tabs: { id: TabId; label: string; icon: React.ReactNode }[] = [
   { id: 'notifications', label: 'Notifications', icon: <BellIcon size={18} /> },
   { id: 'security', label: 'Security', icon: <ShieldIcon size={18} /> },
   { id: 'data', label: 'Data & Backup', icon: <DatabaseIcon size={18} /> },
+  { id: 'loginHistory', label: 'Login History', icon: <ClockIcon size={18} /> },
 ]
 
 const Settings = () => {
   const [activeTab, setActiveTab] = useState<TabId>('profile')
   const { user, staffMembers, toggleStaffStatus, addStaffMember, updateStaffMember, deleteStaffMember } = useAuth()
   const handleAddStaff = (member: any) => addStaffMember(member)
+
+  // Filter tabs based on user role
+  const availableTabs = tabs.filter(tab => {
+    // Login History is only available to owners and managers
+    if (tab.id === 'loginHistory') {
+      return user?.role === 'owner' || user?.role === 'manager'
+    }
+    return true
+  })
 
   const renderTabContent = () => {
     switch (activeTab) {
@@ -49,6 +61,8 @@ const Settings = () => {
         return <SecurityTab />
       case 'data':
         return <DataTab />
+      case 'loginHistory':
+        return <LoginHistoryTab />
       default:
         return null
     }
@@ -62,7 +76,7 @@ const Settings = () => {
         </div>
         <div className="bg-white rounded-lg shadow-sm">
           <div className="flex border-b overflow-x-auto">
-            {tabs.map((tab) => (
+            {availableTabs.map((tab) => (
               <button
                 key={tab.id}
                 onClick={() => setActiveTab(tab.id)}

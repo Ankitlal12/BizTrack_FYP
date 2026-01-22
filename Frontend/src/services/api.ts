@@ -250,3 +250,67 @@ export const tokenManager = {
   removeToken,
 };
 
+// User API (alias for usersAPI for consistency)
+export const userAPI = {
+  login: (credentials: { username: string; password: string }) => 
+    usersAPI.login(credentials.username, credentials.password),
+  updateUser: (id: string, data: { username?: string; password?: string }) => 
+    usersAPI.update(id, data),
+  getById: (id: string) => usersAPI.getById(id),
+  getAll: () => usersAPI.getAll(),
+};
+
+// Login History API
+export const loginHistoryAPI = {
+  getAll: (params?: { page?: number; limit?: number; userId?: string; days?: number }) => {
+    const query = new URLSearchParams();
+    if (params?.page) query.append('page', params.page.toString());
+    if (params?.limit) query.append('limit', params.limit.toString());
+    if (params?.userId) query.append('userId', params.userId);
+    if (params?.days) query.append('days', params.days.toString());
+    
+    const queryString = query.toString();
+    return apiRequest<{
+      loginHistory: any[];
+      pagination: {
+        currentPage: number;
+        totalPages: number;
+        totalRecords: number;
+        hasNext: boolean;
+        hasPrev: boolean;
+      };
+    }>(`/login-history${queryString ? `?${queryString}` : ''}`);
+  },
+  
+  getUserHistory: (userId: string, params?: { page?: number; limit?: number; days?: number }) => {
+    const query = new URLSearchParams();
+    if (params?.page) query.append('page', params.page.toString());
+    if (params?.limit) query.append('limit', params.limit.toString());
+    if (params?.days) query.append('days', params.days.toString());
+    
+    const queryString = query.toString();
+    return apiRequest<{
+      loginHistory: any[];
+      pagination: {
+        currentPage: number;
+        totalPages: number;
+        totalRecords: number;
+        hasNext: boolean;
+        hasPrev: boolean;
+      };
+    }>(`/login-history/user/${userId}${queryString ? `?${queryString}` : ''}`);
+  },
+  
+  getStats: (days?: number) => {
+    const query = days ? `?days=${days}` : '';
+    return apiRequest<{
+      totalLogins: number;
+      failedLogins: number;
+      uniqueUsers: number;
+      loginMethods: Array<{ _id: string; count: number }>;
+      roleBreakdown: Array<{ _id: string; count: number }>;
+      period: string;
+    }>(`/login-history/stats${query}`);
+  },
+};
+
