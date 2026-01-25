@@ -1,5 +1,5 @@
 import React from 'react'
-import { CalendarIcon, DollarSignIcon, UserIcon } from 'lucide-react'
+import { CalendarIcon, DollarSignIcon, UserIcon, FileTextIcon } from 'lucide-react'
 import { Purchase } from './types'
 import { getStatusBadgeClass, getPaymentStatusBadgeClass, getPurchaseDate, getPurchaseKey } from './utils'
 import { formatNepaliDateTime } from '../../utils/dateUtils'
@@ -10,6 +10,7 @@ interface PurchaseDetailsProps {
   onPaymentStatusChange?: (purchaseId: string, newStatus: string) => void
   onEditPaymentStatus?: (purchaseKey: string | null) => void
   onRecordPayment?: () => void
+  onViewInvoice?: (purchaseId: string) => void
 }
 
 const PurchaseDetails: React.FC<PurchaseDetailsProps> = ({
@@ -18,6 +19,7 @@ const PurchaseDetails: React.FC<PurchaseDetailsProps> = ({
   onPaymentStatusChange,
   onEditPaymentStatus,
   onRecordPayment,
+  onViewInvoice,
 }) => {
   const purchaseKey = getPurchaseKey(purchase)
   const paymentStatusValue = purchase.paymentStatus || 'unpaid'
@@ -254,6 +256,13 @@ const PurchaseDetails: React.FC<PurchaseDetailsProps> = ({
             </div>
           )}
           <div className="flex justify-end space-x-2">
+            <button 
+              onClick={() => onViewInvoice && onViewInvoice(purchase._id || purchase.purchaseNumber)}
+              className="bg-blue-500 hover:bg-blue-600 text-white py-1 px-3 rounded text-sm flex items-center"
+            >
+              <FileTextIcon size={14} className="mr-1" />
+              View Invoice
+            </button>
             <button className="bg-white border border-gray-300 text-gray-700 py-1 px-3 rounded text-sm hover:bg-gray-50">
               Print
             </button>

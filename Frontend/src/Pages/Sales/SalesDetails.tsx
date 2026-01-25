@@ -1,5 +1,5 @@
 import React from 'react'
-import { UserIcon, DollarSignIcon, ClockIcon } from 'lucide-react'
+import { UserIcon, DollarSignIcon, ClockIcon, FileTextIcon } from 'lucide-react'
 import { Sale } from '../Sales/types'
 import { getStatusBadgeClass, getPaymentStatusBadgeClass, formatPaymentMethod } from '../Sales/utils'
 import { formatNepaliDateTime } from '../../utils/dateUtils'
@@ -7,9 +7,10 @@ import { formatNepaliDateTime } from '../../utils/dateUtils'
 interface SalesDetailsProps {
   sale: Sale
   onRecordPayment?: () => void
+  onViewInvoice?: (saleId: string) => void
 }
 
-const SalesDetails: React.FC<SalesDetailsProps> = ({ sale, onRecordPayment }) => {
+const SalesDetails: React.FC<SalesDetailsProps> = ({ sale, onRecordPayment, onViewInvoice }) => {
   const paidAmount = sale.paidAmount || 0
   const remainingBalance = sale.total - paidAmount
   return (
@@ -238,6 +239,13 @@ const SalesDetails: React.FC<SalesDetailsProps> = ({ sale, onRecordPayment }) =>
             </div>
           )}
           <div className="flex justify-end space-x-2">
+            <button 
+              onClick={() => onViewInvoice && onViewInvoice(sale._id || sale.id)}
+              className="bg-blue-500 hover:bg-blue-600 text-white py-1 px-3 rounded text-sm flex items-center"
+            >
+              <FileTextIcon size={14} className="mr-1" />
+              View Invoice
+            </button>
             <button className="bg-white border border-gray-300 text-gray-700 py-1 px-3 rounded text-sm hover:bg-gray-50">
               Print Invoice
             </button>

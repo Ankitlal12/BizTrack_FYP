@@ -1,8 +1,9 @@
 import React, { useEffect, useState, useMemo } from 'react'
 import { PlusIcon } from 'lucide-react'
+import { useNavigate } from 'react-router-dom'
 import { toast } from 'sonner'
 import Layout from '../layout/Layout'
-import { purchasesAPI } from '../services/api'
+import { purchasesAPI, invoicesAPI } from '../services/api'
 import { Purchase } from './Purchases/types'
 import { filterAndSortPurchases } from './Purchases/utils'
 import PurchaseFilters from './Purchases/PurchaseFilters'
@@ -11,6 +12,7 @@ import NewPurchaseOrderModal from './Purchases/NewPurchaseOrderModal'
 import PaymentEntryModal from '../components/PaymentEntryModal'
 
 const Purchases: React.FC = () => {
+  const navigate = useNavigate()
   const [searchTerm, setSearchTerm] = useState('')
   const [sortField, setSortField] = useState('date')
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('desc')
@@ -128,6 +130,24 @@ const Purchases: React.FC = () => {
     }
   }
 
+  const handleViewInvoice = async (purchaseId: string) => {
+    try {
+      // Find the invoice related to this purchase
+      const response = await invoicesAPI.getAll(`relatedId=${purchaseId}&type=purchase`)
+      
+      if (response.invoices && response.invoices.length > 0) {
+        const invoice = response.invoices[0]
+        // Navigate to the invoices page with the specific invoice highlighted
+        navigate(`/invoices?highlight=${invoice._id}`)
+      } else {
+        toast.error('No invoice found for this purchase')
+      }
+    } catch (error: any) {
+      console.error('Error finding invoice:', error)
+      toast.error('Failed to find invoice for this purchase')
+    }
+  }
+
   const suppliers = useMemo(
     () => Array.from(new Set(purchases.map((p) => p.supplierName))).sort(),
     [purchases],
@@ -231,6 +251,7 @@ const Purchases: React.FC = () => {
             onPaymentStatusChange={updatePaymentStatus}
             onEditPaymentStatus={setEditingPaymentStatus}
             onRecordPayment={handleRecordPayment}
+            onViewInvoice={handleViewInvoice}
           />
           {isLoading && (
             <div className="p-6 text-center text-gray-500">

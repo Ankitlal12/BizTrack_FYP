@@ -1,7 +1,8 @@
 import React, { useEffect, useState, useMemo } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { toast } from 'sonner'
 import Layout from '../layout/Layout'
-import { salesAPI } from '../services/api'
+import { salesAPI, invoicesAPI } from '../services/api'
 import { Sale } from './Sales/types'
 import { transformBackendSaleToFrontend, filterAndSortSales } from './Sales/utils'
 import SalesFilters from './Sales/SalesFilters'
@@ -9,6 +10,7 @@ import SalesTable from './Sales/SalesTable'
 import PaymentEntryModal from '../components/PaymentEntryModal'
 
 const Sales: React.FC = () => {
+  const navigate = useNavigate()
   const [searchTerm, setSearchTerm] = useState('')
   const [sortField, setSortField] = useState('date')
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('desc')
@@ -88,6 +90,24 @@ const Sales: React.FC = () => {
       await loadSales()
     } catch (error: any) {
       throw error // Let the modal handle the error display
+    }
+  }
+
+  const handleViewInvoice = async (saleId: string) => {
+    try {
+      // Find the invoice related to this sale
+      const response = await invoicesAPI.getAll(`relatedId=${saleId}&type=sale`)
+      
+      if (response.invoices && response.invoices.length > 0) {
+        const invoice = response.invoices[0]
+        // Navigate to the invoices page with the specific invoice highlighted
+        navigate(`/invoices?highlight=${invoice._id}`)
+      } else {
+        toast.error('No invoice found for this sale')
+      }
+    } catch (error: any) {
+      console.error('Error finding invoice:', error)
+      toast.error('Failed to find invoice for this sale')
     }
   }
 
@@ -184,6 +204,7 @@ const Sales: React.FC = () => {
             onSort={handleSort}
             onToggleExpand={toggleExpandSale}
             onRecordPayment={handleRecordPayment}
+            onViewInvoice={handleViewInvoice}
           />
           {isLoading && (
             <div className="p-6 text-center text-gray-500">

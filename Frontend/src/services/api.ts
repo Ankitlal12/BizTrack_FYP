@@ -127,7 +127,10 @@ export const purchasesAPI = {
 
 // Invoices API
 export const invoicesAPI = {
-  getAll: () => apiRequest<any[]>('/invoices'),
+  getAll: (params?: string) => {
+    const query = params ? `?${params}` : '';
+    return apiRequest<any>(`/invoices${query}`);
+  },
   getById: (id: string) => apiRequest<any>(`/invoices/${id}`),
   create: (data: any) => apiRequest<any>('/invoices', {
     method: 'POST',
@@ -139,6 +142,17 @@ export const invoicesAPI = {
   }),
   delete: (id: string) => apiRequest<{ message: string }>(`/invoices/${id}`, {
     method: 'DELETE',
+  }),
+  getStats: () => apiRequest<any>('/invoices/stats'),
+  updatePayment: (id: string, paymentData: any) => apiRequest<any>(`/invoices/${id}/payment`, {
+    method: 'PATCH',
+    body: JSON.stringify(paymentData),
+  }),
+  generateFromSale: (saleId: string) => apiRequest<any>(`/invoices/generate/sale/${saleId}`, {
+    method: 'POST',
+  }),
+  generateFromPurchase: (purchaseId: string) => apiRequest<any>(`/invoices/generate/purchase/${purchaseId}`, {
+    method: 'POST',
   }),
 };
 
@@ -313,4 +327,26 @@ export const loginHistoryAPI = {
     }>(`/login-history/stats${query}`);
   },
 };
+
+// Generic API client for direct usage
+const api = {
+  get: <T>(endpoint: string) => apiRequest<T>(endpoint),
+  post: <T>(endpoint: string, data?: any) => apiRequest<T>(endpoint, {
+    method: 'POST',
+    body: data ? JSON.stringify(data) : undefined,
+  }),
+  put: <T>(endpoint: string, data?: any) => apiRequest<T>(endpoint, {
+    method: 'PUT',
+    body: data ? JSON.stringify(data) : undefined,
+  }),
+  patch: <T>(endpoint: string, data?: any) => apiRequest<T>(endpoint, {
+    method: 'PATCH',
+    body: data ? JSON.stringify(data) : undefined,
+  }),
+  delete: <T>(endpoint: string) => apiRequest<T>(endpoint, {
+    method: 'DELETE',
+  }),
+};
+
+export default api;
 

@@ -11,6 +11,7 @@ interface SalesTableProps {
   onSort: (field: string) => void
   onToggleExpand: (id: string | null) => void
   onRecordPayment?: (sale: Sale) => void
+  onViewInvoice?: (saleId: string) => void
 }
 
 const SalesTable: React.FC<SalesTableProps> = ({
@@ -21,6 +22,7 @@ const SalesTable: React.FC<SalesTableProps> = ({
   onSort,
   onToggleExpand,
   onRecordPayment,
+  onViewInvoice,
 }) => {
   return (
     <div className="overflow-x-auto">
@@ -38,6 +40,7 @@ const SalesTable: React.FC<SalesTableProps> = ({
               expandedSale={expandedSale}
               onToggleExpand={onToggleExpand}
               onRecordPayment={onRecordPayment}
+              onViewInvoice={onViewInvoice}
             />
           ))}
         </tbody>
