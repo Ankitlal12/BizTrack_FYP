@@ -1,6 +1,7 @@
 const Purchase = require("../models/Purchase");
 const Inventory = require("../models/Inventory");
 const Notification = require("../models/Notification");
+const { generateInvoiceFromPurchase } = require("./invoiceController");
 const { getNepaliCurrentDateTime } = require("../utils/dateUtils");
 
 // Helper function to check and create low stock notifications
@@ -87,6 +88,12 @@ exports.getPurchaseById = async (req, res) => {
 // Create new purchase
 exports.createPurchase = async (req, res) => {
   try {
+    // Generate purchase number if not provided
+    if (!req.body.purchaseNumber) {
+      const count = await Purchase.countDocuments();
+      req.body.purchaseNumber = `PO-${String(count + 1).padStart(6, '0')}`;
+    }
+
     // Process items and create/update inventory
     const processedItems = [];
     
@@ -179,6 +186,20 @@ exports.createPurchase = async (req, res) => {
     }
     
     const purchase = await Purchase.create(purchaseData);
+
+    // Auto-generate invoice for the purchase
+    try {
+      const userInfo = {
+        userId: req.user?.id || req.user?._id,
+        name: req.user?.name || "Unknown User",
+        role: req.user?.role || "staff",
+      };
+      
+      await generateInvoiceFromPurchase(purchase, userInfo);
+    } catch (invoiceError) {
+      console.error("Failed to generate invoice for purchase:", invoiceError);
+      // Don't fail the purchase creation if invoice generation fails
+    }
 
     // Create notification for new purchase
     try {

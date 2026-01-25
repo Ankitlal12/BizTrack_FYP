@@ -111,5 +111,21 @@ const saleSchema = new mongoose.Schema({
   timestamps: true,
 });
 
+// Generate invoice number automatically for sales
+saleSchema.pre('save', async function(next) {
+  if (this.isNew && !this.invoiceNumber) {
+    try {
+      const count = await this.constructor.countDocuments();
+      this.invoiceNumber = `SALE-${String(count + 1).padStart(6, '0')}`;
+    } catch (error) {
+      console.error('Error generating sale invoice number:', error);
+      // Fallback to timestamp-based number if count fails
+      const timestamp = Date.now().toString().slice(-6);
+      this.invoiceNumber = `SALE-${timestamp}`;
+    }
+  }
+  next();
+});
+
 module.exports = mongoose.model("Sale", saleSchema);
 

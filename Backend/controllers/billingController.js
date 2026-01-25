@@ -3,6 +3,7 @@ const Inventory = require("../models/Inventory");
 const Sale = require("../models/Sale");
 const Notification = require("../models/Notification");
 const { getNepaliCurrentDateTime } = require("../utils/dateUtils");
+const { generateInvoiceFromSale } = require("./invoiceController");
 
 // Helper function to check and create low stock notifications
 const checkAndCreateStockNotification = async (item) => {
@@ -441,6 +442,20 @@ exports.createBill = async (req, res) => {
     } catch (notifError) {
       // Don't fail the sale creation if notification fails
       console.error("Failed to create notification:", notifError);
+    }
+
+    // Generate invoice from sale automatically
+    try {
+      const userInfo = {
+        userId: req.user?.id || req.user?._id,
+        name: req.user?.name || "Unknown User",
+        role: req.user?.role || "staff",
+      };
+      
+      await generateInvoiceFromSale(sale, userInfo);
+    } catch (invoiceError) {
+      console.error("Failed to generate invoice for sale:", invoiceError);
+      // Don't fail the sale creation if invoice generation fails
     }
 
     // Populate and return the sale

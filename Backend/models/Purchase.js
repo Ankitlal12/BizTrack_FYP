@@ -113,5 +113,21 @@ const purchaseSchema = new mongoose.Schema({
   timestamps: true,
 });
 
+// Generate purchase number automatically
+purchaseSchema.pre('save', async function(next) {
+  if (this.isNew && !this.purchaseNumber) {
+    try {
+      const count = await this.constructor.countDocuments();
+      this.purchaseNumber = `PO-${String(count + 1).padStart(6, '0')}`;
+    } catch (error) {
+      console.error('Error generating purchase number:', error);
+      // Fallback to timestamp-based number if count fails
+      const timestamp = Date.now().toString().slice(-6);
+      this.purchaseNumber = `PO-${timestamp}`;
+    }
+  }
+  next();
+});
+
 module.exports = mongoose.model("Purchase", purchaseSchema);
 
