@@ -5,7 +5,7 @@ import { toast } from 'sonner'
 import Layout from '../layout/Layout'
 import { purchasesAPI, invoicesAPI } from '../services/api'
 import { Purchase } from './Purchases/types'
-import { filterAndSortPurchases } from './Purchases/utils'
+import { buildPurchasesQueryString } from './Purchases/utils'
 import PurchaseFilters from './Purchases/PurchaseFilters'
 import PurchaseTable from './Purchases/PurchaseTable'
 import NewPurchaseOrderModal from './Purchases/NewPurchaseOrderModal'
@@ -30,19 +30,58 @@ const Purchases: React.FC = () => {
   const [showNewPurchaseModal, setShowNewPurchaseModal] = useState(false)
   const [editingPaymentStatus, setEditingPaymentStatus] = useState<string | null>(null)
   const [purchases, setPurchases] = useState<Purchase[]>([])
+  const [pagination, setPagination] = useState({
+    current: 1,
+    pages: 1,
+    total: 0,
+    limit: 10,
+  })
   const [isLoading, setIsLoading] = useState(false)
   const [showPaymentModal, setShowPaymentModal] = useState(false)
   const [selectedPurchase, setSelectedPurchase] = useState<Purchase | null>(null)
 
   useEffect(() => {
     loadPurchases()
-  }, [])
+  }, [searchTerm, sortField, sortDirection, filterStatus, paymentStatusFilter, paymentMethodFilter, supplierFilter, dateFrom, dateTo, totalMin, totalMax, quantityMin, quantityMax, pagination.current])
 
   const loadPurchases = async () => {
     setIsLoading(true)
     try {
-      const data = await purchasesAPI.getAll()
-      setPurchases(data)
+      const queryString = buildPurchasesQueryString({
+        page: pagination.current,
+        limit: pagination.limit,
+        search: searchTerm,
+        status: filterStatus,
+        paymentStatus: paymentStatusFilter,
+        paymentMethod: paymentMethodFilter,
+        supplierName: supplierFilter,
+        dateFrom,
+        dateTo,
+        totalMin,
+        totalMax,
+        quantityMin,
+        quantityMax,
+        sortBy: sortField,
+        sortOrder: sortDirection,
+      })
+
+      const response = await purchasesAPI.getAll(queryString)
+      
+      // Handle both old and new API response formats
+      if (response.purchases) {
+        // New paginated format
+        setPurchases(response.purchases)
+        setPagination(response.pagination)
+      } else {
+        // Old format (fallback)
+        setPurchases(response)
+        setPagination({
+          current: 1,
+          pages: 1,
+          total: response.length,
+          limit: response.length,
+        })
+      }
     } catch (error: any) {
       console.error('Failed to load purchases:', error)
       toast.error('Failed to load purchases', {
@@ -74,6 +113,8 @@ const Purchases: React.FC = () => {
       setPurchases((prev) => [created, ...prev])
       setExpandedPurchase(created._id || created.purchaseNumber)
       toast.success('Purchase order created')
+      // Reload to ensure pagination is correct
+      await loadPurchases()
     } catch (error: any) {
       console.error('Failed to create purchase:', error)
       toast.error('Failed to create purchase', {
@@ -148,6 +189,10 @@ const Purchases: React.FC = () => {
     }
   }
 
+  const handlePageChange = (page: number) => {
+    setPagination(prev => ({ ...prev, current: page }))
+  }
+
   const suppliers = useMemo(
     () => Array.from(new Set(purchases.map((p) => p.supplierName))).sort(),
     [purchases],
@@ -164,41 +209,9 @@ const Purchases: React.FC = () => {
     setTotalMax('')
     setQuantityMin('')
     setQuantityMax('')
+    setSearchTerm('')
+    setPagination(prev => ({ ...prev, current: 1 }))
   }
-
-  const filteredPurchases = useMemo(() => {
-    return filterAndSortPurchases(
-      purchases,
-      searchTerm,
-      filterStatus,
-      paymentStatusFilter,
-      paymentMethodFilter,
-      supplierFilter,
-      dateFrom,
-      dateTo,
-      totalMin,
-      totalMax,
-      quantityMin,
-      quantityMax,
-      sortField,
-      sortDirection
-    )
-  }, [
-    purchases,
-    searchTerm,
-    filterStatus,
-    paymentStatusFilter,
-    paymentMethodFilter,
-    supplierFilter,
-    dateFrom,
-    dateTo,
-    totalMin,
-    totalMax,
-    quantityMin,
-    quantityMax,
-    sortField,
-    sortDirection,
-  ])
 
   return (
     <Layout>
@@ -241,7 +254,7 @@ const Purchases: React.FC = () => {
             onClearFilters={clearFilters}
           />
           <PurchaseTable
-            purchases={filteredPurchases}
+            purchases={purchases}
             sortField={sortField}
             sortDirection={sortDirection}
             expandedPurchase={expandedPurchase}
@@ -258,31 +271,56 @@ const Purchases: React.FC = () => {
               Loading purchases...
             </div>
           )}
-          {filteredPurchases.length === 0 && !isLoading && (
+          {purchases.length === 0 && !isLoading && (
             <div className="p-8 text-center">
               <p className="text-gray-500">
                 No purchase orders found matching your criteria.
               </p>
             </div>
           )}
-          <div className="p-4 border-t">
-            <div className="flex justify-between items-center">
-              <div className="text-sm text-gray-500">
-                Showing{' '}
-                <span className="font-medium">{filteredPurchases.length}</span> of{' '}
-                <span className="font-medium">{purchases.length}</span> purchase
-                orders
+          
+          {/* Pagination */}
+          {pagination.pages > 1 && (
+            <div className="flex items-center justify-between mt-6 p-4 border-t">
+              <div className="text-sm text-gray-700">
+                Showing {((pagination.current - 1) * pagination.limit) + 1} to{' '}
+                {Math.min(pagination.current * pagination.limit, pagination.total)} of{' '}
+                {pagination.total} results
               </div>
-              <div className="flex space-x-1">
-                <button className="px-3 py-1 border border-gray-300 rounded-md text-sm bg-white hover:bg-gray-50">
+              <div className="flex space-x-2">
+                <button
+                  onClick={() => handlePageChange(pagination.current - 1)}
+                  disabled={pagination.current === 1}
+                  className="px-3 py-2 text-sm bg-gray-200 text-gray-700 rounded-md hover:bg-gray-300 disabled:opacity-50 disabled:cursor-not-allowed"
+                >
                   Previous
                 </button>
-                <button className="px-3 py-1 border border-gray-300 rounded-md text-sm bg-white hover:bg-gray-50">
+                {[...Array(pagination.pages)].map((_, index) => {
+                  const page = index + 1;
+                  return (
+                    <button
+                      key={page}
+                      onClick={() => handlePageChange(page)}
+                      className={`px-3 py-2 text-sm rounded-md ${
+                        page === pagination.current
+                          ? 'bg-blue-600 text-white'
+                          : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+                      }`}
+                    >
+                      {page}
+                    </button>
+                  );
+                })}
+                <button
+                  onClick={() => handlePageChange(pagination.current + 1)}
+                  disabled={pagination.current === pagination.pages}
+                  className="px-3 py-2 text-sm bg-gray-200 text-gray-700 rounded-md hover:bg-gray-300 disabled:opacity-50 disabled:cursor-not-allowed"
+                >
                   Next
                 </button>
               </div>
             </div>
-          </div>
+          )}
         </div>
         <NewPurchaseOrderModal
           isOpen={showNewPurchaseModal}

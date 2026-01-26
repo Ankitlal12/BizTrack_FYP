@@ -85,7 +85,10 @@ export const inventoryAPI = {
 
 // Sales API
 export const salesAPI = {
-  getAll: () => apiRequest<any[]>('/sales'),
+  getAll: (params?: string) => {
+    const query = params ? `?${params}` : '';
+    return apiRequest<any>(`/sales${query}`);
+  },
   getById: (id: string) => apiRequest<any>(`/sales/${id}`),
   create: (data: any) => apiRequest<any>('/sales', {
     method: 'POST',
@@ -106,7 +109,10 @@ export const salesAPI = {
 
 // Purchases API
 export const purchasesAPI = {
-  getAll: () => apiRequest<any[]>('/purchases'),
+  getAll: (params?: string) => {
+    const query = params ? `?${params}` : '';
+    return apiRequest<any>(`/purchases${query}`);
+  },
   getById: (id: string) => apiRequest<any>(`/purchases/${id}`),
   create: (data: any) => apiRequest<any>('/purchases', {
     method: 'POST',
@@ -187,7 +193,10 @@ export const usersAPI = {
 
 // Transactions API
 export const transactionsAPI = {
-  getAll: () => apiRequest<any[]>('/transactions'),
+  getAll: (params?: string) => {
+    const query = params ? `?${params}` : '';
+    return apiRequest<any>(`/transactions${query}`);
+  },
 };
 
 // Notifications API

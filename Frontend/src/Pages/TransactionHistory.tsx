@@ -6,17 +6,30 @@ import Layout from '../layout/Layout'
 
 const TransactionHistory = () => {
   const {
-    filteredTransactions,
     transactions,
+    pagination,
     searchTerm,
     setSearchTerm,
     filterType,
     setFilterType,
+    dateFrom,
+    setDateFrom,
+    dateTo,
+    setDateTo,
+    totalMin,
+    setTotalMin,
+    totalMax,
+    setTotalMax,
+    sortField,
+    sortDirection,
     expandedId,
     toggleExpanded,
     isLoading,
     error,
     loadTransactions,
+    handlePageChange,
+    handleSort,
+    clearFilters,
   } = useTransactions()
 
   return (
@@ -35,7 +48,16 @@ const TransactionHistory = () => {
           onSearchChange={setSearchTerm}
           filterType={filterType}
           onFilterChange={setFilterType}
+          dateFrom={dateFrom}
+          onDateFromChange={setDateFrom}
+          dateTo={dateTo}
+          onDateToChange={setDateTo}
+          totalMin={totalMin}
+          onTotalMinChange={setTotalMin}
+          totalMax={totalMax}
+          onTotalMaxChange={setTotalMax}
           onRefresh={loadTransactions}
+          onClearFilters={clearFilters}
           isRefreshing={isLoading}
         />
 
@@ -52,33 +74,62 @@ const TransactionHistory = () => {
         {!isLoading && (
           <>
             <TransactionTable
-              transactions={filteredTransactions}
+              transactions={transactions}
+              sortField={sortField}
+              sortDirection={sortDirection}
               expandedId={expandedId}
               onToggle={toggleExpanded}
+              onSort={handleSort}
             />
 
-            {filteredTransactions.length === 0 && (
+            {transactions.length === 0 && (
               <div className="p-8 text-center">
                 <p className="text-gray-500">No transactions found matching your criteria.</p>
               </div>
             )}
 
-            <div className="p-4 border-t">
-              <div className="flex justify-between items-center">
-                <div className="text-sm text-gray-500">
-                  Showing <span className="font-medium">{filteredTransactions.length}</span> of{' '}
-                  <span className="font-medium">{transactions.length}</span> transactions
+            {/* Pagination */}
+            {pagination.pages > 1 && (
+              <div className="flex items-center justify-between mt-6 p-4 border-t">
+                <div className="text-sm text-gray-700">
+                  Showing {((pagination.current - 1) * pagination.limit) + 1} to{' '}
+                  {Math.min(pagination.current * pagination.limit, pagination.total)} of{' '}
+                  {pagination.total} results
                 </div>
-                <div className="flex space-x-1">
-                  <button className="px-3 py-1 border border-gray-300 rounded-md text-sm bg-white hover:bg-gray-50">
+                <div className="flex space-x-2">
+                  <button
+                    onClick={() => handlePageChange(pagination.current - 1)}
+                    disabled={pagination.current === 1}
+                    className="px-3 py-2 text-sm bg-gray-200 text-gray-700 rounded-md hover:bg-gray-300 disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
                     Previous
                   </button>
-                  <button className="px-3 py-1 border border-gray-300 rounded-md text-sm bg-white hover:bg-gray-50">
+                  {[...Array(pagination.pages)].map((_, index) => {
+                    const page = index + 1;
+                    return (
+                      <button
+                        key={page}
+                        onClick={() => handlePageChange(page)}
+                        className={`px-3 py-2 text-sm rounded-md ${
+                          page === pagination.current
+                            ? 'bg-blue-600 text-white'
+                            : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+                        }`}
+                      >
+                        {page}
+                      </button>
+                    );
+                  })}
+                  <button
+                    onClick={() => handlePageChange(pagination.current + 1)}
+                    disabled={pagination.current === pagination.pages}
+                    className="px-3 py-2 text-sm bg-gray-200 text-gray-700 rounded-md hover:bg-gray-300 disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
                     Next
                   </button>
                 </div>
               </div>
-            </div>
+            )}
           </>
         )}
       </div>

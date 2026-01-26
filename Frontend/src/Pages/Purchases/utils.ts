@@ -165,4 +165,34 @@ export const filterAndSortPurchases = (
     })
 }
 
+// Build query string for API requests
+export const buildPurchasesQueryString = (filters: {
+  page?: number;
+  limit?: number;
+  search?: string;
+  status?: string;
+  paymentStatus?: string;
+  paymentMethod?: string;
+  supplierName?: string;
+  dateFrom?: string;
+  dateTo?: string;
+  totalMin?: string;
+  totalMax?: string;
+  quantityMin?: string;
+  quantityMax?: string;
+  sortBy?: string;
+  sortOrder?: string;
+}): string => {
+  const params = new URLSearchParams();
+  
+  Object.entries(filters).forEach(([key, value]) => {
+    if (value !== undefined && value !== null && value !== '' && value !== 'all') {
+      params.append(key, value.toString());
+    }
+  });
+  
+  return params.toString();
+};
 
+
+  

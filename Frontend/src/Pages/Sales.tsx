@@ -4,7 +4,7 @@ import { toast } from 'sonner'
 import Layout from '../layout/Layout'
 import { salesAPI, invoicesAPI } from '../services/api'
 import { Sale } from './Sales/types'
-import { transformBackendSaleToFrontend, filterAndSortSales } from './Sales/utils'
+import { transformBackendSaleToFrontend, buildSalesQueryString } from './Sales/utils'
 import SalesFilters from './Sales/SalesFilters'
 import SalesTable from './Sales/SalesTable'
 import PaymentEntryModal from '../components/PaymentEntryModal'
@@ -26,21 +26,60 @@ const Sales: React.FC = () => {
   const [quantityMax, setQuantityMax] = useState('')
   const [expandedSale, setExpandedSale] = useState<string | null>(null)
   const [sales, setSales] = useState<Sale[]>([])
+  const [pagination, setPagination] = useState({
+    current: 1,
+    pages: 1,
+    total: 0,
+    limit: 10,
+  })
   const [isLoading, setIsLoading] = useState(false)
   const [showPaymentModal, setShowPaymentModal] = useState(false)
   const [selectedSale, setSelectedSale] = useState<Sale | null>(null)
 
   useEffect(() => {
     loadSales()
-  }, [])
+  }, [searchTerm, sortField, sortDirection, filterStatus, paymentStatusFilter, paymentMethodFilter, customerFilter, dateFrom, dateTo, totalMin, totalMax, quantityMin, quantityMax, pagination.current])
 
   const loadSales = async () => {
     setIsLoading(true)
     try {
-      const data = await salesAPI.getAll()
-      // Transform backend data to frontend format
-      const transformedSales = data.map(transformBackendSaleToFrontend)
-      setSales(transformedSales)
+      const queryString = buildSalesQueryString({
+        page: pagination.current,
+        limit: pagination.limit,
+        search: searchTerm,
+        status: filterStatus,
+        paymentStatus: paymentStatusFilter,
+        paymentMethod: paymentMethodFilter,
+        customerName: customerFilter,
+        dateFrom,
+        dateTo,
+        totalMin,
+        totalMax,
+        quantityMin,
+        quantityMax,
+        sortBy: sortField,
+        sortOrder: sortDirection,
+      })
+
+      const response = await salesAPI.getAll(queryString)
+      
+      // Handle both old and new API response formats
+      if (response.sales) {
+        // New paginated format
+        const transformedSales = response.sales.map(transformBackendSaleToFrontend)
+        setSales(transformedSales)
+        setPagination(response.pagination)
+      } else {
+        // Old format (fallback)
+        const transformedSales = response.map(transformBackendSaleToFrontend)
+        setSales(transformedSales)
+        setPagination({
+          current: 1,
+          pages: 1,
+          total: transformedSales.length,
+          limit: transformedSales.length,
+        })
+      }
     } catch (error: any) {
       console.error('Failed to load sales:', error)
       toast.error('Failed to load sales', {
@@ -111,6 +150,10 @@ const Sales: React.FC = () => {
     }
   }
 
+  const handlePageChange = (page: number) => {
+    setPagination(prev => ({ ...prev, current: page }))
+  }
+
   const customers = useMemo(
     () => Array.from(new Set(sales.map((s) => s.customer.name))).sort(),
     [sales],
@@ -127,41 +170,9 @@ const Sales: React.FC = () => {
     setTotalMax('')
     setQuantityMin('')
     setQuantityMax('')
+    setSearchTerm('')
+    setPagination(prev => ({ ...prev, current: 1 }))
   }
-
-  const filteredSales = useMemo(() => {
-    return filterAndSortSales(
-      sales,
-      searchTerm,
-      filterStatus,
-      paymentStatusFilter,
-      paymentMethodFilter,
-      customerFilter,
-      dateFrom,
-      dateTo,
-      totalMin,
-      totalMax,
-      quantityMin,
-      quantityMax,
-      sortField,
-      sortDirection
-    )
-  }, [
-    sales,
-    searchTerm,
-    filterStatus,
-    paymentStatusFilter,
-    paymentMethodFilter,
-    customerFilter,
-    dateFrom,
-    dateTo,
-    totalMin,
-    totalMax,
-    quantityMin,
-    quantityMax,
-    sortField,
-    sortDirection,
-  ])
 
   return (
     <Layout>
@@ -197,7 +208,7 @@ const Sales: React.FC = () => {
             onClearFilters={clearFilters}
           />
           <SalesTable
-            sales={filteredSales}
+            sales={sales}
             sortField={sortField}
             sortDirection={sortDirection}
             expandedSale={expandedSale}
@@ -211,30 +222,56 @@ const Sales: React.FC = () => {
               Loading sales...
             </div>
           )}
-          {filteredSales.length === 0 && !isLoading && (
+          {sales.length === 0 && !isLoading && (
             <div className="p-8 text-center">
               <p className="text-gray-500">
                 No sales found matching your criteria.
               </p>
             </div>
           )}
-          <div className="p-4 border-t">
-            <div className="flex justify-between items-center">
-              <div className="text-sm text-gray-500">
-                Showing{' '}
-                <span className="font-medium">{filteredSales.length}</span> of{' '}
-                <span className="font-medium">{sales.length}</span> sales
+          
+          {/* Pagination */}
+          {pagination.pages > 1 && (
+            <div className="flex items-center justify-between mt-6 p-4 border-t">
+              <div className="text-sm text-gray-700">
+                Showing {((pagination.current - 1) * pagination.limit) + 1} to{' '}
+                {Math.min(pagination.current * pagination.limit, pagination.total)} of{' '}
+                {pagination.total} results
               </div>
-              <div className="flex space-x-1">
-                <button className="px-3 py-1 border border-gray-300 rounded-md text-sm bg-white hover:bg-gray-50">
+              <div className="flex space-x-2">
+                <button
+                  onClick={() => handlePageChange(pagination.current - 1)}
+                  disabled={pagination.current === 1}
+                  className="px-3 py-2 text-sm bg-gray-200 text-gray-700 rounded-md hover:bg-gray-300 disabled:opacity-50 disabled:cursor-not-allowed"
+                >
                   Previous
                 </button>
-                <button className="px-3 py-1 border border-gray-300 rounded-md text-sm bg-white hover:bg-gray-50">
+                {[...Array(pagination.pages)].map((_, index) => {
+                  const page = index + 1;
+                  return (
+                    <button
+                      key={page}
+                      onClick={() => handlePageChange(page)}
+                      className={`px-3 py-2 text-sm rounded-md ${
+                        page === pagination.current
+                          ? 'bg-blue-600 text-white'
+                          : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+                      }`}
+                    >
+                      {page}
+                    </button>
+                  );
+                })}
+                <button
+                  onClick={() => handlePageChange(pagination.current + 1)}
+                  disabled={pagination.current === pagination.pages}
+                  className="px-3 py-2 text-sm bg-gray-200 text-gray-700 rounded-md hover:bg-gray-300 disabled:opacity-50 disabled:cursor-not-allowed"
+                >
                   Next
                 </button>
               </div>
             </div>
-          </div>
+          )}
         </div>
         {selectedSale && (
           <PaymentEntryModal

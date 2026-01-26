@@ -1,17 +1,43 @@
 import React, { Fragment } from 'react'
-import { ArrowDownIcon, ArrowUpIcon } from 'lucide-react'
+import { ArrowDownIcon, ArrowUpIcon, ChevronUpIcon, ChevronDownIcon } from 'lucide-react'
 import TransactionDetails from './TransactionDetails'
 import { Transaction } from './types'
 
 interface Props {
   transactions: Transaction[]
+  sortField: string
+  sortDirection: 'asc' | 'desc'
   expandedId: string | null
   onToggle: (id: string) => void
+  onSort: (field: string) => void
 }
 
-const TransactionTable: React.FC<Props> = ({ transactions, expandedId, onToggle }) => {
+const TransactionTable: React.FC<Props> = ({ 
+  transactions, 
+  sortField, 
+  sortDirection, 
+  expandedId, 
+  onToggle, 
+  onSort 
+}) => {
   const getBadge = (type: string) =>
     type === 'sale' ? 'bg-green-100 text-green-800' : 'bg-blue-100 text-blue-800'
+
+  const SortButton: React.FC<{ field: string; children: React.ReactNode }> = ({ field, children }) => (
+    <button
+      onClick={() => onSort(field)}
+      className="flex items-center space-x-1 text-left hover:text-gray-700"
+    >
+      <span>{children}</span>
+      {sortField === field && (
+        sortDirection === 'asc' ? (
+          <ChevronUpIcon size={14} />
+        ) : (
+          <ChevronDownIcon size={14} />
+        )
+      )}
+    </button>
+  )
 
   return (
     <div className="overflow-x-auto">
@@ -19,19 +45,19 @@ const TransactionTable: React.FC<Props> = ({ transactions, expandedId, onToggle 
         <thead>
           <tr className="bg-gray-50">
             <th className="py-3 px-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-              Transaction ID
+              <SortButton field="id">Transaction ID</SortButton>
             </th>
             <th className="py-3 px-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-              Type
+              <SortButton field="type">Type</SortButton>
             </th>
             <th className="py-3 px-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
               Summary
             </th>
             <th className="py-3 px-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-              Total
+              <SortButton field="total">Total</SortButton>
             </th>
             <th className="py-3 px-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-              Date
+              <SortButton field="date">Date</SortButton>
             </th>
             <th className="py-3 px-4 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
               Actions
