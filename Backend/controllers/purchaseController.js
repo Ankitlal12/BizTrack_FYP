@@ -63,10 +63,84 @@ const checkAndCreateStockNotification = async (item) => {
 // Get all purchases
 exports.getAllPurchases = async (req, res) => {
   try {
-    const purchases = await Purchase.find()
+    const page = parseInt(req.query.page) || 1;
+    const limit = parseInt(req.query.limit) || 10;
+    const skip = (page - 1) * limit;
+
+    // Build query object for filtering
+    const query = {};
+    
+    // Add filters if provided
+    if (req.query.search) {
+      query.$or = [
+        { purchaseNumber: { $regex: req.query.search, $options: 'i' } },
+        { supplierName: { $regex: req.query.search, $options: 'i' } }
+      ];
+    }
+    
+    if (req.query.status && req.query.status !== 'all') {
+      query.status = req.query.status;
+    }
+    
+    if (req.query.paymentStatus && req.query.paymentStatus !== 'all') {
+      query.paymentStatus = req.query.paymentStatus;
+    }
+    
+    if (req.query.supplierName && req.query.supplierName !== 'all') {
+      query.supplierName = { $regex: req.query.supplierName, $options: 'i' };
+    }
+    
+    // Date range filtering
+    if (req.query.dateFrom || req.query.dateTo) {
+      query.createdAt = {};
+      if (req.query.dateFrom) {
+        query.createdAt.$gte = new Date(req.query.dateFrom);
+      }
+      if (req.query.dateTo) {
+        query.createdAt.$lte = new Date(req.query.dateTo);
+      }
+    }
+    
+    // Amount range filtering
+    if (req.query.totalMin || req.query.totalMax) {
+      query.total = {};
+      if (req.query.totalMin) {
+        query.total.$gte = parseFloat(req.query.totalMin);
+      }
+      if (req.query.totalMax) {
+        query.total.$lte = parseFloat(req.query.totalMax);
+      }
+    }
+
+    // Build sort object
+    let sortObj = { createdAt: -1 }; // default sort
+    if (req.query.sortBy) {
+      const sortOrder = req.query.sortOrder === 'asc' ? 1 : -1;
+      sortObj = { [req.query.sortBy]: sortOrder };
+    }
+
+    // Get total count for pagination
+    const total = await Purchase.countDocuments(query);
+    
+    // Get paginated results
+    const purchases = await Purchase.find(query)
       .populate("items.inventoryId")
-      .sort({ createdAt: -1 });
-    res.json(purchases);
+      .sort(sortObj)
+      .skip(skip)
+      .limit(limit);
+
+    // Calculate pagination info
+    const pages = Math.ceil(total / limit);
+    
+    res.json({
+      purchases,
+      pagination: {
+        current: page,
+        pages,
+        total,
+        limit
+      }
+    });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
