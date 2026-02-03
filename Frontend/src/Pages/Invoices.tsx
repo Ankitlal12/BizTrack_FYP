@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useSearchParams } from 'react-router-dom';
+import { toast } from 'sonner';
 import Layout from '../layout/Layout';
 import InvoiceStats from './Invoices/InvoiceStats';
 import InvoiceFilters from './Invoices/InvoiceFilters';
@@ -98,15 +99,40 @@ const Invoices: React.FC = () => {
 
   // Handle highlight parameter from URL
   useEffect(() => {
-    if (highlightInvoiceId && invoices.length > 0) {
-      const invoice = invoices.find(inv => inv._id === highlightInvoiceId);
-      if (invoice) {
-        setHighlightedInvoice(invoice);
-        setShowDetailsModal(true);
-        // Remove the highlight parameter from URL
-        setSearchParams({});
+    const handleHighlight = async () => {
+      if (highlightInvoiceId) {
+        // First try to find the invoice in the current list
+        let invoice = invoices.find(inv => inv._id === highlightInvoiceId);
+        
+        if (!invoice && invoices.length > 0) {
+          // If not found in current list, try to fetch it directly
+          try {
+            invoice = await invoicesAPI.getById(highlightInvoiceId);
+          } catch (error) {
+            console.error('Error fetching highlighted invoice:', error);
+            toast.error('Invoice not found');
+            setSearchParams({});
+            return;
+          }
+        }
+        
+        if (invoice) {
+          setHighlightedInvoice(invoice);
+          setShowDetailsModal(true);
+          // Remove the highlight parameter from URL
+          setSearchParams({});
+        } else if (invoices.length === 0) {
+          // If invoices haven't loaded yet, wait for them
+          return;
+        } else {
+          // Invoice not found
+          toast.error('Invoice not found');
+          setSearchParams({});
+        }
       }
-    }
+    };
+
+    handleHighlight();
   }, [highlightInvoiceId, invoices, setSearchParams]);
 
   // Fetch invoices when filters change

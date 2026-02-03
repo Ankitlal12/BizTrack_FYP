@@ -54,6 +54,7 @@ export const filterAndSortSales = (
     if (searchTerm) {
       const searchLower = searchTerm.toLowerCase()
       const matchesSearch =
+        (sale.invoiceNumber && sale.invoiceNumber.toLowerCase().includes(searchLower)) ||
         sale.id.toLowerCase().includes(searchLower) ||
         sale.customer.name.toLowerCase().includes(searchLower) ||
         (sale.customer.email?.toLowerCase().includes(searchLower) ?? false) ||
@@ -100,9 +101,10 @@ export const filterAndSortSales = (
     let bValue: any
 
     switch (sortField) {
+      case 'invoiceNumber':
       case 'id':
-        aValue = a.id
-        bValue = b.id
+        aValue = a.invoiceNumber || a.id
+        bValue = b.invoiceNumber || b.id
         break
       case 'customer':
         aValue = a.customer.name

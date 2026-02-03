@@ -15,7 +15,7 @@ const Purchases: React.FC = () => {
   const navigate = useNavigate()
   const [searchTerm, setSearchTerm] = useState('')
   const [sortField, setSortField] = useState('date')
-  const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('desc')
+  const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc')
   const [filterStatus, setFilterStatus] = useState('all')
   const [paymentStatusFilter, setPaymentStatusFilter] = useState('all')
   const [paymentMethodFilter, setPaymentMethodFilter] = useState('all')
@@ -178,8 +178,8 @@ const Purchases: React.FC = () => {
       
       if (response.invoices && response.invoices.length > 0) {
         const invoice = response.invoices[0]
-        // Navigate to the invoices page with the specific invoice highlighted
-        navigate(`/invoices?highlight=${invoice._id}`)
+        // Navigate directly to the individual invoice detail page
+        navigate(`/invoices/${invoice._id}`)
       } else {
         toast.error('No invoice found for this purchase')
       }

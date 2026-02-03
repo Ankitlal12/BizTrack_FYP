@@ -35,7 +35,7 @@ const SalesTableHeader: React.FC<SalesTableHeaderProps> = ({
   return (
     <thead>
       <tr className="bg-gray-50">
-        <SortableHeader field="id" label="Invoice" />
+        <SortableHeader field="invoiceNumber" label="Invoice Number" />
         <SortableHeader field="customer" label="Customer" />
         <SortableHeader field="date" label="Date" />
         <SortableHeader field="total" label="Total" />

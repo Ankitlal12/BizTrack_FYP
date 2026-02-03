@@ -1,6 +1,7 @@
 import React, { Fragment } from 'react'
 import { Sale } from '../Sales/types'
 import { getStatusBadgeClass, getPaymentStatusBadgeClass, getSaleKey } from '../Sales/utils'
+import { formatNepaliDate } from '../../utils/dateUtils'
 import SalesDetails from './SalesDetails'
 
 interface SalesTableRowProps {
@@ -25,13 +26,13 @@ const SalesTableRow: React.FC<SalesTableRowProps> = ({
     <Fragment>
       <tr className="hover:bg-gray-50">
         <td className="py-4 px-4 whitespace-nowrap">
-          <div className="font-medium text-blue-600">{sale.id}</div>
+          <div className="font-medium text-blue-600">{sale.invoiceNumber || sale.id}</div>
         </td>
         <td className="py-4 px-4 whitespace-nowrap">
           <div className="font-medium text-gray-900">{sale.customer.name}</div>
         </td>
         <td className="py-4 px-4 whitespace-nowrap text-sm text-gray-500">
-          {new Date(sale.date).toLocaleDateString()}
+          {formatNepaliDate(sale.date)}
         </td>
         <td className="py-4 px-4 whitespace-nowrap">
           <div className="text-sm font-medium text-gray-900">

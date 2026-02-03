@@ -8,6 +8,7 @@ const Login = lazy(() => import('./Pages/Login'));
 const Dashboard=lazy(()=>import('./Pages/Dashboard'));
 const Inventory=lazy(()=>import('./Pages/Inventory'));
 const Invoices =lazy(()=>import ('./Pages/Invoices'));
+const InvoiceDetail = lazy(() => import('./Pages/Invoices/InvoiceDetail'));
 const Purchases =lazy(()=>import ('./Pages/Purchases'));
 const Reports=lazy(()=>import('./Pages/Reports.tsx'));
 const Sales=lazy(()=>import('./Pages/Sales.tsx'));
@@ -85,6 +86,17 @@ export const App = () => {
             element={
               isAuthenticated ? (
                 <Invoices />
+              ) : (
+                <Navigate to="/login" replace />
+              )
+            }
+          />
+
+          <Route
+            path="/invoices/:id"
+            element={
+              isAuthenticated ? (
+                <InvoiceDetail />
               ) : (
                 <Navigate to="/login" replace />
               )
