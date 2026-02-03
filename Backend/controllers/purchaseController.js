@@ -243,6 +243,7 @@ exports.createPurchase = async (req, res) => {
     
     if (paidAmount >= total) {
       purchaseData.paymentStatus = 'paid';
+      purchaseData.status = 'received'; // Set status to received when fully paid
     } else if (paidAmount > 0) {
       purchaseData.paymentStatus = 'partial';
     } else {
@@ -456,6 +457,11 @@ exports.recordPayment = async (req, res) => {
     purchase.payments.push(paymentRecord);
     purchase.paidAmount = newPaidAmount;
     purchase.paymentStatus = newPaymentStatus;
+
+    // Update main status when payment is completed
+    if (newPaymentStatus === "paid" && purchase.status === "pending") {
+      purchase.status = "received";
+    }
 
     await purchase.save();
 

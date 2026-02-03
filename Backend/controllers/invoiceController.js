@@ -10,9 +10,8 @@ const generateInvoiceFromSale = async (sale, userInfo = {}) => {
     const dueDate = new Date();
     dueDate.setDate(dueDate.getDate() + 30);
 
-    // Generate invoice number
-    const saleInvoiceCount = await Invoice.countDocuments({ type: "sale" });
-    const invoiceNumber = `INV-${String(saleInvoiceCount + 1).padStart(6, '0')}`;
+    // Use the same invoice number as the sale
+    const invoiceNumber = sale.invoiceNumber;
 
     const invoiceData = {
       invoiceNumber: invoiceNumber,
@@ -60,9 +59,8 @@ const generateInvoiceFromPurchase = async (purchase, userInfo = {}) => {
     const dueDate = new Date();
     dueDate.setDate(dueDate.getDate() + 30);
 
-    // Generate invoice number
-    const purchaseInvoiceCount = await Invoice.countDocuments({ type: "purchase" });
-    const invoiceNumber = `PINV-${String(purchaseInvoiceCount + 1).padStart(6, '0')}`;
+    // Use the same invoice number as the purchase
+    const invoiceNumber = purchase.purchaseNumber;
 
     const invoiceData = {
       invoiceNumber: invoiceNumber,
