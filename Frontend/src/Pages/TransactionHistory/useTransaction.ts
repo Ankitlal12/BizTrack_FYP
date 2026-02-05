@@ -18,7 +18,7 @@ export const useTransactions = () => {
   const [totalMin, setTotalMin] = useState('')
   const [totalMax, setTotalMax] = useState('')
   const [sortField, setSortField] = useState('date')
-  const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('desc')
+  const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc')
   const [expandedId, setExpandedId] = useState<string | null>(null)
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)

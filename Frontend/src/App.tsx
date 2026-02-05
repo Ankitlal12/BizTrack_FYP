@@ -15,6 +15,9 @@ const Sales=lazy(()=>import('./Pages/Sales.tsx'));
 const Settings=lazy(()=>import('./Pages/Settings.tsx'));
 const TransactionHistory = lazy(() => import('./Pages/TransactionHistory.tsx'));
 const Billing=lazy(()=>import('./Pages/Billing.tsx') )
+const LowStock = lazy(() => import('./Pages/LowStock'));
+const Suppliers = lazy(() => import('./Pages/Suppliers'));
+const ReorderHistory = lazy(() => import('./Pages/ReorderHistory'));
 
 const PageLoader = () => (
   <div className="flex h-screen items-center justify-center bg-gray-50">
@@ -139,6 +142,39 @@ export const App = () => {
             element={
               isAuthenticated ? (
                 <TransactionHistory />
+              ) : (
+                <Navigate to="/login" replace />
+              )
+            }
+          />
+
+          <Route
+            path="/low-stock"
+            element={
+              isAuthenticated && (user?.role === 'owner' || user?.role === 'manager') ? (
+                <LowStock />
+              ) : (
+                <Navigate to="/inventory" replace />
+              )
+            }
+          />
+
+          <Route
+            path="/suppliers"
+            element={
+              isAuthenticated && (user?.role === 'owner' || user?.role === 'manager') ? (
+                <Suppliers />
+              ) : (
+                <Navigate to="/inventory" replace />
+              )
+            }
+          />
+
+          <Route
+            path="/reorder-history"
+            element={
+              isAuthenticated && user?.role === 'owner' ? (
+                <ReorderHistory />
               ) : (
                 <Navigate to="/login" replace />
               )

@@ -1,4 +1,4 @@
-import React, { useCallback, useMemo, useState, memo } from 'react'
+import React, { useCallback, useMemo, useState, memo, useEffect } from 'react'
 import { NavLink } from 'react-router-dom'
 import { Link } from 'react-router-dom'
 
@@ -13,13 +13,35 @@ import { LuShoppingBag } from "react-icons/lu"
 import { IoBarChartSharp } from "react-icons/io5"
 import { FiMenu } from "react-icons/fi"
 import { RxCross2 } from "react-icons/rx"
+import { AlertTriangle, Users, RotateCcw } from "lucide-react"
 
 import { useAuth } from '../contexts/AuthContext'
+import { reorderAPI } from '../services/api'
 
 const Sidebar = memo(() => {
   const [collapsed, setCollapsed] = useState(false)
   const [mobileOpen, setMobileOpen] = useState(false)
+  const [lowStockCount, setLowStockCount] = useState(0)
   const { user } = useAuth()
+
+  // Load low stock count for owner and manager
+  useEffect(() => {
+    if (user?.role === 'owner' || user?.role === 'manager') {
+      const loadLowStockCount = async () => {
+        try {
+          const stats = await reorderAPI.getStats()
+          setLowStockCount(stats.data?.lowStockItems || 0)
+        } catch (error) {
+          console.error('Failed to load low stock count:', error)
+        }
+      }
+      
+      loadLowStockCount()
+      // Poll every 5 minutes
+      const interval = setInterval(loadLowStockCount, 5 * 60 * 1000)
+      return () => clearInterval(interval)
+    }
+  }, [user?.role])
 
   const navItems = useMemo(() => {
     const inventoryItems = [
@@ -51,6 +73,13 @@ const Sidebar = memo(() => {
         },
         ...inventoryItems,
         {
+          name: 'Low Stock',
+          path: '/low-stock',
+          icon: <AlertTriangle size={20} />,
+          badge: lowStockCount > 0 ? lowStockCount : undefined,
+          badgeColor: 'bg-red-500'
+        },
+        {
           name: 'Sales',
           path: '/sales',
           icon: <FiShoppingCart size={20} />,
@@ -61,6 +90,16 @@ const Sidebar = memo(() => {
           name: 'Invoices',
           path: '/invoices',
           icon: <FiFileText size={20} />,
+        },
+        {
+          name: 'Suppliers',
+          path: '/suppliers',
+          icon: <Users size={20} />,
+        },
+        {
+          name: 'Reorder History',
+          path: '/reorder-history',
+          icon: <RotateCcw size={20} />,
         },
         {
           name: 'Transaction History',
@@ -81,7 +120,23 @@ const Sidebar = memo(() => {
     }
 
     if (user?.role === 'manager') {
-      return [...inventoryItems, purchasesItem, billingItem]
+      return [
+        ...inventoryItems,
+        {
+          name: 'Low Stock',
+          path: '/low-stock',
+          icon: <AlertTriangle size={20} />,
+          badge: lowStockCount > 0 ? lowStockCount : undefined,
+          badgeColor: 'bg-red-500'
+        },
+        purchasesItem,
+        {
+          name: 'Suppliers',
+          path: '/suppliers',
+          icon: <Users size={20} />,
+        },
+        billingItem
+      ]
     }
 
     return [...inventoryItems, billingItem]
@@ -157,7 +212,16 @@ const Sidebar = memo(() => {
                     end
                   >
                     <span className="inline-flex">{item.icon}</span>
-                    {!collapsed && <span className="ml-3">{item.name}</span>}
+                    {!collapsed && (
+                      <div className="ml-3 flex items-center justify-between w-full">
+                        <span>{item.name}</span>
+                        {item.badge && (
+                          <span className={`px-2 py-1 text-xs font-bold text-white rounded-full ${item.badgeColor || 'bg-teal-500'}`}>
+                            {item.badge}
+                          </span>
+                        )}
+                      </div>
+                    )}
                   </NavLink>
                 </li>
               ))}

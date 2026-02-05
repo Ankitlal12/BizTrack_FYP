@@ -12,9 +12,6 @@ type InventoryFiltersProps = {
   supplierFilter: string
   onSupplierChange: (value: string) => void
   suppliers: string[]
-  locationFilter: string
-  onLocationChange: (value: string) => void
-  locations: string[]
   stockMin: string
   onStockMinChange: (value: string) => void
   stockMax: string
@@ -41,9 +38,6 @@ const InventoryFilters: React.FC<InventoryFiltersProps> = ({
   supplierFilter,
   onSupplierChange,
   suppliers,
-  locationFilter,
-  onLocationChange,
-  locations,
   stockMin,
   onStockMinChange,
   stockMax,
@@ -68,7 +62,6 @@ const InventoryFilters: React.FC<InventoryFiltersProps> = ({
     categoryFilter !== 'all' ||
     statusFilter !== 'all' ||
     supplierFilter !== 'all' ||
-    locationFilter !== 'all' ||
     stockMin !== '' ||
     stockMax !== '' ||
     priceMin !== '' ||
@@ -149,7 +142,7 @@ const InventoryFilters: React.FC<InventoryFiltersProps> = ({
         <div className="mt-4 p-5 border border-gray-200 rounded-lg bg-gray-50 shadow-sm">
           <h3 className="text-sm font-semibold text-gray-700 mb-4">Advanced Filters</h3>
           
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             {/* Stock Range */}
             <div className="space-y-2">
               <label className="text-xs font-medium text-gray-600 block">Stock Quantity</label>
@@ -238,23 +231,6 @@ const InventoryFilters: React.FC<InventoryFiltersProps> = ({
                 {suppliers.map((supplier) => (
                   <option key={supplier} value={supplier}>
                     {supplier}
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            {/* Location Filter */}
-            <div className="space-y-2">
-              <label className="text-xs font-medium text-gray-600 block">Location</label>
-              <select
-                className="border border-gray-300 rounded-lg py-2 px-3 w-full text-sm focus:outline-none focus:ring-2 focus:ring-teal-500 bg-white"
-                value={locationFilter}
-                onChange={(e) => onLocationChange(e.target.value)}
-              >
-                <option value="all">All Locations</option>
-                {locations.map((location) => (
-                  <option key={location} value={location}>
-                    {location}
                   </option>
                 ))}
               </select>

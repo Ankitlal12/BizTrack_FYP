@@ -1,6 +1,8 @@
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
 import { XIcon, PlusIcon, TrashIcon } from 'lucide-react'
 import { useAuth } from '../../contexts/AuthContext'
+import { purchasesAPI } from '../../services/api'
+import { toast } from 'sonner'
 interface NewPurchaseOrderModalProps {
   isOpen: boolean
   onClose: () => void
@@ -13,6 +15,9 @@ const NewPurchaseOrderModal: React.FC<NewPurchaseOrderModalProps> = ({
 }) => {
   const { user } = useAuth()
   const [supplier, setSupplier] = useState('')
+  const [suppliers, setSuppliers] = useState<any[]>([])
+  const [selectedSupplier, setSelectedSupplier] = useState<any>(null)
+  const [loadingSuppliers, setLoadingSuppliers] = useState(false)
   const [expectedDeliveryDate, setExpectedDeliveryDate] = useState('')
   const [paymentMethod, setPaymentMethod] = useState('cash')
   const [paidAmount, setPaidAmount] = useState(0)
@@ -29,6 +34,33 @@ const NewPurchaseOrderModal: React.FC<NewPurchaseOrderModalProps> = ({
   ])
   const [notes, setNotes] = useState('')
   const [errors, setErrors] = useState<{[key: string]: string}>({})
+
+  // Load suppliers when modal opens
+  useEffect(() => {
+    if (isOpen) {
+      loadSuppliers()
+    }
+  }, [isOpen])
+
+  const loadSuppliers = async () => {
+    try {
+      setLoadingSuppliers(true)
+      const response = await purchasesAPI.getSuppliers()
+      setSuppliers(response.data || [])
+    } catch (error: any) {
+      console.error('Error loading suppliers:', error)
+      toast.error('Failed to load suppliers')
+    } finally {
+      setLoadingSuppliers(false)
+    }
+  }
+
+  const handleSupplierChange = (supplierId: string) => {
+    const selected = suppliers.find(s => s._id === supplierId)
+    setSelectedSupplier(selected)
+    setSupplier(selected ? selected.name : '')
+  }
+
   // Common product categories
   const categories = [
     'Electronics',
@@ -144,6 +176,8 @@ const NewPurchaseOrderModal: React.FC<NewPurchaseOrderModalProps> = ({
         .toString()
         .padStart(3, '0')}`,
       supplierName: supplier,
+      supplierEmail: selectedSupplier?.email || '',
+      supplierPhone: selectedSupplier?.phone || '',
       items: items.map((item) => ({
         name: item.name,
         category: item.category,
@@ -162,7 +196,7 @@ const NewPurchaseOrderModal: React.FC<NewPurchaseOrderModalProps> = ({
       status: 'pending',
       expectedDeliveryDate:
         expectedDeliveryDate || new Date().toISOString().split('T')[0],
-      notes,
+      notes: notes + (selectedSupplier ? `\n\nSupplier Info:\nContact: ${selectedSupplier.contactPerson || 'N/A'}\nPayment Terms: ${selectedSupplier.paymentTerms}\nLead Time: ${selectedSupplier.averageLeadTimeDays} days` : ''),
     }
     onSave(newPurchaseOrder)
     onClose()
@@ -185,15 +219,54 @@ const NewPurchaseOrderModal: React.FC<NewPurchaseOrderModalProps> = ({
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
-                Supplier Name <span className="text-red-500">*</span>
+                Supplier <span className="text-red-500">*</span>
               </label>
-              <input
-                type="text"
-                className="w-full border border-gray-300 rounded-lg py-2 px-4 focus:outline-none focus:ring-2 focus:ring-teal-500"
-                value={supplier}
-                onChange={(e) => setSupplier(e.target.value)}
-                required
-              />
+              {loadingSuppliers ? (
+                <div className="w-full border border-gray-300 rounded-lg py-2 px-4 bg-gray-50">
+                  Loading suppliers...
+                </div>
+              ) : (
+                <select
+                  className="w-full border border-gray-300 rounded-lg py-2 px-4 focus:outline-none focus:ring-2 focus:ring-teal-500"
+                  value={selectedSupplier?._id || ''}
+                  onChange={(e) => handleSupplierChange(e.target.value)}
+                  required
+                >
+                  <option value="">Select a supplier</option>
+                  {suppliers.map((supplier) => (
+                    <option key={supplier._id} value={supplier._id}>
+                      {supplier.name} {supplier.contactPerson && `(${supplier.contactPerson})`}
+                    </option>
+                  ))}
+                </select>
+              )}
+              
+              {selectedSupplier && (
+                <div className="mt-2 p-2 bg-blue-50 border border-blue-200 rounded text-sm">
+                  <div className="grid grid-cols-2 gap-2">
+                    {selectedSupplier.email && (
+                      <div>
+                        <span className="font-medium">Email:</span> {selectedSupplier.email}
+                      </div>
+                    )}
+                    {selectedSupplier.phone && (
+                      <div>
+                        <span className="font-medium">Phone:</span> {selectedSupplier.phone}
+                      </div>
+                    )}
+                    {selectedSupplier.paymentTerms && (
+                      <div>
+                        <span className="font-medium">Payment Terms:</span> {selectedSupplier.paymentTerms}
+                      </div>
+                    )}
+                    {selectedSupplier.averageLeadTimeDays && (
+                      <div>
+                        <span className="font-medium">Lead Time:</span> {selectedSupplier.averageLeadTimeDays} days
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">

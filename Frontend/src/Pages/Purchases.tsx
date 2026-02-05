@@ -67,6 +67,9 @@ const Purchases: React.FC = () => {
 
       const response = await purchasesAPI.getAll(queryString)
       
+      console.log('Purchase API query:', queryString);
+      console.log('Purchase API response:', response);
+      
       // Handle both old and new API response formats
       if (response.purchases) {
         // New paginated format
@@ -218,13 +221,26 @@ const Purchases: React.FC = () => {
       <div className="space-y-6">
         <div className="flex items-center justify-between">
           <h1 className="text-2xl font-bold text-gray-800">Purchase Orders</h1>
-          <button
-            className="bg-teal-500 hover:bg-teal-600 text-white py-2 px-4 rounded-lg flex items-center"
-            onClick={() => setShowNewPurchaseModal(true)}
-          >
-            <PlusIcon size={18} className="mr-1" />
-            New Purchase Order
-          </button>
+          <div className="flex items-center gap-3">
+            <button
+              onClick={() => loadPurchases()}
+              disabled={isLoading}
+              className="bg-gray-100 hover:bg-gray-200 text-gray-700 py-2 px-4 rounded-lg flex items-center disabled:opacity-50"
+              title="Refresh purchases"
+            >
+              <svg className={`w-4 h-4 mr-2 ${isLoading ? 'animate-spin' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+              </svg>
+              Refresh
+            </button>
+            <button
+              className="bg-teal-500 hover:bg-teal-600 text-white py-2 px-4 rounded-lg flex items-center"
+              onClick={() => setShowNewPurchaseModal(true)}
+            >
+              <PlusIcon size={18} className="mr-1" />
+              New Purchase Order
+            </button>
+          </div>
         </div>
         <div className="bg-white rounded-lg shadow-sm">
           <PurchaseFilters

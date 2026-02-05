@@ -66,8 +66,8 @@ async function apiRequest<T>(
   }
 }
 
-// Inventory API
-export const inventoryAPI = {
+// Inventory API (with reorder functionality)
+const inventoryAPIBase = {
   getAll: () => apiRequest<any[]>('/inventory'),
   getById: (id: string) => apiRequest<any>(`/inventory/${id}`),
   create: (data: any) => apiRequest<any>('/inventory', {
@@ -80,6 +80,18 @@ export const inventoryAPI = {
   }),
   delete: (id: string) => apiRequest<{ message: string }>(`/inventory/${id}`, {
     method: 'DELETE',
+  }),
+};
+
+export const inventoryAPI = {
+  ...inventoryAPIBase,
+  getLowStock: (params?: string) => {
+    const query = params ? `?${params}` : '';
+    return apiRequest<any[]>(`/inventory/low-stock${query}`);
+  },
+  updateReorderSettings: (id: string, data: any) => apiRequest<any>(`/inventory/${id}/reorder-settings`, {
+    method: 'PUT',
+    body: JSON.stringify(data),
   }),
 };
 
@@ -129,6 +141,8 @@ export const purchasesAPI = {
     method: 'POST',
     body: JSON.stringify(paymentData),
   }),
+  // New: Get suppliers for purchase creation
+  getSuppliers: () => apiRequest<any>('/purchases/suppliers'),
 };
 
 // Invoices API
@@ -359,3 +373,71 @@ const api = {
 
 export default api;
 
+// Suppliers API
+export const suppliersAPI = {
+  getAll: (params?: string) => {
+    const query = params ? `?${params}` : '';
+    return apiRequest<any>(`/suppliers${query}`);
+  },
+  getById: (id: string) => apiRequest<any>(`/suppliers/${id}`),
+  create: (data: any) => apiRequest<any>('/suppliers', {
+    method: 'POST',
+    body: JSON.stringify(data),
+  }),
+  update: (id: string, data: any) => apiRequest<any>(`/suppliers/${id}`, {
+    method: 'PUT',
+    body: JSON.stringify(data),
+  }),
+  delete: (id: string) => apiRequest<{ message: string }>(`/suppliers/${id}`, {
+    method: 'DELETE',
+  }),
+  getProducts: (id: string) => apiRequest<any>(`/suppliers/${id}/products`),
+  addProduct: (id: string, data: any) => apiRequest<any>(`/suppliers/${id}/products`, {
+    method: 'POST',
+    body: JSON.stringify(data),
+  }),
+  removeProduct: (supplierId: string, inventoryId: string) => 
+    apiRequest<{ message: string }>(`/suppliers/${supplierId}/products/${inventoryId}`, {
+      method: 'DELETE',
+    }),
+};
+
+// Reorder API
+export const reorderAPI = {
+  getLowStockReport: (params?: string) => {
+    const query = params ? `?${params}` : '';
+    return apiRequest<any>(`/reorders/low-stock${query}`);
+  },
+  getAll: (params?: string) => {
+    const query = params ? `?${params}` : '';
+    return apiRequest<any>(`/reorders${query}`);
+  },
+  getById: (id: string) => apiRequest<any>(`/reorders/${id}`),
+  create: (data: any) => apiRequest<any>('/reorders', {
+    method: 'POST',
+    body: JSON.stringify(data),
+  }),
+  createQuick: (data: any) => apiRequest<any>('/reorders/quick', {
+    method: 'POST',
+    body: JSON.stringify(data),
+  }),
+  approve: (id: string) => apiRequest<any>(`/reorders/${id}/approve`, {
+    method: 'PUT',
+  }),
+  createPurchase: (reorderId: string, data: any) => apiRequest<any>(`/reorders/${reorderId}/purchase`, {
+    method: 'POST',
+    body: JSON.stringify(data),
+  }),
+  createBulk: (data: any) => apiRequest<any>('/reorders/bulk', {
+    method: 'POST',
+    body: JSON.stringify(data),
+  }),
+  cancel: (id: string) => apiRequest<any>(`/reorders/${id}/cancel`, {
+    method: 'PUT',
+  }),
+  markReceived: (reorderId: string, data: any) => apiRequest<any>(`/reorders/${reorderId}/received`, {
+    method: 'PUT',
+    body: JSON.stringify(data),
+  }),
+  getStats: () => apiRequest<any>('/reorders/stats'),
+};

@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react'
-import { notificationsAPI } from '../services/api'
+import { notificationsAPI, reorderAPI } from '../services/api'
 import { toast } from 'sonner'
 import { 
   FiCheck, 
@@ -10,17 +10,21 @@ import {
   FiPackage,
   FiX,
   FiRefreshCw,
-  FiCreditCard
+  FiCreditCard,
+  FiZap
 } from 'react-icons/fi'
+import QuickReorderModal from './QuickReorderModal'
 
 interface Notification {
   _id: string
-  type: 'purchase' | 'sale' | 'low_stock' | 'out_of_stock' | 'system' | 'payment_received' | 'payment_made'
+  type: 'purchase' | 'sale' | 'low_stock' | 'out_of_stock' | 'system' | 'payment_received' | 'payment_made' | 'reorder_needed' | 'reorder_created' | 'reorder_approved' | 'auto_reorder'
   title: string
   message: string
   read: boolean
   createdAt: string
   metadata?: any
+  relatedId?: string
+  relatedModel?: string
 }
 
 interface NotificationDropdownProps {
@@ -38,6 +42,8 @@ const NotificationDropdown: React.FC<NotificationDropdownProps> = ({
   const [unreadCount, setUnreadCount] = useState(0)
   const [isLoading, setIsLoading] = useState(false)
   const [isRefreshing, setIsRefreshing] = useState(false)
+  const [showQuickReorder, setShowQuickReorder] = useState(false)
+  const [selectedItem, setSelectedItem] = useState<any>(null)
 
   const loadNotifications = async () => {
     try {
@@ -143,6 +149,65 @@ const NotificationDropdown: React.FC<NotificationDropdownProps> = ({
     loadNotifications()
   }
 
+  const handleReorderNow = async (notification: Notification) => {
+    if (!notification.metadata?.inventoryId) {
+      toast.error('Cannot create reorder: missing inventory information');
+      return;
+    }
+
+    try {
+      // Create a mock item for the quick reorder modal
+      const mockItem = {
+        _id: notification.metadata.inventoryId,
+        name: notification.metadata.itemName || 'Unknown Item',
+        sku: notification.metadata.sku || 'N/A',
+        category: 'Unknown',
+        price: 0,
+        cost: 0,
+        stock: notification.metadata.stock || 0,
+        reorderLevel: notification.metadata.reorderLevel || 5,
+        reorderQuantity: 10,
+        maximumStock: 100,
+        preferredSupplierId: null,
+        supplierProductCode: '',
+        lastPurchasePrice: 0,
+        reorderStatus: 'needed',
+        pendingOrderId: null,
+        lastReorderDate: null,
+        averageDailySales: 0,
+        leadTimeDays: 7,
+        safetyStock: 5,
+        autoReorderEnabled: false,
+        supplier: 'Unknown',
+        location: 'Warehouse',
+        analytics: {
+          suggestedQuantity: 10,
+          averageDailySales: 1,
+          currentStock: notification.metadata.stock || 0,
+          reorderLevel: notification.metadata.reorderLevel || 5,
+          daysUntilStockout: 999,
+          calculations: {
+            totalSold90Days: 0,
+            annualDemand: 0,
+            safetyStock: 5,
+            leadTimeDays: 7,
+            reviewPeriod: 7
+          }
+        },
+        priority: 50,
+        urgencyLevel: notification.metadata.stock <= 0 ? 'critical' : 'high',
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString()
+      };
+
+      setSelectedItem(mockItem);
+      setShowQuickReorder(true);
+    } catch (error: any) {
+      console.error('Error preparing reorder:', error);
+      toast.error('Failed to prepare reorder');
+    }
+  };
+
   const getNotificationIcon = (type: string) => {
     switch (type) {
       case 'purchase':
@@ -157,6 +222,11 @@ const NotificationDropdown: React.FC<NotificationDropdownProps> = ({
         return <FiAlertCircle className="h-5 w-5 text-yellow-500" />
       case 'out_of_stock':
         return <FiPackage className="h-5 w-5 text-red-500" />
+      case 'reorder_needed':
+      case 'reorder_created':
+      case 'reorder_approved':
+      case 'auto_reorder':
+        return <FiZap className="h-5 w-5 text-orange-500" />
       default:
         return <FiAlertCircle className="h-5 w-5 text-gray-500" />
     }
@@ -176,6 +246,11 @@ const NotificationDropdown: React.FC<NotificationDropdownProps> = ({
         return 'bg-yellow-50 border-yellow-200'
       case 'out_of_stock':
         return 'bg-red-50 border-red-200'
+      case 'reorder_needed':
+      case 'reorder_created':
+      case 'reorder_approved':
+      case 'auto_reorder':
+        return 'bg-orange-50 border-orange-200'
       default:
         return 'bg-gray-50 border-gray-200'
     }
@@ -285,6 +360,18 @@ const NotificationDropdown: React.FC<NotificationDropdownProps> = ({
                         <p className="text-xs text-gray-400 mt-1">
                           {formatTime(notification.createdAt)}
                         </p>
+                        
+                        {/* Reorder Action Button */}
+                        {(notification.type === 'low_stock' || notification.type === 'out_of_stock') && 
+                         notification.metadata?.inventoryId && (
+                          <button
+                            onClick={() => handleReorderNow(notification)}
+                            className="mt-2 inline-flex items-center gap-1 px-2 py-1 text-xs bg-teal-600 text-white rounded hover:bg-teal-700 transition-colors"
+                          >
+                            <FiZap className="h-3 w-3" />
+                            Reorder Now
+                          </button>
+                        )}
                       </div>
                       {!notification.read && (
                         <div className="h-2 w-2 rounded-full bg-blue-500 flex-shrink-0 mt-1.5" />
@@ -315,6 +402,22 @@ const NotificationDropdown: React.FC<NotificationDropdownProps> = ({
           </div>
         )}
       </div>
+
+      {/* Quick Reorder Modal */}
+      {showQuickReorder && selectedItem && (
+        <QuickReorderModal
+          item={selectedItem}
+          onClose={() => {
+            setShowQuickReorder(false);
+            setSelectedItem(null);
+          }}
+          onSuccess={() => {
+            setShowQuickReorder(false);
+            setSelectedItem(null);
+            loadNotifications(); // Refresh notifications
+          }}
+        />
+      )}
     </div>
   )
 }

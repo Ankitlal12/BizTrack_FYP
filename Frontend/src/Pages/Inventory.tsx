@@ -1,18 +1,22 @@
 import React, { useEffect, useMemo, useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { toast } from 'sonner'
+import { TrendingDown } from 'lucide-react'
 import Layout from '../layout/Layout'
 import { inventoryAPI } from '../services/api'
 import { InventoryItem } from './Inventory/helpers'
 import InventoryFilters from './Inventory/InventoryFilters'
 import InventoryTable from './Inventory/InventoryTable'
 import InventorySummary from './Inventory/InventorySummary'
+import { useAuth } from '../contexts/AuthContext'
 
 const Inventory = () => {
+  const navigate = useNavigate()
+  const { user } = useAuth()
   const [searchTerm, setSearchTerm] = useState('')
   const [categoryFilter, setCategoryFilter] = useState('all')
   const [statusFilter, setStatusFilter] = useState('all')
   const [supplierFilter, setSupplierFilter] = useState('all')
-  const [locationFilter, setLocationFilter] = useState('all')
   const [stockMin, setStockMin] = useState('')
   const [stockMax, setStockMax] = useState('')
   const [priceMin, setPriceMin] = useState('')
@@ -98,16 +102,10 @@ const Inventory = () => {
     [inventoryItems],
   )
 
-  const locations = useMemo(
-    () => Array.from(new Set(inventoryItems.map((i) => i.location))).sort(),
-    [inventoryItems],
-  )
-
   const clearFilters = () => {
     setCategoryFilter('all')
     setStatusFilter('all')
     setSupplierFilter('all')
-    setLocationFilter('all')
     setStockMin('')
     setStockMax('')
     setPriceMin('')
@@ -138,10 +136,6 @@ const Inventory = () => {
         // Supplier filter
         const matchesSupplier =
           supplierFilter === 'all' || item.supplier === supplierFilter
-
-        // Location filter
-        const matchesLocation =
-          locationFilter === 'all' || item.location === locationFilter
 
         // Stock range filter
         let matchesStock = true
@@ -193,7 +187,6 @@ const Inventory = () => {
           matchesCategory &&
           matchesStatus &&
           matchesSupplier &&
-          matchesLocation &&
           matchesStock &&
           matchesPrice &&
           matchesCost
@@ -206,7 +199,6 @@ const Inventory = () => {
       categoryFilter,
       statusFilter,
       supplierFilter,
-      locationFilter,
       stockMin,
       stockMax,
       priceMin,
@@ -219,10 +211,43 @@ const Inventory = () => {
   return (
     <Layout>
       <div className="p-4 space-y-6">
-        <h2 className="text-2xl font-semibold text-gray-800">Inventory</h2>
-        <p className="text-gray-600">Manage your items efficiently</p>
+        <div className="flex items-center justify-between">
+          <div>
+            <h2 className="text-2xl font-semibold text-gray-800">Inventory</h2>
+            <p className="text-gray-600">Manage your items efficiently</p>
+          </div>
+          {(user?.role === 'owner' || user?.role === 'manager') && (
+            <button
+              onClick={() => navigate('/low-stock')}
+              className="inline-flex items-center gap-2 px-4 py-2 bg-orange-100 hover:bg-orange-200 text-orange-700 rounded-lg transition-colors"
+              title="View low stock items"
+            >
+              <TrendingDown className="w-4 h-4" />
+              Low Stock Page
+            </button>
+          )}
+        </div>
 
         <div className="bg-white rounded-lg shadow-sm p-6">
+          {/* Stock Level Legend */}
+          <div className="mb-4 p-3 bg-gray-50 rounded-lg">
+            <h3 className="text-sm font-medium text-gray-700 mb-2">Stock Level Indicators:</h3>
+            <div className="flex flex-wrap gap-4 text-sm">
+              <div className="flex items-center gap-2">
+                <div className="w-4 h-4 bg-red-100 border border-red-200 rounded"></div>
+                <span className="text-red-700 font-medium">Critical (&lt; 20 units)</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <div className="w-4 h-4 bg-yellow-100 border border-yellow-200 rounded"></div>
+                <span className="text-orange-600 font-medium">Low (20-49 units)</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <div className="w-4 h-4 bg-white border border-gray-200 rounded"></div>
+                <span className="text-gray-600">Normal (50+ units)</span>
+              </div>
+            </div>
+          </div>
+
           <InventoryFilters
             searchTerm={searchTerm}
             onSearchChange={setSearchTerm}
@@ -234,9 +259,6 @@ const Inventory = () => {
             supplierFilter={supplierFilter}
             onSupplierChange={setSupplierFilter}
             suppliers={suppliers}
-            locationFilter={locationFilter}
-            onLocationChange={setLocationFilter}
-            locations={locations}
             stockMin={stockMin}
             onStockMinChange={setStockMin}
             stockMax={stockMax}
@@ -255,6 +277,7 @@ const Inventory = () => {
           <InventoryTable
             items={filteredItems}
             isLoading={isLoading}
+            onItemUpdated={loadInventory}
           />
         </div>
 
