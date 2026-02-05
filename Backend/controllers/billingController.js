@@ -476,7 +476,7 @@ exports.getAllBills = async (req, res) => {
     const { limit = 50, skip = 0 } = req.query;
     const sales = await Sale.find()
       .populate("items.inventoryId")
-      .sort({ createdAt: -1 })
+      .sort({ createdAt: 1 })
       .limit(parseInt(limit))
       .skip(parseInt(skip));
 

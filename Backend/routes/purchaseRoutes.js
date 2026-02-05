@@ -7,6 +7,7 @@ const {
   updatePurchase,
   deletePurchase,
   recordPayment,
+  getSuppliersForPurchase,
 } = require("../controllers/purchaseController");
 const router = express.Router();
 
@@ -14,6 +15,7 @@ const router = express.Router();
 router.use(authenticate);
 
 router.get("/", getAllPurchases);
+router.get("/suppliers", getSuppliersForPurchase); // New route for suppliers
 router.get("/:id", getPurchaseById);
 router.post("/", createPurchase);
 router.put("/:id", updatePurchase);

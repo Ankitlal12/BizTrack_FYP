@@ -4,7 +4,7 @@ const notificationSchema = new mongoose.Schema({
   type: {
     type: String,
     required: true,
-    enum: ["purchase", "sale", "low_stock", "out_of_stock", "system", "payment_received", "payment_made"],
+    enum: ["purchase", "sale", "low_stock", "out_of_stock", "system", "payment_received", "payment_made", "reorder_needed", "reorder_created", "reorder_approved", "auto_reorder", "low_stock_purchase"],
   },
   title: {
     type: String,
@@ -24,7 +24,7 @@ const notificationSchema = new mongoose.Schema({
   },
   relatedModel: {
     type: String,
-    enum: ["Purchase", "Sale", "Inventory", "User", null],
+    enum: ["Purchase", "Sale", "Inventory", "User", "Reorder", "Supplier", null],
   },
   metadata: {
     type: mongoose.Schema.Types.Mixed,

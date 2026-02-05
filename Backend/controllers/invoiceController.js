@@ -186,7 +186,7 @@ exports.getAllInvoices = async (req, res) => {
     }
 
     // Build sort object
-    let sort = { createdAt: -1 }; // Default sort
+    let sort = { createdAt: 1 }; // Default sort - ascending (oldest first)
     if (sortBy) {
       const order = sortOrder === 'asc' ? 1 : -1;
       sort = { [sortBy]: order };

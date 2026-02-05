@@ -18,7 +18,7 @@ exports.getAllInventory = async (req, res) => {
       });
     }
 
-    const items = await Inventory.find().sort({ createdAt: -1 });
+    const items = await Inventory.find().sort({ createdAt: 1 });
     res.json(items);
   } catch (err) {
     console.error("Error fetching inventory:", err);
@@ -47,6 +47,10 @@ const checkAndCreateStockNotification = async (item) => {
   try {
     // Check if stock is out
     if (item.stock <= 0) {
+      // Update reorder status
+      item.reorderStatus = 'needed';
+      await item.save();
+
       // Check if notification already exists for this item (to avoid duplicates)
       const existingNotif = await Notification.findOne({
         type: "out_of_stock",
@@ -66,12 +70,17 @@ const checkAndCreateStockNotification = async (item) => {
             sku: item.sku,
             stock: item.stock,
             reorderLevel: item.reorderLevel,
+            inventoryId: item._id,
           },
         });
       }
     }
     // Check if stock is low (below reorder level)
     else if (item.stock <= item.reorderLevel) {
+      // Update reorder status
+      item.reorderStatus = 'needed';
+      await item.save();
+
       // Check if notification already exists for this item
       const existingNotif = await Notification.findOne({
         type: "low_stock",
@@ -91,6 +100,7 @@ const checkAndCreateStockNotification = async (item) => {
             sku: item.sku,
             stock: item.stock,
             reorderLevel: item.reorderLevel,
+            inventoryId: item._id,
           },
         });
       }
@@ -171,3 +181,85 @@ exports.deleteInventory = async (req, res) => {
   }
 };
 
+
+// Get low stock items
+exports.getLowStockItems = async (req, res) => {
+  try {
+    const { category, supplier } = req.query;
+    
+    // Build query for low stock items
+    const query = {
+      $or: [
+        { stock: { $lte: 0 } }, // Out of stock
+        { $expr: { $lte: ['$stock', '$reorderLevel'] } } // Below reorder level
+      ]
+    };
+
+    if (category && category !== 'all') {
+      query.category = category;
+    }
+
+    if (supplier && supplier !== 'all') {
+      query.supplier = { $regex: supplier, $options: 'i' };
+    }
+
+    const items = await Inventory.find(query)
+      .populate('preferredSupplierId', 'name contactPerson phone email')
+      .sort({ stock: 1 }); // Most critical first
+
+    res.json({ data: items });
+  } catch (error) {
+    console.error('Error fetching low stock items:', error);
+    res.status(500).json({ 
+      error: 'Failed to fetch low stock items',
+      details: error.message 
+    });
+  }
+};
+
+// Update reorder settings for an inventory item
+exports.updateReorderSettings = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const {
+      reorderLevel,
+      reorderQuantity,
+      maximumStock,
+      preferredSupplierId,
+      leadTimeDays,
+      safetyStock,
+      autoReorderEnabled
+    } = req.body;
+
+    const updateData = {};
+    
+    if (reorderLevel !== undefined) updateData.reorderLevel = reorderLevel;
+    if (reorderQuantity !== undefined) updateData.reorderQuantity = reorderQuantity;
+    if (maximumStock !== undefined) updateData.maximumStock = maximumStock;
+    if (preferredSupplierId !== undefined) updateData.preferredSupplierId = preferredSupplierId;
+    if (leadTimeDays !== undefined) updateData.leadTimeDays = leadTimeDays;
+    if (safetyStock !== undefined) updateData.safetyStock = safetyStock;
+    if (autoReorderEnabled !== undefined) updateData.autoReorderEnabled = autoReorderEnabled;
+
+    const item = await Inventory.findByIdAndUpdate(
+      id,
+      { ...updateData, lastUpdated: new Date() },
+      { new: true, runValidators: true }
+    ).populate('preferredSupplierId', 'name contactPerson');
+
+    if (!item) {
+      return res.status(404).json({ error: 'Inventory item not found' });
+    }
+
+    res.json({ 
+      data: item,
+      message: 'Reorder settings updated successfully'
+    });
+  } catch (error) {
+    console.error('Error updating reorder settings:', error);
+    res.status(500).json({ 
+      error: 'Failed to update reorder settings',
+      details: error.message 
+    });
+  }
+};

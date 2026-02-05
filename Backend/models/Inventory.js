@@ -30,7 +30,54 @@ const inventorySchema = new mongoose.Schema({
   reorderLevel: {
     type: Number,
     required: true,
+    default: 15,
+  },
+  reorderQuantity: {
+    type: Number,
+    default: 10,
+  },
+  maximumStock: {
+    type: Number,
+    default: 100,
+  },
+  preferredSupplierId: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: "Supplier",
+  },
+  supplierProductCode: {
+    type: String,
+  },
+  lastPurchasePrice: {
+    type: Number,
+    default: 0,
+  },
+  reorderStatus: {
+    type: String,
+    enum: ['none', 'needed', 'pending', 'ordered'],
+    default: 'none',
+  },
+  pendingOrderId: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: "Purchase",
+  },
+  lastReorderDate: {
+    type: Date,
+  },
+  averageDailySales: {
+    type: Number,
+    default: 0,
+  },
+  leadTimeDays: {
+    type: Number,
+    default: 7,
+  },
+  safetyStock: {
+    type: Number,
     default: 5,
+  },
+  autoReorderEnabled: {
+    type: Boolean,
+    default: false,
   },
   supplier: {
     type: String,

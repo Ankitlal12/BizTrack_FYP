@@ -62,7 +62,7 @@ exports.getTransactions = async (req, res) => {
     }
 
     // Build sort object
-    let sortObj = { createdAt: -1 }; // default sort
+    let sortObj = { createdAt: 1 }; // default sort - ascending (oldest first)
     if (req.query.sortBy) {
       const sortOrder = req.query.sortOrder === 'asc' ? 1 : -1;
       sortObj = { [req.query.sortBy]: sortOrder };

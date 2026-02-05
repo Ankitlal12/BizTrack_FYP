@@ -113,7 +113,7 @@ exports.getAllPurchases = async (req, res) => {
     }
 
     // Build sort object
-    let sortObj = { createdAt: -1 }; // default sort
+    let sortObj = { createdAt: 1 }; // default sort - ascending (oldest first)
     if (req.query.sortBy) {
       const sortOrder = req.query.sortOrder === 'asc' ? 1 : -1;
       sortObj = { [req.query.sortBy]: sortOrder };
@@ -128,6 +128,12 @@ exports.getAllPurchases = async (req, res) => {
       .sort(sortObj)
       .skip(skip)
       .limit(limit);
+
+    // Debug log for filtering issues
+    console.log('Purchase query:', JSON.stringify(query, null, 2));
+    console.log('Found purchases count:', purchases.length);
+    console.log('Total count:', total);
+    console.log('Sort object:', sortObj);
 
     // Calculate pagination info
     const pages = Math.ceil(total / limit);
@@ -326,9 +332,34 @@ exports.updatePurchase = async (req, res) => {
     if (req.body.status === "received" && oldPurchase.status !== "received") {
       for (const item of purchase.items) {
         if (item.inventoryId) {
-          await Inventory.findByIdAndUpdate(item.inventoryId, {
+          const inventory = await Inventory.findByIdAndUpdate(item.inventoryId, {
             $inc: { stock: item.quantity },
+            lastPurchasePrice: item.cost,
           });
+
+          // Check if this purchase was linked to a reorder
+          const Reorder = require("../models/Reorder");
+          const linkedReorder = await Reorder.findOne({
+            purchaseOrderId: purchase._id,
+            inventoryId: item.inventoryId,
+            status: 'ordered'
+          });
+
+          if (linkedReorder) {
+            // Update reorder status to received
+            linkedReorder.status = 'received';
+            linkedReorder.receivedQuantity = item.quantity;
+            linkedReorder.resolvedAt = new Date();
+            await linkedReorder.save();
+
+            // Update inventory reorder status
+            if (inventory) {
+              inventory.reorderStatus = 'none';
+              inventory.pendingOrderId = null;
+              inventory.lastReorderDate = new Date();
+              await inventory.save();
+            }
+          }
         }
       }
     }
@@ -505,5 +536,26 @@ exports.recordPayment = async (req, res) => {
     res.json(populatedPurchase);
   } catch (err) {
     res.status(400).json({ error: err.message });
+  }
+};
+// Get suppliers for purchase order creation
+exports.getSuppliersForPurchase = async (req, res) => {
+  try {
+    const Supplier = require("../models/Supplier");
+    
+    const suppliers = await Supplier.find({ isActive: true })
+      .select('name email phone contactPerson paymentTerms averageLeadTimeDays')
+      .sort({ name: 1 });
+
+    res.json({ 
+      data: suppliers,
+      message: 'Suppliers retrieved successfully'
+    });
+  } catch (error) {
+    console.error('Error fetching suppliers for purchase:', error);
+    res.status(500).json({ 
+      error: 'Failed to fetch suppliers',
+      details: error.message 
+    });
   }
 };
