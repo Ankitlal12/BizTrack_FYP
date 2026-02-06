@@ -119,9 +119,55 @@ exports.getTransactions = async (req, res) => {
     }));
 
     // Combine and sort all transactions
-    const allTransactions = [...saleTransactions, ...purchaseTransactions].sort(
-      (a, b) => new Date(b.date) - new Date(a.date)
-    );
+    const allTransactions = [...saleTransactions, ...purchaseTransactions];
+    
+    // Apply sorting based on query parameters
+    const sortBy = req.query.sortBy || 'date';
+    const sortOrder = req.query.sortOrder === 'asc' ? 1 : -1;
+    
+    allTransactions.sort((a, b) => {
+      let aVal, bVal;
+      
+      switch (sortBy) {
+        case 'date':
+        case 'createdAt':
+          aVal = new Date(a.date);
+          bVal = new Date(b.date);
+          break;
+        case 'total':
+          aVal = a.total || 0;
+          bVal = b.total || 0;
+          break;
+        case 'type':
+          aVal = a.type;
+          bVal = b.type;
+          break;
+        case 'reference':
+          aVal = a.reference || '';
+          bVal = b.reference || '';
+          break;
+        case 'counterpartName':
+          aVal = a.counterpartName || '';
+          bVal = b.counterpartName || '';
+          break;
+        default:
+          aVal = new Date(a.date);
+          bVal = new Date(b.date);
+      }
+      
+      // Handle string comparison
+      if (typeof aVal === 'string' && typeof bVal === 'string') {
+        return sortOrder * aVal.localeCompare(bVal);
+      }
+      
+      // Handle date comparison
+      if (aVal instanceof Date && bVal instanceof Date) {
+        return sortOrder * (aVal.getTime() - bVal.getTime());
+      }
+      
+      // Handle numeric comparison
+      return sortOrder * (aVal - bVal);
+    });
 
     // Apply pagination to combined results
     const total = allTransactions.length;
