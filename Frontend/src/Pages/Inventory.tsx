@@ -25,6 +25,14 @@ const Inventory = () => {
   const [costMax, setCostMax] = useState('')
   const [inventoryItems, setInventoryItems] = useState<InventoryItem[]>([])
   const [isLoading, setIsLoading] = useState(false)
+  
+  // Pagination state
+  const [pagination, setPagination] = useState({
+    current: 1,
+    pages: 1,
+    total: 0,
+    limit: 10,
+  })
 
   useEffect(() => {
     loadInventory()
@@ -112,6 +120,7 @@ const Inventory = () => {
     setPriceMax('')
     setCostMin('')
     setCostMax('')
+    setPagination(prev => ({ ...prev, current: 1 })) // Reset to first page when clearing filters
   }
 
   const filteredItems = useMemo(
@@ -208,13 +217,47 @@ const Inventory = () => {
     ],
   )
 
+  // Pagination calculations
+  const totalItems = filteredItems.length
+  const startIndex = (pagination.current - 1) * pagination.limit
+  const endIndex = startIndex + pagination.limit
+  const paginatedItems = filteredItems.slice(startIndex, endIndex)
+
+  // Update pagination info when filtered items change
+  useEffect(() => {
+    const newTotalPages = Math.ceil(filteredItems.length / pagination.limit)
+    setPagination(prev => ({
+      ...prev,
+      pages: newTotalPages,
+      total: filteredItems.length,
+      current: prev.current > newTotalPages ? 1 : prev.current
+    }))
+  }, [filteredItems, pagination.limit])
+
+  // Reset to first page when filters change
+  useEffect(() => {
+    setPagination(prev => ({ ...prev, current: 1 }))
+  }, [searchTerm, categoryFilter, statusFilter, supplierFilter, stockMin, stockMax, priceMin, priceMax, costMin, costMax])
+
+  const handlePageChange = (page: number) => {
+    setPagination(prev => ({ ...prev, current: page }))
+  }
+
   return (
     <Layout>
       <div className="p-4 space-y-6">
         <div className="flex items-center justify-between">
           <div>
             <h2 className="text-2xl font-semibold text-gray-800">Inventory</h2>
-            <p className="text-gray-600">Manage your items efficiently</p>
+            <p className="text-gray-600">
+              Manage your items efficiently 
+              {totalItems > 0 && (
+                <span className="ml-2 text-sm">
+                  • {totalItems} item{totalItems !== 1 ? 's' : ''} found
+                  {pagination.pages > 1 && ` • Page ${pagination.current} of ${pagination.pages}`}
+                </span>
+              )}
+            </p>
           </div>
           {(user?.role === 'owner' || user?.role === 'manager') && (
             <button
@@ -275,10 +318,114 @@ const Inventory = () => {
           />
 
           <InventoryTable
-            items={filteredItems}
+            items={paginatedItems}
             isLoading={isLoading}
             onItemUpdated={loadInventory}
           />
+
+          {/* Pagination */}
+          {pagination.total > 0 && (
+            <div className="flex flex-col sm:flex-row items-center justify-between gap-4 mt-6 p-4 border-t">
+              <div className="flex items-center gap-4">
+                <div className="text-sm text-gray-700">
+                  Showing {((pagination.current - 1) * pagination.limit) + 1} to{' '}
+                  {Math.min(pagination.current * pagination.limit, pagination.total)} of{' '}
+                  {pagination.total} results
+                </div>
+                <div className="flex items-center gap-2">
+                  <label className="text-sm text-gray-600">Per page:</label>
+                  <select
+                    value={pagination.limit}
+                    onChange={(e) => {
+                      const newLimit = parseInt(e.target.value)
+                      setPagination(prev => ({
+                        ...prev,
+                        limit: newLimit,
+                        current: 1,
+                        pages: Math.ceil(prev.total / newLimit)
+                      }))
+                    }}
+                    className="px-2 py-1 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-blue-500"
+                  >
+                    <option value={10}>10</option>
+                    <option value={25}>25</option>
+                    <option value={50}>50</option>
+                    <option value={100}>100</option>
+                  </select>
+                </div>
+              </div>
+              {pagination.pages > 1 && (
+                <div className="flex space-x-2">
+                  <button
+                    onClick={() => handlePageChange(1)}
+                    disabled={pagination.current === 1}
+                    className="px-3 py-2 text-sm bg-gray-200 text-gray-700 rounded-md hover:bg-gray-300 disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    First
+                  </button>
+                  <button
+                    onClick={() => handlePageChange(pagination.current - 1)}
+                    disabled={pagination.current === 1}
+                    className="px-3 py-2 text-sm bg-gray-200 text-gray-700 rounded-md hover:bg-gray-300 disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    Previous
+                  </button>
+                  {(() => {
+                    const pages: (number | string)[] = [];
+                    const total = pagination.pages;
+                    const current = pagination.current;
+                    
+                    if (total <= 7) {
+                      for (let i = 1; i <= total; i++) pages.push(i);
+                    } else {
+                      pages.push(1);
+                      if (current > 3) pages.push('...');
+                      
+                      const start = Math.max(2, current - 1);
+                      const end = Math.min(total - 1, current + 1);
+                      
+                      for (let i = start; i <= end; i++) pages.push(i);
+                      
+                      if (current < total - 2) pages.push('...');
+                      pages.push(total);
+                    }
+                    
+                    return pages.map((page, idx) => (
+                      page === '...' ? (
+                        <span key={`ellipsis-${idx}`} className="px-3 py-2 text-sm text-gray-500">...</span>
+                      ) : (
+                        <button
+                          key={page}
+                          onClick={() => handlePageChange(page as number)}
+                          className={`px-3 py-2 text-sm rounded-md ${
+                            page === current
+                              ? 'bg-blue-600 text-white'
+                              : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+                          }`}
+                        >
+                          {page}
+                        </button>
+                      )
+                    ));
+                  })()}
+                  <button
+                    onClick={() => handlePageChange(pagination.current + 1)}
+                    disabled={pagination.current === pagination.pages}
+                    className="px-3 py-2 text-sm bg-gray-200 text-gray-700 rounded-md hover:bg-gray-300 disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    Next
+                  </button>
+                  <button
+                    onClick={() => handlePageChange(pagination.pages)}
+                    disabled={pagination.current === pagination.pages}
+                    className="px-3 py-2 text-sm bg-gray-200 text-gray-700 rounded-md hover:bg-gray-300 disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    Last
+                  </button>
+                </div>
+              )}
+            </div>
+          )}
         </div>
 
         <InventorySummary items={inventoryItems} />
