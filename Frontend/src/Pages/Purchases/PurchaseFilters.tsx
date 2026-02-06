@@ -1,5 +1,5 @@
 import React, { useState } from 'react'
-import { SearchIcon, FilterIcon, XIcon } from 'lucide-react'
+import { SearchIcon, FilterIcon, XIcon, ArrowUpIcon, ArrowDownIcon } from 'lucide-react'
 
 interface PurchaseFiltersProps {
   searchTerm: string
@@ -26,6 +26,10 @@ interface PurchaseFiltersProps {
   quantityMax: string
   onQuantityMaxChange: (value: string) => void
   onClearFilters: () => void
+  sortField: string
+  sortDirection: 'asc' | 'desc'
+  onSortFieldChange: (value: string) => void
+  onSortDirectionChange: (value: 'asc' | 'desc') => void
 }
 
 const PurchaseFilters: React.FC<PurchaseFiltersProps> = ({
@@ -53,6 +57,10 @@ const PurchaseFilters: React.FC<PurchaseFiltersProps> = ({
   quantityMax,
   onQuantityMaxChange,
   onClearFilters,
+  sortField,
+  sortDirection,
+  onSortFieldChange,
+  onSortDirectionChange,
 }) => {
   const [showMoreFilters, setShowMoreFilters] = useState(false)
 
@@ -112,6 +120,33 @@ const PurchaseFilters: React.FC<PurchaseFiltersProps> = ({
           <option value="partial">Partial</option>
           <option value="paid">Paid</option>
         </select>
+
+        {/* Sort Controls */}
+        <div className="flex items-center gap-2">
+          <select
+            className="border border-gray-300 rounded-lg py-2 px-3 bg-white focus:outline-none focus:ring-2 focus:ring-teal-500 text-sm"
+            value={sortField}
+            onChange={(e) => onSortFieldChange(e.target.value)}
+          >
+            <option value="date">Sort by Date</option>
+            <option value="total">Sort by Total</option>
+            <option value="supplierName">Sort by Supplier</option>
+            <option value="purchaseNumber">Sort by PO Number</option>
+          </select>
+          <button
+            onClick={() => onSortDirectionChange(sortDirection === 'asc' ? 'desc' : 'asc')}
+            className={`border border-gray-300 rounded-lg p-2 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-teal-500 ${
+              sortDirection === 'desc' ? 'bg-teal-50 border-teal-300' : 'bg-white'
+            }`}
+            title={sortDirection === 'desc' ? 'Newest first (click for oldest first)' : 'Oldest first (click for newest first)'}
+          >
+            {sortDirection === 'desc' ? (
+              <ArrowDownIcon size={18} className="text-teal-600" />
+            ) : (
+              <ArrowUpIcon size={18} className="text-gray-600" />
+            )}
+          </button>
+        </div>
 
         {/* Filters Button */}
         <button

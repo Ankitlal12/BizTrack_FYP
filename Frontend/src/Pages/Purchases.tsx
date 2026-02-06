@@ -15,7 +15,7 @@ const Purchases: React.FC = () => {
   const navigate = useNavigate()
   const [searchTerm, setSearchTerm] = useState('')
   const [sortField, setSortField] = useState('date')
-  const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc')
+  const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('desc')
   const [filterStatus, setFilterStatus] = useState('all')
   const [paymentStatusFilter, setPaymentStatusFilter] = useState('all')
   const [paymentMethodFilter, setPaymentMethodFilter] = useState('all')
@@ -213,6 +213,8 @@ const Purchases: React.FC = () => {
     setQuantityMin('')
     setQuantityMax('')
     setSearchTerm('')
+    setSortField('date')
+    setSortDirection('desc')
     setPagination(prev => ({ ...prev, current: 1 }))
   }
 
@@ -268,6 +270,10 @@ const Purchases: React.FC = () => {
             quantityMax={quantityMax}
             onQuantityMaxChange={setQuantityMax}
             onClearFilters={clearFilters}
+            sortField={sortField}
+            sortDirection={sortDirection}
+            onSortFieldChange={setSortField}
+            onSortDirectionChange={setSortDirection}
           />
           <PurchaseTable
             purchases={purchases}

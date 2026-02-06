@@ -13,7 +13,7 @@ const Sales: React.FC = () => {
   const navigate = useNavigate()
   const [searchTerm, setSearchTerm] = useState('')
   const [sortField, setSortField] = useState('date')
-  const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc')
+  const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('desc')
   const [filterStatus, setFilterStatus] = useState('all')
   const [paymentStatusFilter, setPaymentStatusFilter] = useState('all')
   const [paymentMethodFilter, setPaymentMethodFilter] = useState('all')
@@ -171,6 +171,8 @@ const Sales: React.FC = () => {
     setQuantityMin('')
     setQuantityMax('')
     setSearchTerm('')
+    setSortField('date')
+    setSortDirection('desc')
     setPagination(prev => ({ ...prev, current: 1 }))
   }
 
@@ -206,6 +208,10 @@ const Sales: React.FC = () => {
             quantityMax={quantityMax}
             onQuantityMaxChange={setQuantityMax}
             onClearFilters={clearFilters}
+            sortField={sortField}
+            sortDirection={sortDirection}
+            onSortFieldChange={setSortField}
+            onSortDirectionChange={setSortDirection}
           />
           <SalesTable
             sales={sales}

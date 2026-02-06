@@ -118,10 +118,18 @@ exports.getAllSales = async (req, res) => {
     }
 
     // Build sort object
-    let sortObj = { createdAt: 1 }; // default sort - ascending (oldest first)
+    let sortObj = { createdAt: -1 }; // default sort - descending (newest first)
     if (req.query.sortBy) {
       const sortOrder = req.query.sortOrder === 'asc' ? 1 : -1;
-      sortObj = { [req.query.sortBy]: sortOrder };
+      // Map frontend field names to database field names
+      const fieldMap = {
+        'date': 'createdAt',
+        'total': 'total',
+        'customerName': 'customerName',
+        'invoiceNumber': 'invoiceNumber'
+      };
+      const dbField = fieldMap[req.query.sortBy] || 'createdAt';
+      sortObj = { [dbField]: sortOrder };
     }
 
     // Get total count for pagination
