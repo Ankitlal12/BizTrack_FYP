@@ -46,8 +46,8 @@ const Invoices: React.FC = () => {
     createdBy: '',
     page: 1,
     limit: 10,
-    sortBy: '',
-    sortOrder: '',
+    sortBy: 'createdAt',
+    sortOrder: 'desc',
   });
   const [pagination, setPagination] = useState({
     current: 1,
@@ -165,8 +165,8 @@ const Invoices: React.FC = () => {
       createdBy: '',
       page: 1,
       limit: 10,
-      sortBy: '',
-      sortOrder: '',
+      sortBy: 'createdAt',
+      sortOrder: 'desc',
     });
   };
 

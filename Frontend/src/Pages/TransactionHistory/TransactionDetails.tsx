@@ -1,12 +1,38 @@
 import React from 'react'
+import { useNavigate } from 'react-router-dom'
+import { toast } from 'sonner'
 import { ArrowDownIcon, ArrowUpIcon, CalendarIcon, PackageIcon } from 'lucide-react'
 import { Transaction } from './types'
+import { invoicesAPI } from '../../services/api'
 
 interface Props {
   transaction: Transaction
 }
 
 const TransactionDetails: React.FC<Props> = ({ transaction }) => {
+  const navigate = useNavigate()
+
+  const handleViewInvoice = async () => {
+    try {
+      // Determine the type for the API query
+      const invoiceType = transaction.type === 'sale' ? 'sale' : 'purchase'
+      
+      // Query invoices by the transaction's database ID
+      const response = await invoicesAPI.getAll(`relatedId=${transaction.dbId}&type=${invoiceType}`)
+      
+      if (response.invoices && response.invoices.length > 0) {
+        const invoice = response.invoices[0]
+        // Navigate directly to the individual invoice detail page
+        navigate(`/invoices/${invoice._id}`)
+      } else {
+        toast.error(`No invoice found for this ${transaction.type}`)
+      }
+    } catch (error: any) {
+      console.error('Error finding invoice:', error)
+      toast.error(`Failed to find invoice for this ${transaction.type}`)
+    }
+  }
+
   return (
     <div className="space-y-4">
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -111,8 +137,11 @@ const TransactionDetails: React.FC<Props> = ({ transaction }) => {
           Export
         </button>
         {transaction.reference && (
-          <button className="bg-teal-500 hover:bg-teal-600 text-white py-1 px-3 rounded text-sm">
-            View {transaction.type === 'sale' ? 'Invoice' : 'Purchase Order'}
+          <button 
+            onClick={handleViewInvoice}
+            className="bg-teal-500 hover:bg-teal-600 text-white py-1 px-3 rounded text-sm"
+          >
+            View Invoice
           </button>
         )}
       </div>

@@ -21,7 +21,9 @@ const TransactionHistory = () => {
     totalMax,
     setTotalMax,
     sortField,
+    setSortField,
     sortDirection,
+    setSortDirection,
     expandedId,
     toggleExpanded,
     isLoading,
@@ -56,6 +58,10 @@ const TransactionHistory = () => {
           onTotalMinChange={setTotalMin}
           totalMax={totalMax}
           onTotalMaxChange={setTotalMax}
+          sortField={sortField}
+          onSortFieldChange={setSortField}
+          sortDirection={sortDirection}
+          onSortDirectionChange={setSortDirection}
           onRefresh={loadTransactions}
           onClearFilters={clearFilters}
           isRefreshing={isLoading}
