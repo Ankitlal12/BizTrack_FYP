@@ -51,7 +51,18 @@ const ShoppingCart: React.FC<ShoppingCartProps> = ({
                 >
                   <MinusIcon size={14} />
                 </button>
-                <span className="px-2 text-sm">{item.quantity}</span>
+                <input
+                  type="number"
+                  min="1"
+                  value={item.quantity}
+                  onChange={(e) => {
+                    const value = parseInt(e.target.value, 10)
+                    if (!isNaN(value) && value >= 1) {
+                      onUpdateQuantity(item.id, value)
+                    }
+                  }}
+                  className="w-12 text-center text-sm border-0 focus:outline-none focus:ring-0 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                />
                 <button
                   onClick={() => onUpdateQuantity(item.id, item.quantity + 1)}
                   className="px-2 py-1 text-gray-500 hover:text-gray-700"

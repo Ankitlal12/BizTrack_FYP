@@ -21,14 +21,14 @@ const PaymentUpdateModal: React.FC<PaymentUpdateModalProps> = ({
   onClose,
   onUpdate,
 }) => {
-  const [paidAmount, setPaidAmount] = useState(0);
+  const [paymentAmount, setPaymentAmount] = useState(0); // Amount to add, not total
   const [paymentMethod, setPaymentMethod] = useState('cash');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
   useEffect(() => {
     if (invoice) {
-      setPaidAmount(invoice.paidAmount);
+      setPaymentAmount(0); // Reset to 0 for new payment
       setPaymentMethod(invoice.paymentMethod || 'cash');
       setError('');
     }
@@ -36,28 +36,38 @@ const PaymentUpdateModal: React.FC<PaymentUpdateModalProps> = ({
 
   if (!isOpen || !invoice) return null;
 
+  const currentPaid = invoice.paidAmount || 0;
   const remainingAmount = calculateRemainingAmount(invoice);
-  const maxPayment = invoice.total;
+  const maxPayment = remainingAmount; // Can only pay up to remaining amount
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
 
-    if (paidAmount < 0) {
-      setError('Payment amount cannot be negative');
+    if (paymentAmount <= 0) {
+      setError('Payment amount must be greater than 0');
       return;
     }
 
-    if (paidAmount > maxPayment) {
-      setError(`Payment amount cannot exceed total amount (${formatCurrency(maxPayment)})`);
+    if (paymentAmount > remainingAmount) {
+      setError(`Payment amount (${formatCurrency(paymentAmount)}) cannot exceed remaining balance (${formatCurrency(remainingAmount)})`);
+      return;
+    }
+
+    // Calculate new total paid amount
+    const newPaidAmount = currentPaid + paymentAmount;
+
+    // Double check to prevent overpayment
+    if (newPaidAmount > invoice.total) {
+      setError(`Total payment (${formatCurrency(newPaidAmount)}) cannot exceed invoice total (${formatCurrency(invoice.total)})`);
       return;
     }
 
     // Determine payment status
     let paymentStatus: 'unpaid' | 'partial' | 'paid';
-    if (paidAmount >= invoice.total) {
+    if (newPaidAmount >= invoice.total) {
       paymentStatus = 'paid';
-    } else if (paidAmount > 0) {
+    } else if (newPaidAmount > 0) {
       paymentStatus = 'partial';
     } else {
       paymentStatus = 'unpaid';
@@ -67,7 +77,7 @@ const PaymentUpdateModal: React.FC<PaymentUpdateModalProps> = ({
     try {
       await onUpdate(invoice._id, {
         paymentStatus,
-        paidAmount,
+        paidAmount: newPaidAmount, // Send the new total
         paymentMethod,
       });
       onClose();
@@ -78,9 +88,36 @@ const PaymentUpdateModal: React.FC<PaymentUpdateModalProps> = ({
     }
   };
 
-  const handleQuickPayment = (amount: number) => {
-    setPaidAmount(Math.min(amount, maxPayment));
+  const handlePaymentAmountChange = (value: string) => {
+    const amount = parseFloat(value) || 0;
+    
+    // Clear error when user starts typing
+    setError('');
+    
+    // Prevent negative values
+    if (amount < 0) {
+      setError('Payment amount cannot be negative');
+      setPaymentAmount(0);
+      return;
+    }
+    
+    // Prevent exceeding remaining balance
+    if (amount > remainingAmount) {
+      setError(`Payment amount cannot exceed remaining balance of ${formatCurrency(remainingAmount)}`);
+      setPaymentAmount(remainingAmount); // Auto-correct to max allowed
+      return;
+    }
+    
+    setPaymentAmount(amount);
   };
+
+  const handleQuickPayment = (amount: number) => {
+    setPaymentAmount(Math.min(amount, maxPayment));
+  };
+
+  // Calculate what the new totals will be after payment
+  const newTotalPaid = currentPaid + paymentAmount;
+  const newRemaining = invoice.total - newTotalPaid;
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
@@ -111,12 +148,12 @@ const PaymentUpdateModal: React.FC<PaymentUpdateModalProps> = ({
               <span className="font-medium">{formatCurrency(invoice.total)}</span>
             </div>
             <div className="flex justify-between items-center mb-2">
-              <span className="text-gray-600">Currently Paid:</span>
-              <span className="font-medium text-green-600">{formatCurrency(invoice.paidAmount)}</span>
+              <span className="text-gray-600">Already Paid:</span>
+              <span className="font-medium text-green-600">{formatCurrency(currentPaid)}</span>
             </div>
-            <div className="flex justify-between items-center">
-              <span className="text-gray-600">Remaining:</span>
-              <span className="font-medium text-red-600">{formatCurrency(remainingAmount)}</span>
+            <div className="flex justify-between items-center border-t pt-2">
+              <span className="text-gray-600 font-medium">Remaining Balance:</span>
+              <span className="font-bold text-red-600">{formatCurrency(remainingAmount)}</span>
             </div>
           </div>
 
@@ -124,47 +161,123 @@ const PaymentUpdateModal: React.FC<PaymentUpdateModalProps> = ({
           {remainingAmount > 0 && (
             <div className="mb-4">
               <label className="block text-sm font-medium text-gray-700 mb-2">
-                Quick Payment
+                Quick Payment Options
               </label>
               <div className="flex space-x-2">
                 <button
                   type="button"
                   onClick={() => handleQuickPayment(remainingAmount)}
-                  className="px-3 py-1 text-sm bg-green-100 text-green-800 rounded-md hover:bg-green-200 transition-colors"
+                  className="flex-1 px-3 py-2 text-sm bg-green-100 text-green-800 rounded-md hover:bg-green-200 transition-colors font-medium"
                 >
-                  Pay Remaining ({formatCurrency(remainingAmount)})
+                  Pay Full Balance
+                  <div className="text-xs font-normal mt-0.5">
+                    {formatCurrency(remainingAmount)}
+                  </div>
                 </button>
                 <button
                   type="button"
-                  onClick={() => handleQuickPayment(invoice.total)}
-                  className="px-3 py-1 text-sm bg-blue-100 text-blue-800 rounded-md hover:bg-blue-200 transition-colors"
+                  onClick={() => handleQuickPayment(remainingAmount / 2)}
+                  className="flex-1 px-3 py-2 text-sm bg-blue-100 text-blue-800 rounded-md hover:bg-blue-200 transition-colors font-medium"
                 >
-                  Pay Full ({formatCurrency(invoice.total)})
+                  Pay Half
+                  <div className="text-xs font-normal mt-0.5">
+                    {formatCurrency(remainingAmount / 2)}
+                  </div>
                 </button>
               </div>
             </div>
           )}
 
-          {/* Payment Amount */}
+          {/* Payment Amount Input */}
           <div className="mb-4">
-            <label htmlFor="paidAmount" className="block text-sm font-medium text-gray-700 mb-1">
-              Total Paid Amount
+            <label htmlFor="paymentAmount" className="block text-sm font-medium text-gray-700 mb-1">
+              Payment Amount to Add
             </label>
             <input
               type="number"
-              id="paidAmount"
-              value={paidAmount}
-              onChange={(e) => setPaidAmount(parseFloat(e.target.value) || 0)}
+              id="paymentAmount"
+              value={paymentAmount}
+              onChange={(e) => handlePaymentAmountChange(e.target.value)}
               min="0"
               max={maxPayment}
               step="0.01"
-              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 ${
+                error 
+                  ? 'border-red-300 focus:ring-red-500' 
+                  : 'border-gray-300 focus:ring-blue-500'
+              }`}
+              placeholder="Enter amount to pay"
               required
             />
-            <p className="text-xs text-gray-500 mt-1">
-              Maximum: {formatCurrency(maxPayment)}
-            </p>
+            <div className="flex justify-between items-center mt-1">
+              <p className="text-xs text-gray-500">
+                Maximum: {formatCurrency(maxPayment)}
+              </p>
+              {paymentAmount > remainingAmount && (
+                <p className="text-xs text-red-600 font-medium">
+                  Exceeds remaining balance!
+                </p>
+              )}
+            </div>
           </div>
+
+          {/* Payment Preview */}
+          {paymentAmount > 0 && (
+            <div className={`mb-4 p-3 border rounded-md ${
+              paymentAmount > remainingAmount 
+                ? 'bg-red-50 border-red-200' 
+                : 'bg-blue-50 border-blue-200'
+            }`}>
+              <h4 className={`text-sm font-medium mb-2 ${
+                paymentAmount > remainingAmount ? 'text-red-900' : 'text-blue-900'
+              }`}>
+                {paymentAmount > remainingAmount ? '⚠️ Invalid Payment:' : 'Payment Preview:'}
+              </h4>
+              <div className="space-y-1 text-sm">
+                <div className="flex justify-between">
+                  <span className={paymentAmount > remainingAmount ? 'text-red-700' : 'text-blue-700'}>
+                    Current Paid:
+                  </span>
+                  <span className={`font-medium ${paymentAmount > remainingAmount ? 'text-red-900' : 'text-blue-900'}`}>
+                    {formatCurrency(currentPaid)}
+                  </span>
+                </div>
+                <div className="flex justify-between">
+                  <span className={paymentAmount > remainingAmount ? 'text-red-700' : 'text-blue-700'}>
+                    + Payment Amount:
+                  </span>
+                  <span className={`font-medium ${paymentAmount > remainingAmount ? 'text-red-900' : 'text-blue-900'}`}>
+                    + {formatCurrency(paymentAmount)}
+                  </span>
+                </div>
+                <div className={`flex justify-between border-t pt-1 ${
+                  paymentAmount > remainingAmount ? 'border-red-300' : 'border-blue-300'
+                }`}>
+                  <span className={`font-medium ${paymentAmount > remainingAmount ? 'text-red-700' : 'text-blue-700'}`}>
+                    New Total Paid:
+                  </span>
+                  <span className={`font-bold ${paymentAmount > remainingAmount ? 'text-red-900' : 'text-blue-900'}`}>
+                    {formatCurrency(newTotalPaid)}
+                  </span>
+                </div>
+                <div className="flex justify-between">
+                  <span className={`font-medium ${paymentAmount > remainingAmount ? 'text-red-700' : 'text-blue-700'}`}>
+                    New Remaining:
+                  </span>
+                  <span className={`font-bold ${newRemaining < 0 ? 'text-red-600' : 'text-green-600'}`}>
+                    {formatCurrency(Math.max(0, newRemaining))}
+                  </span>
+                </div>
+                {paymentAmount > remainingAmount && (
+                  <div className="mt-2 pt-2 border-t border-red-300">
+                    <p className="text-xs text-red-700 font-medium">
+                      ⚠️ Payment exceeds remaining balance by {formatCurrency(paymentAmount - remainingAmount)}
+                    </p>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
 
           {/* Payment Method */}
           <div className="mb-6">
@@ -188,14 +301,14 @@ const PaymentUpdateModal: React.FC<PaymentUpdateModalProps> = ({
           {/* Payment Status Preview */}
           <div className="mb-6">
             <label className="block text-sm font-medium text-gray-700 mb-1">
-              Payment Status
+              New Payment Status
             </label>
             <div className="p-3 bg-gray-50 rounded-md">
-              {paidAmount >= invoice.total ? (
+              {newTotalPaid >= invoice.total ? (
                 <span className="inline-flex px-2 py-1 text-xs font-semibold rounded-full bg-green-100 text-green-800">
-                  Paid
+                  Fully Paid
                 </span>
-              ) : paidAmount > 0 ? (
+              ) : newTotalPaid > 0 ? (
                 <span className="inline-flex px-2 py-1 text-xs font-semibold rounded-full bg-yellow-100 text-yellow-800">
                   Partially Paid
                 </span>
@@ -226,10 +339,10 @@ const PaymentUpdateModal: React.FC<PaymentUpdateModalProps> = ({
             </button>
             <button
               type="submit"
-              className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors disabled:opacity-50"
-              disabled={loading}
+              className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              disabled={loading || paymentAmount <= 0 || paymentAmount > remainingAmount}
             >
-              {loading ? 'Updating...' : 'Update Payment'}
+              {loading ? 'Recording Payment...' : 'Record Payment'}
             </button>
           </div>
         </form>

@@ -403,6 +403,36 @@ exports.updatePaymentStatus = async (req, res) => {
 
     await invoice.save();
 
+    // SYNC: Update the related Sale or Purchase
+    if (invoice.relatedId) {
+      try {
+        if (invoice.type === 'sale') {
+          const Sale = require('../models/Sale');
+          const sale = await Sale.findById(invoice.relatedId);
+          if (sale) {
+            sale.paymentStatus = paymentStatus;
+            sale.paidAmount = paidAmount || 0;
+            if (paymentMethod) sale.paymentMethod = paymentMethod;
+            await sale.save();
+            console.log(`✅ Synced payment update to Sale ${sale._id}`);
+          }
+        } else if (invoice.type === 'purchase') {
+          const Purchase = require('../models/Purchase');
+          const purchase = await Purchase.findById(invoice.relatedId);
+          if (purchase) {
+            purchase.paymentStatus = paymentStatus;
+            purchase.paidAmount = paidAmount || 0;
+            if (paymentMethod) purchase.paymentMethod = paymentMethod;
+            await purchase.save();
+            console.log(`✅ Synced payment update to Purchase ${purchase._id}`);
+          }
+        }
+      } catch (syncError) {
+        console.error('⚠️ Failed to sync payment to related document:', syncError);
+        // Don't fail the invoice update if sync fails
+      }
+    }
+
     const populatedInvoice = await Invoice.findById(invoice._id)
       .populate('items.inventoryId')
       .populate('relatedId');

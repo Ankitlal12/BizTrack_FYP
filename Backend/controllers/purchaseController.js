@@ -504,6 +504,27 @@ exports.recordPayment = async (req, res) => {
 
     await purchase.save();
 
+    // SYNC: Update the related Invoice
+    try {
+      const Invoice = require('../models/Invoice');
+      const invoice = await Invoice.findOne({ relatedId: purchase._id, type: 'purchase' });
+      if (invoice) {
+        invoice.paymentStatus = newPaymentStatus;
+        invoice.paidAmount = newPaidAmount;
+        if (method) invoice.paymentMethod = method;
+        if (newPaymentStatus === "paid") {
+          invoice.status = "paid";
+        } else if (newPaymentStatus === "partial") {
+          invoice.status = "sent";
+        }
+        await invoice.save();
+        console.log(`✅ Synced payment update to Invoice ${invoice._id}`);
+      }
+    } catch (syncError) {
+      console.error('⚠️ Failed to sync payment to invoice:', syncError);
+      // Don't fail the payment recording if sync fails
+    }
+
     // Create notification for payment made to supplier
     try {
       let notificationTitle, notificationMessage;
