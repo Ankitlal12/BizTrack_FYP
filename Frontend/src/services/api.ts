@@ -349,6 +349,15 @@ export const loginHistoryAPI = {
       period: string;
     }>(`/login-history/stats${query}`);
   },
+  
+  recordLogout: (userId: string) => apiRequest<{
+    message: string;
+    sessionDuration: number;
+    logoutRecord: any;
+  }>('/login-history/logout', {
+    method: 'POST',
+    body: JSON.stringify({ userId }),
+  }),
 };
 
 // Generic API client for direct usage

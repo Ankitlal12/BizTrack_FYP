@@ -4,8 +4,6 @@ import {
   User, 
   Shield, 
   Monitor,
-  ChevronLeft,
-  ChevronRight,
   Calendar,
   Filter,
   X,
@@ -20,7 +18,10 @@ interface LoginRecord {
   userName: string
   userRole: 'owner' | 'manager' | 'staff'
   loginTime: string
+  logoutTime?: string | null
+  sessionDuration?: number | null
   nepaliTime: string
+  nepaliLogoutTime?: string | null
   userAgent?: string
   loginMethod: 'credentials' | 'google'
   success: boolean
@@ -36,26 +37,18 @@ interface LoginStats {
   period: string
 }
 
-interface Pagination {
-  currentPage: number
-  totalPages: number
-  totalRecords: number
-  hasNext: boolean
-  hasPrev: boolean
-}
-
 const LoginHistoryTab: React.FC = () => {
   const [allLoginHistory, setAllLoginHistory] = useState<LoginRecord[]>([])
   const [stats, setStats] = useState<LoginStats | null>(null)
-  const [pagination, setPagination] = useState<Pagination>({
-    currentPage: 1,
-    totalPages: 1,
-    totalRecords: 0,
-    hasNext: false,
-    hasPrev: false,
-  })
   const [isLoading, setIsLoading] = useState(false)
-  const [currentPage, setCurrentPage] = useState(1)
+  
+  // Pagination state - matching Inventory page
+  const [pagination, setPagination] = useState({
+    current: 1,
+    pages: 1,
+    total: 0,
+    limit: 10,
+  })
   
   // Filter states
   const [searchTerm, setSearchTerm] = useState('')
@@ -72,27 +65,22 @@ const LoginHistoryTab: React.FC = () => {
   useEffect(() => {
     loadLoginHistory()
     loadStats()
-  }, [currentPage, daysFilter])
+  }, [daysFilter])
 
-  // Auto-filter effect - trigger when any filter changes
+  // Reset to first page when filters change
   useEffect(() => {
-    // Reset to first page when filters change
-    if (currentPage !== 1) {
-      setCurrentPage(1)
-    }
+    setPagination(prev => ({ ...prev, current: 1 }))
   }, [searchTerm, roleFilter, methodFilter, statusFilter, userFilter, dateFrom, dateTo, browserFilter])
 
   const loadLoginHistory = async () => {
     setIsLoading(true)
     try {
       const response = await loginHistoryAPI.getAll({
-        page: currentPage,
-        limit: 50,
+        limit: 1000, // Load more records for client-side pagination
         days: daysFilter,
       })
       
       setAllLoginHistory(response.loginHistory)
-      setPagination(response.pagination)
     } catch (error: any) {
       console.error('Failed to load login history:', error)
       toast.error('Failed to load login history', {
@@ -113,6 +101,22 @@ const LoginHistoryTab: React.FC = () => {
     if (userAgent.includes('Edge')) return 'Edge'
     
     return 'Other'
+  }
+
+  const formatSessionDuration = (seconds?: number | null) => {
+    if (!seconds) return 'Active';
+    
+    const hours = Math.floor(seconds / 3600);
+    const minutes = Math.floor((seconds % 3600) / 60);
+    const secs = seconds % 60;
+    
+    if (hours > 0) {
+      return `${hours}h ${minutes}m`;
+    } else if (minutes > 0) {
+      return `${minutes}m ${secs}s`;
+    } else {
+      return `${secs}s`;
+    }
   }
 
   // Get unique values for filters
@@ -187,6 +191,7 @@ const LoginHistoryTab: React.FC = () => {
     setDateFrom('')
     setDateTo('')
     setBrowserFilter('all')
+    setPagination(prev => ({ ...prev, current: 1 })) // Reset to first page when clearing filters
   }
 
   // Check if any filters are active
@@ -209,13 +214,30 @@ const LoginHistoryTab: React.FC = () => {
     }
   }
 
+  // Pagination calculations - matching Inventory page
+  const totalItems = filteredLoginHistory.length
+  const startIndex = (pagination.current - 1) * pagination.limit
+  const endIndex = startIndex + pagination.limit
+  const paginatedLoginHistory = filteredLoginHistory.slice(startIndex, endIndex)
+
+  // Update pagination info when filtered items change
+  useEffect(() => {
+    const newTotalPages = Math.ceil(filteredLoginHistory.length / pagination.limit)
+    setPagination(prev => ({
+      ...prev,
+      pages: newTotalPages,
+      total: filteredLoginHistory.length,
+      current: prev.current > newTotalPages ? 1 : prev.current
+    }))
+  }, [filteredLoginHistory, pagination.limit])
+
   const handlePageChange = (page: number) => {
-    setCurrentPage(page)
+    setPagination(prev => ({ ...prev, current: page }))
   }
 
   const handleDaysFilterChange = (days: number) => {
     setDaysFilter(days)
-    setCurrentPage(1)
+    setPagination(prev => ({ ...prev, current: 1 }))
   }
 
   const getRoleBadgeClass = (role: string) => {
@@ -250,6 +272,12 @@ const LoginHistoryTab: React.FC = () => {
           <h2 className="text-xl font-semibold text-gray-800">Login History</h2>
           <p className="text-sm text-gray-600 mt-1">
             Track all user login activities with detailed information
+            {totalItems > 0 && (
+              <span className="ml-2">
+                • {totalItems} record{totalItems !== 1 ? 's' : ''} found
+                {pagination.pages > 1 && ` • Page ${pagination.current} of ${pagination.pages}`}
+              </span>
+            )}
           </p>
         </div>
         <div className="flex items-center space-x-2">
@@ -472,7 +500,13 @@ const LoginHistoryTab: React.FC = () => {
                   User
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Date & Time (NPT)
+                  Login Time (NPT)
+                </th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Logout Time (NPT)
+                </th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Session Duration
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                   Method
@@ -488,18 +522,18 @@ const LoginHistoryTab: React.FC = () => {
             <tbody className="bg-white divide-y divide-gray-200">
               {isLoading ? (
                 <tr>
-                  <td colSpan={5} className="px-6 py-4 text-center text-gray-500">
+                  <td colSpan={7} className="px-6 py-4 text-center text-gray-500">
                     Loading login history...
                   </td>
                 </tr>
-              ) : filteredLoginHistory.length === 0 ? (
+              ) : paginatedLoginHistory.length === 0 ? (
                 <tr>
-                  <td colSpan={5} className="px-6 py-4 text-center text-gray-500">
+                  <td colSpan={7} className="px-6 py-4 text-center text-gray-500">
                     No login records found for the selected period.
                   </td>
                 </tr>
               ) : (
-                filteredLoginHistory.map((record) => (
+                paginatedLoginHistory.map((record) => (
                   <tr key={record._id} className="hover:bg-gray-50">
                     <td className="px-6 py-4 whitespace-nowrap">
                       <div className="flex items-center">
@@ -541,6 +575,33 @@ const LoginHistoryTab: React.FC = () => {
                       </div>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
+                      {record.logoutTime ? (
+                        <>
+                          <div className="text-sm text-gray-900">
+                            {formatNepaliDateTime(record.logoutTime, {
+                              timeZone: 'Asia/Kathmandu',
+                              year: 'numeric',
+                              month: 'short',
+                              day: 'numeric',
+                              hour: '2-digit',
+                              minute: '2-digit',
+                              second: '2-digit',
+                              hour12: true,
+                            })}
+                          </div>
+                        </>
+                      ) : (
+                        <span className="inline-flex px-2 py-1 text-xs font-medium rounded-full bg-green-100 text-green-800">
+                          Active Session
+                        </span>
+                      )}
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <div className="text-sm text-gray-900 font-medium">
+                        {formatSessionDuration(record.sessionDuration)}
+                      </div>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap">
                       <span className={`inline-flex px-2 py-1 text-xs font-medium rounded-full ${getMethodBadgeClass(record.loginMethod)}`}>
                         {record.loginMethod === 'google' ? 'Google' : 'Username/Password'}
                       </span>
@@ -567,54 +628,107 @@ const LoginHistoryTab: React.FC = () => {
           </table>
         </div>
 
-        {/* Pagination */}
-        {pagination.totalPages > 1 && (
-          <div className="bg-white px-4 py-3 flex items-center justify-between border-t border-gray-200">
-            <div className="flex-1 flex justify-between sm:hidden">
-              <button
-                onClick={() => handlePageChange(currentPage - 1)}
-                disabled={!pagination.hasPrev}
-                className="relative inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                Previous
-              </button>
-              <button
-                onClick={() => handlePageChange(currentPage + 1)}
-                disabled={!pagination.hasNext}
-                className="ml-3 relative inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                Next
-              </button>
-            </div>
-            <div className="hidden sm:flex-1 sm:flex sm:items-center sm:justify-between">
-              <div>
-                <p className="text-sm text-gray-700">
-                  Showing page <span className="font-medium">{pagination.currentPage}</span> of{' '}
-                  <span className="font-medium">{pagination.totalPages}</span> ({pagination.totalRecords} total records)
-                </p>
+        {/* Pagination - Matching Inventory Page Style */}
+        {pagination.total > 0 && (
+          <div className="flex flex-col sm:flex-row items-center justify-between gap-4 mt-6 p-4 border-t">
+            <div className="flex items-center gap-4">
+              <div className="text-sm text-gray-700">
+                Showing {((pagination.current - 1) * pagination.limit) + 1} to{' '}
+                {Math.min(pagination.current * pagination.limit, pagination.total)} of{' '}
+                {pagination.total} results
               </div>
-              <div>
-                <nav className="relative z-0 inline-flex rounded-md shadow-sm -space-x-px">
-                  <button
-                    onClick={() => handlePageChange(currentPage - 1)}
-                    disabled={!pagination.hasPrev}
-                    className="relative inline-flex items-center px-2 py-2 rounded-l-md border border-gray-300 bg-white text-sm font-medium text-gray-500 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
-                  >
-                    <ChevronLeft size={16} />
-                  </button>
-                  <span className="relative inline-flex items-center px-4 py-2 border border-gray-300 bg-white text-sm font-medium text-gray-700">
-                    {pagination.currentPage}
-                  </span>
-                  <button
-                    onClick={() => handlePageChange(currentPage + 1)}
-                    disabled={!pagination.hasNext}
-                    className="relative inline-flex items-center px-2 py-2 rounded-r-md border border-gray-300 bg-white text-sm font-medium text-gray-500 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
-                  >
-                    <ChevronRight size={16} />
-                  </button>
-                </nav>
+              <div className="flex items-center gap-2">
+                <label className="text-sm text-gray-600">Per page:</label>
+                <select
+                  value={pagination.limit}
+                  onChange={(e) => {
+                    const newLimit = parseInt(e.target.value)
+                    setPagination(prev => ({
+                      ...prev,
+                      limit: newLimit,
+                      current: 1,
+                      pages: Math.ceil(prev.total / newLimit)
+                    }))
+                  }}
+                  className="px-2 py-1 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-teal-500"
+                >
+                  <option value={10}>10</option>
+                  <option value={25}>25</option>
+                  <option value={50}>50</option>
+                  <option value={100}>100</option>
+                </select>
               </div>
             </div>
+            {pagination.pages > 1 && (
+              <div className="flex space-x-2">
+                <button
+                  onClick={() => handlePageChange(1)}
+                  disabled={pagination.current === 1}
+                  className="px-3 py-2 text-sm bg-gray-200 text-gray-700 rounded-md hover:bg-gray-300 disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  First
+                </button>
+                <button
+                  onClick={() => handlePageChange(pagination.current - 1)}
+                  disabled={pagination.current === 1}
+                  className="px-3 py-2 text-sm bg-gray-200 text-gray-700 rounded-md hover:bg-gray-300 disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  Previous
+                </button>
+                {(() => {
+                  const pages: (number | string)[] = [];
+                  const total = pagination.pages;
+                  const current = pagination.current;
+                  
+                  if (total <= 7) {
+                    for (let i = 1; i <= total; i++) pages.push(i);
+                  } else {
+                    pages.push(1);
+                    if (current > 3) pages.push('...');
+                    
+                    const start = Math.max(2, current - 1);
+                    const end = Math.min(total - 1, current + 1);
+                    
+                    for (let i = start; i <= end; i++) pages.push(i);
+                    
+                    if (current < total - 2) pages.push('...');
+                    pages.push(total);
+                  }
+                  
+                  return pages.map((page, idx) => (
+                    page === '...' ? (
+                      <span key={`ellipsis-${idx}`} className="px-3 py-2 text-sm text-gray-500">...</span>
+                    ) : (
+                      <button
+                        key={page}
+                        onClick={() => handlePageChange(page as number)}
+                        className={`px-3 py-2 text-sm rounded-md ${
+                          page === current
+                            ? 'bg-teal-600 text-white'
+                            : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+                        }`}
+                      >
+                        {page}
+                      </button>
+                    )
+                  ));
+                })()}
+                <button
+                  onClick={() => handlePageChange(pagination.current + 1)}
+                  disabled={pagination.current === pagination.pages}
+                  className="px-3 py-2 text-sm bg-gray-200 text-gray-700 rounded-md hover:bg-gray-300 disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  Next
+                </button>
+                <button
+                  onClick={() => handlePageChange(pagination.pages)}
+                  disabled={pagination.current === pagination.pages}
+                  className="px-3 py-2 text-sm bg-gray-200 text-gray-700 rounded-md hover:bg-gray-300 disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  Last
+                </button>
+              </div>
+            )}
           </div>
         )}
       </div>

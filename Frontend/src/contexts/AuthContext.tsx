@@ -289,13 +289,24 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   // =====================
   // LOGOUT
   // =====================
-  const logout = useCallback(() => {
-    setUser(null)
-    setIsAuthenticated(false)
-    localStorage.removeItem('biztrack_user')
-    tokenManager.removeToken()
-    navigate('/login', { replace: true })
-  }, [navigate])
+  const logout = useCallback(async () => {
+    try {
+      // Record logout in login history if user is logged in
+      if (user?.id) {
+        const { loginHistoryAPI } = await import('../services/api');
+        await loginHistoryAPI.recordLogout(user.id);
+      }
+    } catch (error) {
+      console.error('Failed to record logout:', error);
+      // Don't block logout if recording fails
+    } finally {
+      setUser(null)
+      setIsAuthenticated(false)
+      localStorage.removeItem('biztrack_user')
+      tokenManager.removeToken()
+      navigate('/login', { replace: true })
+    }
+  }, [navigate, user])
 
   // =====================
   // ADD STAFF
