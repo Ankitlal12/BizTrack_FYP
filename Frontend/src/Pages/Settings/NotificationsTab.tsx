@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { notificationsAPI } from '../../services/api'
 import { toast } from 'sonner'
 import { 
@@ -9,20 +10,25 @@ import {
   FiAlertCircle,
   FiPackage,
   FiRefreshCw,
-  FiCreditCard
+  FiCreditCard,
+  FiZap,
+  FiExternalLink
 } from 'react-icons/fi'
 
 interface Notification {
   _id: string
-  type: 'purchase' | 'sale' | 'low_stock' | 'out_of_stock' | 'system'
+  type: 'purchase' | 'sale' | 'low_stock' | 'out_of_stock' | 'system' | 'payment_received' | 'payment_made' | 'reorder_needed' | 'reorder_created' | 'reorder_approved' | 'auto_reorder' | 'low_stock_purchase' | 'login_failed' | 'login_success' | 'security_change'
   title: string
   message: string
   read: boolean
   createdAt: string
   metadata?: any
+  relatedId?: string
+  relatedModel?: string
 }
 
 const NotificationsTab: React.FC = () => {
+  const navigate = useNavigate()
   const [notifications, setNotifications] = useState<Notification[]>([])
   const [unreadCount, setUnreadCount] = useState(0)
   const [isLoading, setIsLoading] = useState(false)
@@ -115,16 +121,176 @@ const NotificationsTab: React.FC = () => {
     loadNotifications()
   }
 
+  const handleNotificationClick = async (notification: Notification) => {
+    // Mark as read when clicked
+    if (!notification.read) {
+      await handleMarkAsRead(notification._id);
+    }
+
+    // Helper function to find and navigate to invoice
+    const navigateToInvoice = async (relatedId: string, type: 'sale' | 'purchase') => {
+      try {
+        // Import the invoices API
+        const { invoicesAPI } = await import('../../services/api');
+        
+        // Find the invoice for this sale/purchase
+        const response = await invoicesAPI.getAll(`relatedId=${relatedId}&type=${type}`);
+        
+        if (response.invoices && response.invoices.length > 0) {
+          const invoice = response.invoices[0];
+          // Navigate to the specific invoice detail page
+          navigate(`/invoices/${invoice._id}`);
+        } else {
+          // If no invoice found, navigate to the list page
+          if (type === 'sale') {
+            navigate('/sales');
+          } else {
+            navigate('/purchases');
+          }
+          toast.info('Invoice not found', {
+            description: 'Navigating to list page instead.'
+          });
+        }
+      } catch (error) {
+        console.error('Error finding invoice:', error);
+        // Fallback to list page
+        if (type === 'sale') {
+          navigate('/sales');
+        } else {
+          navigate('/purchases');
+        }
+      }
+    };
+
+    // Navigate based on notification type and metadata
+    switch (notification.type) {
+      case 'purchase':
+        // Navigate to specific purchase invoice if relatedId exists
+        if (notification.relatedId) {
+          await navigateToInvoice(notification.relatedId, 'purchase');
+        } else {
+          navigate('/purchases');
+        }
+        break;
+
+      case 'sale':
+        // Navigate to specific sale invoice if relatedId exists
+        if (notification.relatedId) {
+          await navigateToInvoice(notification.relatedId, 'sale');
+        } else {
+          navigate('/sales');
+        }
+        break;
+
+      case 'payment_received':
+        // Navigate to specific sale invoice (customer payments)
+        if (notification.relatedId) {
+          await navigateToInvoice(notification.relatedId, 'sale');
+        } else {
+          navigate('/sales');
+        }
+        break;
+
+      case 'payment_made':
+        // Navigate to specific purchase invoice (supplier payments)
+        if (notification.relatedId) {
+          await navigateToInvoice(notification.relatedId, 'purchase');
+        } else {
+          navigate('/purchases');
+        }
+        break;
+
+      case 'low_stock':
+      case 'out_of_stock':
+        // Navigate to low stock page
+        navigate('/low-stock');
+        break;
+
+      case 'reorder_needed':
+      case 'reorder_created':
+      case 'reorder_approved':
+      case 'auto_reorder':
+        // Navigate to reorder history page
+        navigate('/reorder-history');
+        break;
+
+      case 'low_stock_purchase':
+        // Navigate to specific purchase invoice if relatedId exists
+        if (notification.relatedId) {
+          await navigateToInvoice(notification.relatedId, 'purchase');
+        } else {
+          navigate('/purchases');
+        }
+        break;
+
+      case 'system':
+        // For staff/user management notifications, navigate to settings with staff tab
+        if (notification.title.toLowerCase().includes('staff') || 
+            notification.title.toLowerCase().includes('member') ||
+            notification.message.toLowerCase().includes('staff') || 
+            notification.message.toLowerCase().includes('member')) {
+          // Navigate to settings and open staff tab
+          navigate('/settings?tab=staff');
+        } else {
+          // For other system notifications, go to dashboard
+          navigate('/');
+        }
+        break;
+
+      case 'login_failed':
+        // Failed login attempts - navigate to login history tab in settings
+        navigate('/settings?tab=loginHistory');
+        break;
+
+      case 'login_success':
+        // Successful login from new location/device - navigate to login history
+        navigate('/settings?tab=loginHistory');
+        break;
+
+      case 'security_change':
+        // Username/password changed - navigate to security tab in settings
+        navigate('/settings?tab=security');
+        break;
+
+      default:
+        // For unknown types, try to navigate based on relatedModel
+        if (notification.relatedModel === 'Sale' && notification.relatedId) {
+          await navigateToInvoice(notification.relatedId, 'sale');
+        } else if (notification.relatedModel === 'Purchase' && notification.relatedId) {
+          await navigateToInvoice(notification.relatedId, 'purchase');
+        } else if (notification.relatedModel === 'Inventory') {
+          navigate('/inventory');
+        }
+        break;
+    }
+  };
+
   const getNotificationIcon = (type: string) => {
     switch (type) {
       case 'purchase':
         return <FiShoppingBag className="h-5 w-5 text-blue-500" />
       case 'sale':
         return <FiCreditCard className="h-5 w-5 text-green-500" />
+      case 'payment_received':
+        return <FiCreditCard className="h-5 w-5 text-emerald-500" />
+      case 'payment_made':
+        return <FiCreditCard className="h-5 w-5 text-purple-500" />
       case 'low_stock':
         return <FiAlertCircle className="h-5 w-5 text-yellow-500" />
       case 'out_of_stock':
         return <FiPackage className="h-5 w-5 text-red-500" />
+      case 'reorder_needed':
+      case 'reorder_created':
+      case 'reorder_approved':
+      case 'auto_reorder':
+      case 'low_stock_purchase':
+        return <FiZap className="h-5 w-5 text-orange-500" />
+      case 'login_failed':
+        return <FiAlertCircle className="h-5 w-5 text-red-600" />
+      case 'login_success':
+        return <FiCheckCircle className="h-5 w-5 text-green-600" />
+      case 'security_change':
+        return <FiAlertCircle className="h-5 w-5 text-blue-600" />
       default:
         return <FiAlertCircle className="h-5 w-5 text-gray-500" />
     }
@@ -201,9 +367,10 @@ const NotificationsTab: React.FC = () => {
               {notifications.map((notification) => (
                 <div
                   key={notification._id}
-                  className={`px-6 py-4 hover:bg-gray-50 transition-colors ${
+                  className={`px-6 py-4 hover:bg-gray-50 transition-colors cursor-pointer ${
                     !notification.read ? 'bg-blue-50/30' : ''
                   }`}
+                  onClick={() => handleNotificationClick(notification)}
                 >
                   <div className="flex items-start gap-4">
                     <div className="mt-0.5">{getNotificationIcon(notification.type)}</div>
@@ -218,6 +385,7 @@ const NotificationsTab: React.FC = () => {
                             >
                               {notification.title}
                             </p>
+                            <FiExternalLink className="h-3.5 w-3.5 text-gray-400 flex-shrink-0" />
                             {!notification.read && (
                               <div className="h-2 w-2 rounded-full bg-blue-500 flex-shrink-0" />
                             )}
@@ -234,7 +402,10 @@ const NotificationsTab: React.FC = () => {
                     <div className="flex items-center gap-1 flex-shrink-0">
                       {!notification.read && (
                         <button
-                          onClick={() => handleMarkAsRead(notification._id)}
+                          onClick={(e) => {
+                            e.stopPropagation(); // Prevent notification click
+                            handleMarkAsRead(notification._id);
+                          }}
                           className="p-2 rounded hover:bg-gray-200 transition-colors"
                           title="Mark as read"
                         >
@@ -242,7 +413,10 @@ const NotificationsTab: React.FC = () => {
                         </button>
                       )}
                       <button
-                        onClick={() => handleDelete(notification._id)}
+                        onClick={(e) => {
+                          e.stopPropagation(); // Prevent notification click
+                          handleDelete(notification._id);
+                        }}
                         className="p-2 rounded hover:bg-red-50 transition-colors"
                         title="Delete"
                       >

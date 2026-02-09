@@ -1,4 +1,5 @@
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import {
   UserIcon,
   UsersIcon,
@@ -28,9 +29,18 @@ const tabs: { id: TabId; label: string; icon: React.ReactNode }[] = [
 ]
 
 const Settings = () => {
-  const [activeTab, setActiveTab] = useState<TabId>('profile')
+  const [searchParams] = useSearchParams()
+  const tabParam = searchParams.get('tab') as TabId | null
+  const [activeTab, setActiveTab] = useState<TabId>(tabParam || 'profile')
   const { user, staffMembers, toggleStaffStatus, addStaffMember, updateStaffMember, deleteStaffMember } = useAuth()
   const handleAddStaff = (member: any) => addStaffMember(member)
+
+  // Update active tab when URL parameter changes
+  useEffect(() => {
+    if (tabParam && tabs.some(tab => tab.id === tabParam)) {
+      setActiveTab(tabParam)
+    }
+  }, [tabParam])
 
   // Filter tabs based on user role
   const availableTabs = tabs.filter(tab => {

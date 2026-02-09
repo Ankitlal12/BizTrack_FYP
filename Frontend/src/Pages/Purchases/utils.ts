@@ -28,7 +28,8 @@ export const getPaymentStatusBadgeClass = (status: string): string => {
 }
 
 export const getPurchaseDate = (purchase: Purchase): string => {
-  const dateValue = purchase.expectedDeliveryDate || purchase.createdAt
+  // Use createdAt as the primary date (when purchase was made), not expectedDeliveryDate
+  const dateValue = purchase.createdAt || purchase.expectedDeliveryDate
   return dateValue ? formatNepaliDate(dateValue) : 'N/A'
 }
 

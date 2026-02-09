@@ -127,8 +127,29 @@ exports.login = async (req, res) => {
           success: false,
           loginTime: getNepaliCurrentDateTime(),
         });
+
+        console.log('🔔 Creating failed login notification for user:', user.name);
+
+        // Create notification for failed login attempt
+        const notification = await Notification.create({
+          type: "login_failed",
+          title: "Failed Login Attempt",
+          message: `Failed login attempt for user ${user.name} (${username}). IP: ${req.ip || 'Unknown'}`,
+          relatedId: user._id,
+          relatedModel: "User",
+          metadata: {
+            userName: user.name,
+            username: username,
+            ipAddress: req.ip || req.connection.remoteAddress,
+            userAgent: req.get('User-Agent'),
+            timestamp: new Date(),
+          },
+        });
+
+        console.log('✅ Failed login notification created successfully:', notification._id);
       } catch (historyError) {
-        console.error("Failed to record failed login:", historyError);
+        console.error("❌ Failed to record failed login:", historyError);
+        console.error("Error details:", historyError.message);
       }
       
       return res.status(401).json({ 
@@ -277,6 +298,43 @@ exports.updateUser = async (req, res) => {
       updateData,
       { new: true }
     ).select('-password');
+
+    // Create notification for security changes
+    try {
+      let changeDetails = [];
+      if (updateData.username) {
+        changeDetails.push(`username changed to "${updateData.username}"`);
+      }
+      if (updateData.password) {
+        changeDetails.push('password updated');
+      }
+
+      console.log('🔔 Creating security change notification:', {
+        type: "security_change",
+        title: "Security Settings Changed",
+        userName: user.name,
+        changes: changeDetails
+      });
+
+      const notification = await Notification.create({
+        type: "security_change",
+        title: "Security Settings Changed",
+        message: `Security settings for ${user.name} have been updated: ${changeDetails.join(', ')}.`,
+        relatedId: user._id,
+        relatedModel: "User",
+        metadata: {
+          userName: user.name,
+          email: user.email,
+          changes: changeDetails,
+          changedAt: new Date(),
+        },
+      });
+
+      console.log('✅ Security change notification created successfully:', notification._id);
+    } catch (notifError) {
+      console.error("❌ Failed to create security change notification:", notifError);
+      console.error("Error details:", notifError.message);
+    }
 
     res.json(updatedUser);
   } catch (err) {

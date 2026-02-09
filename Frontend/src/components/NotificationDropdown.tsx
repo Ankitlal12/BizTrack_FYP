@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react'
-import { notificationsAPI, reorderAPI } from '../services/api'
+import { useNavigate } from 'react-router-dom'
+import { notificationsAPI } from '../services/api'
 import { toast } from 'sonner'
 import { 
   FiCheck, 
@@ -11,13 +12,14 @@ import {
   FiX,
   FiRefreshCw,
   FiCreditCard,
-  FiZap
+  FiZap,
+  FiExternalLink
 } from 'react-icons/fi'
 import QuickReorderModal from './QuickReorderModal'
 
 interface Notification {
   _id: string
-  type: 'purchase' | 'sale' | 'low_stock' | 'out_of_stock' | 'system' | 'payment_received' | 'payment_made' | 'reorder_needed' | 'reorder_created' | 'reorder_approved' | 'auto_reorder'
+  type: 'purchase' | 'sale' | 'low_stock' | 'out_of_stock' | 'system' | 'payment_received' | 'payment_made' | 'reorder_needed' | 'reorder_created' | 'reorder_approved' | 'auto_reorder' | 'low_stock_purchase' | 'login_failed' | 'login_success' | 'security_change'
   title: string
   message: string
   read: boolean
@@ -38,6 +40,7 @@ const NotificationDropdown: React.FC<NotificationDropdownProps> = ({
   onClose,
   onUnreadCountChange,
 }) => {
+  const navigate = useNavigate()
   const [notifications, setNotifications] = useState<Notification[]>([])
   const [unreadCount, setUnreadCount] = useState(0)
   const [isLoading, setIsLoading] = useState(false)
@@ -208,6 +211,153 @@ const NotificationDropdown: React.FC<NotificationDropdownProps> = ({
     }
   };
 
+  const handleNotificationClick = async (notification: Notification) => {
+    // Mark as read when clicked
+    if (!notification.read) {
+      await handleMarkAsRead(notification._id);
+    }
+
+    // Close the dropdown
+    onClose();
+
+    // Helper function to find and navigate to invoice
+    const navigateToInvoice = async (relatedId: string, type: 'sale' | 'purchase') => {
+      try {
+        // Import the invoices API
+        const { invoicesAPI } = await import('../services/api');
+        
+        // Find the invoice for this sale/purchase
+        const response = await invoicesAPI.getAll(`relatedId=${relatedId}&type=${type}`);
+        
+        if (response.invoices && response.invoices.length > 0) {
+          const invoice = response.invoices[0];
+          // Navigate to the specific invoice detail page
+          navigate(`/invoices/${invoice._id}`);
+        } else {
+          // If no invoice found, navigate to the list page
+          if (type === 'sale') {
+            navigate('/sales');
+          } else {
+            navigate('/purchases');
+          }
+          toast.info('Invoice not found', {
+            description: 'Navigating to list page instead.'
+          });
+        }
+      } catch (error) {
+        console.error('Error finding invoice:', error);
+        // Fallback to list page
+        if (type === 'sale') {
+          navigate('/sales');
+        } else {
+          navigate('/purchases');
+        }
+      }
+    };
+
+    // Navigate based on notification type and metadata
+    switch (notification.type) {
+      case 'purchase':
+        // Navigate to specific purchase invoice if relatedId exists
+        if (notification.relatedId) {
+          await navigateToInvoice(notification.relatedId, 'purchase');
+        } else {
+          navigate('/purchases');
+        }
+        break;
+
+      case 'sale':
+        // Navigate to specific sale invoice if relatedId exists
+        if (notification.relatedId) {
+          await navigateToInvoice(notification.relatedId, 'sale');
+        } else {
+          navigate('/sales');
+        }
+        break;
+
+      case 'payment_received':
+        // Navigate to specific sale invoice (customer payments)
+        if (notification.relatedId) {
+          await navigateToInvoice(notification.relatedId, 'sale');
+        } else {
+          navigate('/sales');
+        }
+        break;
+
+      case 'payment_made':
+        // Navigate to specific purchase invoice (supplier payments)
+        if (notification.relatedId) {
+          await navigateToInvoice(notification.relatedId, 'purchase');
+        } else {
+          navigate('/purchases');
+        }
+        break;
+
+      case 'low_stock':
+      case 'out_of_stock':
+        // Navigate to low stock page
+        navigate('/low-stock');
+        break;
+
+      case 'reorder_needed':
+      case 'reorder_created':
+      case 'reorder_approved':
+      case 'auto_reorder':
+        // Navigate to reorder history page
+        navigate('/reorder-history');
+        break;
+
+      case 'low_stock_purchase':
+        // Navigate to specific purchase invoice if relatedId exists
+        if (notification.relatedId) {
+          await navigateToInvoice(notification.relatedId, 'purchase');
+        } else {
+          navigate('/purchases');
+        }
+        break;
+
+      case 'system':
+        // For staff/user management notifications, navigate to settings with staff tab
+        if (notification.title.toLowerCase().includes('staff') || 
+            notification.title.toLowerCase().includes('member') ||
+            notification.message.toLowerCase().includes('staff') || 
+            notification.message.toLowerCase().includes('member')) {
+          // Navigate to settings and open staff tab
+          navigate('/settings?tab=staff');
+        } else {
+          // For other system notifications, go to dashboard
+          navigate('/');
+        }
+        break;
+
+      case 'login_failed':
+        // Failed login attempts - navigate to login history tab in settings
+        navigate('/settings?tab=loginHistory');
+        break;
+
+      case 'login_success':
+        // Successful login from new location/device - navigate to login history
+        navigate('/settings?tab=loginHistory');
+        break;
+
+      case 'security_change':
+        // Username/password changed - navigate to security tab in settings
+        navigate('/settings?tab=security');
+        break;
+
+      default:
+        // For unknown types, try to navigate based on relatedModel
+        if (notification.relatedModel === 'Sale' && notification.relatedId) {
+          await navigateToInvoice(notification.relatedId, 'sale');
+        } else if (notification.relatedModel === 'Purchase' && notification.relatedId) {
+          await navigateToInvoice(notification.relatedId, 'purchase');
+        } else if (notification.relatedModel === 'Inventory') {
+          navigate('/inventory');
+        }
+        break;
+    }
+  };
+
   const getNotificationIcon = (type: string) => {
     switch (type) {
       case 'purchase':
@@ -226,35 +376,20 @@ const NotificationDropdown: React.FC<NotificationDropdownProps> = ({
       case 'reorder_created':
       case 'reorder_approved':
       case 'auto_reorder':
+      case 'low_stock_purchase':
         return <FiZap className="h-5 w-5 text-orange-500" />
+      case 'login_failed':
+        return <FiAlertCircle className="h-5 w-5 text-red-600" />
+      case 'login_success':
+        return <FiCheckCircle className="h-5 w-5 text-green-600" />
+      case 'security_change':
+        return <FiAlertCircle className="h-5 w-5 text-blue-600" />
       default:
         return <FiAlertCircle className="h-5 w-5 text-gray-500" />
     }
   }
 
-  const getNotificationColor = (type: string) => {
-    switch (type) {
-      case 'purchase':
-        return 'bg-blue-50 border-blue-200'
-      case 'sale':
-        return 'bg-green-50 border-green-200'
-      case 'payment_received':
-        return 'bg-emerald-50 border-emerald-200'
-      case 'payment_made':
-        return 'bg-purple-50 border-purple-200'
-      case 'low_stock':
-        return 'bg-yellow-50 border-yellow-200'
-      case 'out_of_stock':
-        return 'bg-red-50 border-red-200'
-      case 'reorder_needed':
-      case 'reorder_created':
-      case 'reorder_approved':
-      case 'auto_reorder':
-        return 'bg-orange-50 border-orange-200'
-      default:
-        return 'bg-gray-50 border-gray-200'
-    }
-  }
+
 
   const formatTime = (dateString: string) => {
     const date = new Date(dateString)
@@ -338,22 +473,26 @@ const NotificationDropdown: React.FC<NotificationDropdownProps> = ({
             {notifications.map((notification) => (
               <div
                 key={notification._id}
-                className={`px-4 py-3 hover:bg-gray-50 transition-colors ${
+                className={`px-4 py-3 hover:bg-gray-50 transition-colors cursor-pointer ${
                   !notification.read ? 'bg-blue-50/30' : ''
                 }`}
+                onClick={() => handleNotificationClick(notification)}
               >
                 <div className="flex items-start gap-3">
                   <div className="mt-0.5">{getNotificationIcon(notification.type)}</div>
                   <div className="flex-1 min-w-0">
                     <div className="flex items-start justify-between gap-2">
                       <div className="flex-1">
-                        <p
-                          className={`text-sm font-medium ${
-                            !notification.read ? 'text-gray-900' : 'text-gray-700'
-                          }`}
-                        >
-                          {notification.title}
-                        </p>
+                        <div className="flex items-center gap-2">
+                          <p
+                            className={`text-sm font-medium ${
+                              !notification.read ? 'text-gray-900' : 'text-gray-700'
+                            }`}
+                          >
+                            {notification.title}
+                          </p>
+                          <FiExternalLink className="h-3 w-3 text-gray-400 flex-shrink-0" />
+                        </div>
                         <p className="text-xs text-gray-600 mt-1">
                           {notification.message}
                         </p>
@@ -365,7 +504,10 @@ const NotificationDropdown: React.FC<NotificationDropdownProps> = ({
                         {(notification.type === 'low_stock' || notification.type === 'out_of_stock') && 
                          notification.metadata?.inventoryId && (
                           <button
-                            onClick={() => handleReorderNow(notification)}
+                            onClick={(e) => {
+                              e.stopPropagation(); // Prevent notification click
+                              handleReorderNow(notification);
+                            }}
                             className="mt-2 inline-flex items-center gap-1 px-2 py-1 text-xs bg-teal-600 text-white rounded hover:bg-teal-700 transition-colors"
                           >
                             <FiZap className="h-3 w-3" />
@@ -381,7 +523,10 @@ const NotificationDropdown: React.FC<NotificationDropdownProps> = ({
                   <div className="flex items-center gap-1 flex-shrink-0">
                     {!notification.read && (
                       <button
-                        onClick={() => handleMarkAsRead(notification._id)}
+                        onClick={(e) => {
+                          e.stopPropagation(); // Prevent notification click
+                          handleMarkAsRead(notification._id);
+                        }}
                         className="p-1.5 rounded hover:bg-gray-200 transition-colors"
                         title="Mark as read"
                       >
@@ -389,7 +534,10 @@ const NotificationDropdown: React.FC<NotificationDropdownProps> = ({
                       </button>
                     )}
                     <button
-                      onClick={() => handleDelete(notification._id)}
+                      onClick={(e) => {
+                        e.stopPropagation(); // Prevent notification click
+                        handleDelete(notification._id);
+                      }}
                       className="p-1.5 rounded hover:bg-red-50 transition-colors"
                       title="Delete"
                     >
