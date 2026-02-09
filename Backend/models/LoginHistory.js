@@ -19,6 +19,14 @@ const loginHistorySchema = new mongoose.Schema({
     type: Date,
     default: Date.now,
   },
+  logoutTime: {
+    type: Date,
+    default: null,
+  },
+  sessionDuration: {
+    type: Number, // Duration in seconds
+    default: null,
+  },
   ipAddress: {
     type: String,
   },

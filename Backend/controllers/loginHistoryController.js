@@ -39,7 +39,10 @@ exports.getAllLoginHistory = async (req, res) => {
       userName: entry.userName,
       userRole: entry.userRole,
       loginTime: entry.loginTime,
+      logoutTime: entry.logoutTime,
+      sessionDuration: entry.sessionDuration,
       nepaliTime: formatNepaliDateTime(entry.loginTime),
+      nepaliLogoutTime: entry.logoutTime ? formatNepaliDateTime(entry.logoutTime) : null,
       ipAddress: entry.ipAddress,
       userAgent: entry.userAgent,
       loginMethod: entry.loginMethod,
@@ -93,7 +96,10 @@ exports.getUserLoginHistory = async (req, res) => {
       userName: entry.userName,
       userRole: entry.userRole,
       loginTime: entry.loginTime,
+      logoutTime: entry.logoutTime,
+      sessionDuration: entry.sessionDuration,
       nepaliTime: formatNepaliDateTime(entry.loginTime),
+      nepaliLogoutTime: entry.logoutTime ? formatNepaliDateTime(entry.logoutTime) : null,
       ipAddress: entry.ipAddress,
       userAgent: entry.userAgent,
       loginMethod: entry.loginMethod,
@@ -216,6 +222,53 @@ exports.getLoginStats = async (req, res) => {
       loginMethods,
       roleBreakdown,
       period: `Last ${days} days`
+    });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+};
+
+// Record logout
+exports.recordLogout = async (req, res) => {
+  try {
+    const { userId } = req.body;
+    
+    if (!userId) {
+      return res.status(400).json({ error: "User ID is required" });
+    }
+    
+    // Find the most recent login record for this user that doesn't have a logout time
+    const loginRecord = await LoginHistory.findOne({
+      userId: userId,
+      success: true,
+      logoutTime: null
+    }).sort({ loginTime: -1 });
+    
+    if (!loginRecord) {
+      return res.status(404).json({ 
+        error: "No active login session found for this user" 
+      });
+    }
+    
+    // Calculate session duration in seconds
+    const logoutTime = new Date();
+    const sessionDuration = Math.floor((logoutTime - loginRecord.loginTime) / 1000);
+    
+    // Update the login record with logout time and duration
+    loginRecord.logoutTime = logoutTime;
+    loginRecord.sessionDuration = sessionDuration;
+    await loginRecord.save();
+    
+    res.json({
+      message: "Logout recorded successfully",
+      sessionDuration: sessionDuration,
+      logoutRecord: {
+        _id: loginRecord._id,
+        loginTime: loginRecord.loginTime,
+        logoutTime: loginRecord.logoutTime,
+        sessionDuration: sessionDuration,
+        nepaliLogoutTime: formatNepaliDateTime(logoutTime),
+      }
     });
   } catch (err) {
     res.status(500).json({ error: err.message });

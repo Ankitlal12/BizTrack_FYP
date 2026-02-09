@@ -5,6 +5,7 @@ const {
   getUserLoginHistory,
   recordLogin,
   getLoginStats,
+  recordLogout,
 } = require("../controllers/loginHistoryController");
 
 const router = express.Router();
@@ -23,5 +24,8 @@ router.get("/user/:userId", authorize("owner", "manager"), getUserLoginHistory);
 
 // Record a login (internal use - called by auth system)
 router.post("/record", recordLogin);
+
+// Record a logout
+router.post("/logout", recordLogout);
 
 module.exports = router;
