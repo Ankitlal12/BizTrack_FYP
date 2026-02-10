@@ -4,12 +4,18 @@ const User = require("../models/User");
 /**
  * Authentication middleware to verify JWT token
  * Adds user info to req.user if token is valid
+ * Supports token from Authorization header or query parameter
  */
 const authenticate = async (req, res, next) => {
   try {
-    // Extract token from Authorization header
+    // Extract token from Authorization header or query parameter
     const authHeader = req.headers.authorization;
-    const token = extractTokenFromHeader(authHeader);
+    let token = extractTokenFromHeader(authHeader);
+    
+    // Fallback to query parameter (for sendBeacon compatibility)
+    if (!token && req.query.token) {
+      token = req.query.token;
+    }
 
     if (!token) {
       return res.status(401).json({ 

@@ -23,6 +23,10 @@ const loginHistorySchema = new mongoose.Schema({
     type: Date,
     default: null,
   },
+  lastActivity: {
+    type: Date,
+    default: Date.now,
+  },
   sessionDuration: {
     type: Number, // Duration in seconds
     default: null,

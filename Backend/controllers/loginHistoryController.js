@@ -231,9 +231,18 @@ exports.getLoginStats = async (req, res) => {
 // Record logout
 exports.recordLogout = async (req, res) => {
   try {
-    const { userId } = req.body;
+    // Support both body and query params (for sendBeacon compatibility)
+    const userId = req.body.userId || req.query.userId;
+    
+    console.log('🔴 Logout request received:', { 
+      userId, 
+      hasBody: !!req.body.userId, 
+      hasQuery: !!req.query.userId,
+      method: req.method 
+    });
     
     if (!userId) {
+      console.log('❌ No userId provided');
       return res.status(400).json({ error: "User ID is required" });
     }
     
@@ -245,19 +254,29 @@ exports.recordLogout = async (req, res) => {
     }).sort({ loginTime: -1 });
     
     if (!loginRecord) {
+      console.log('❌ No active session found for user:', userId);
       return res.status(404).json({ 
         error: "No active login session found for this user" 
       });
     }
     
-    // Calculate session duration in seconds
-    const logoutTime = new Date();
+    // Use lastActivity if available, otherwise use current time
+    const logoutTime = loginRecord.lastActivity || new Date();
     const sessionDuration = Math.floor((logoutTime - loginRecord.loginTime) / 1000);
+    
+    console.log('✅ Recording logout:', {
+      userId,
+      loginTime: loginRecord.loginTime,
+      logoutTime,
+      sessionDuration: `${sessionDuration}s`
+    });
     
     // Update the login record with logout time and duration
     loginRecord.logoutTime = logoutTime;
     loginRecord.sessionDuration = sessionDuration;
     await loginRecord.save();
+    
+    console.log('✅ Logout recorded successfully');
     
     res.json({
       message: "Logout recorded successfully",
@@ -269,6 +288,82 @@ exports.recordLogout = async (req, res) => {
         sessionDuration: sessionDuration,
         nepaliLogoutTime: formatNepaliDateTime(logoutTime),
       }
+    });
+  } catch (err) {
+    console.error('❌ Logout error:', err);
+    res.status(500).json({ error: err.message });
+  }
+};
+
+// Update session heartbeat (keep session alive)
+exports.updateHeartbeat = async (req, res) => {
+  try {
+    const { userId } = req.body;
+    
+    if (!userId) {
+      return res.status(400).json({ error: "User ID is required" });
+    }
+    
+    // Find the most recent active login session
+    const loginRecord = await LoginHistory.findOne({
+      userId: userId,
+      success: true,
+      logoutTime: null
+    }).sort({ loginTime: -1 });
+    
+    if (!loginRecord) {
+      return res.status(404).json({ 
+        error: "No active login session found" 
+      });
+    }
+    
+    // Update the last activity timestamp
+    loginRecord.lastActivity = new Date();
+    await loginRecord.save();
+    
+    res.json({
+      message: "Heartbeat updated",
+      lastActivity: loginRecord.lastActivity
+    });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+};
+
+// Auto-logout inactive sessions (called by cron job or manually)
+exports.autoLogoutInactiveSessions = async (req, res) => {
+  try {
+    const inactivityThreshold = 5 * 60 * 1000; // 5 minutes in milliseconds
+    const now = new Date();
+    const thresholdTime = new Date(now.getTime() - inactivityThreshold);
+    
+    // Find all active sessions where last activity is older than threshold
+    const inactiveSessions = await LoginHistory.find({
+      success: true,
+      logoutTime: null,
+      $or: [
+        { lastActivity: { $lt: thresholdTime } },
+        { lastActivity: null, loginTime: { $lt: thresholdTime } }
+      ]
+    });
+    
+    let loggedOutCount = 0;
+    
+    for (const session of inactiveSessions) {
+      // Use lastActivity if available, otherwise use loginTime + threshold
+      const logoutTime = session.lastActivity || new Date(session.loginTime.getTime() + inactivityThreshold);
+      const sessionDuration = Math.floor((logoutTime - session.loginTime) / 1000);
+      
+      session.logoutTime = logoutTime;
+      session.sessionDuration = sessionDuration;
+      await session.save();
+      
+      loggedOutCount++;
+    }
+    
+    res.json({
+      message: `Auto-logged out ${loggedOutCount} inactive sessions`,
+      count: loggedOutCount
     });
   } catch (err) {
     res.status(500).json({ error: err.message });

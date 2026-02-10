@@ -6,6 +6,8 @@ const {
   recordLogin,
   getLoginStats,
   recordLogout,
+  updateHeartbeat,
+  autoLogoutInactiveSessions,
 } = require("../controllers/loginHistoryController");
 
 const router = express.Router();
@@ -27,5 +29,11 @@ router.post("/record", recordLogin);
 
 // Record a logout
 router.post("/logout", recordLogout);
+
+// Update session heartbeat (keep session alive)
+router.post("/heartbeat", updateHeartbeat);
+
+// Auto-logout inactive sessions (can be called manually or by cron)
+router.post("/auto-logout", authorize("owner", "manager"), autoLogoutInactiveSessions);
 
 module.exports = router;
