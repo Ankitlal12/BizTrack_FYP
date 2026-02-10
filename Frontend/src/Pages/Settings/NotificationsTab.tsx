@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { notificationsAPI } from '../../services/api'
+import { notificationArchiveAPI } from '../../services/api'
 import { toast } from 'sonner'
 import { 
   FiCheck, 
@@ -38,8 +38,8 @@ const NotificationsTab: React.FC = () => {
     try {
       setIsLoading(true)
       const [notifs, count] = await Promise.all([
-        notificationsAPI.getAll({ limit: 50 }),
-        notificationsAPI.getUnreadCount(),
+        notificationArchiveAPI.getAll({ limit: 100 }),
+        notificationArchiveAPI.getUnreadCount(),
       ])
       setNotifications(notifs)
       setUnreadCount(count.count)
@@ -60,7 +60,7 @@ const NotificationsTab: React.FC = () => {
 
   const handleMarkAsRead = async (id: string) => {
     try {
-      await notificationsAPI.markAsRead(id)
+      await notificationArchiveAPI.markAsRead(id)
       setNotifications((prev) =>
         prev.map((notif) =>
           notif._id === id ? { ...notif, read: true } : notif
@@ -77,7 +77,7 @@ const NotificationsTab: React.FC = () => {
 
   const handleMarkAllAsRead = async () => {
     try {
-      await notificationsAPI.markAllAsRead()
+      await notificationArchiveAPI.markAllAsRead()
       setNotifications((prev) => prev.map((notif) => ({ ...notif, read: true })))
       setUnreadCount(0)
       toast.success('All notifications marked as read')
@@ -90,13 +90,13 @@ const NotificationsTab: React.FC = () => {
 
   const handleDelete = async (id: string) => {
     try {
-      await notificationsAPI.delete(id)
+      await notificationArchiveAPI.delete(id)
       const deletedNotif = notifications.find((n) => n._id === id)
       setNotifications((prev) => prev.filter((notif) => notif._id !== id))
       if (deletedNotif && !deletedNotif.read) {
         setUnreadCount((prev) => Math.max(0, prev - 1))
       }
-      toast.success('Notification deleted')
+      toast.success('Notification permanently deleted')
     } catch (error: any) {
       toast.error('Failed to delete notification', {
         description: error.message || 'Please try again.',
@@ -106,9 +106,9 @@ const NotificationsTab: React.FC = () => {
 
   const handleDeleteAllRead = async () => {
     try {
-      await notificationsAPI.deleteAllRead()
+      await notificationArchiveAPI.deleteAllRead()
       setNotifications((prev) => prev.filter((notif) => !notif.read))
-      toast.success('All read notifications deleted')
+      toast.success('All read notifications permanently deleted')
     } catch (error: any) {
       toast.error('Failed to delete read notifications', {
         description: error.message || 'Please try again.',

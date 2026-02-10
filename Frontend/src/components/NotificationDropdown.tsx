@@ -47,17 +47,23 @@ const NotificationDropdown: React.FC<NotificationDropdownProps> = ({
   const [isRefreshing, setIsRefreshing] = useState(false)
   const [showQuickReorder, setShowQuickReorder] = useState(false)
   const [selectedItem, setSelectedItem] = useState<any>(null)
+  const [hasMore, setHasMore] = useState(false)
+  const [totalCount, setTotalCount] = useState(0)
 
   const loadNotifications = async () => {
     try {
       setIsLoading(true)
-      const [notifs, count] = await Promise.all([
-        notificationsAPI.getAll({ limit: 20 }),
+      const [response, count] = await Promise.all([
+        notificationsAPI.getAll({ limit: 7 }),
         notificationsAPI.getUnreadCount(),
       ])
-      setNotifications(notifs)
+      setNotifications(response.notifications)
       setUnreadCount(count.count)
       onUnreadCountChange?.(count.count)
+      
+      // Store hasMore for "View all" link
+      setHasMore(response.hasMore)
+      setTotalCount(response.totalCount)
     } catch (error: any) {
       console.error('Failed to load notifications:', error)
       toast.error('Failed to load notifications', {
@@ -539,7 +545,7 @@ const NotificationDropdown: React.FC<NotificationDropdownProps> = ({
                         handleDelete(notification._id);
                       }}
                       className="p-1.5 rounded hover:bg-red-50 transition-colors"
-                      title="Delete"
+                      title="Dismiss"
                     >
                       <FiTrash2 className="h-3.5 w-3.5 text-gray-400 hover:text-red-500" />
                     </button>
@@ -550,6 +556,22 @@ const NotificationDropdown: React.FC<NotificationDropdownProps> = ({
           </div>
         )}
       </div>
+
+      {/* View All Footer */}
+      {hasMore && (
+        <div className="px-4 py-3 border-t border-gray-200 bg-gray-50">
+          <button
+            onClick={() => {
+              onClose();
+              navigate('/settings?tab=notifications');
+            }}
+            className="w-full text-center text-sm text-teal-600 hover:text-teal-700 font-medium flex items-center justify-center gap-2"
+          >
+            View all {totalCount} notifications in Settings
+            <FiExternalLink className="h-3.5 w-3.5" />
+          </button>
+        </div>
+      )}
 
       {/* Quick Reorder Modal */}
       {showQuickReorder && selectedItem && (

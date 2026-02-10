@@ -213,14 +213,14 @@ export const transactionsAPI = {
   },
 };
 
-// Notifications API
+// Notifications API (Layout Bar - Temporary, max 7)
 export const notificationsAPI = {
   getAll: (params?: { read?: boolean; limit?: number }) => {
     const queryParams = new URLSearchParams();
     if (params?.read !== undefined) queryParams.append('read', params.read.toString());
     if (params?.limit !== undefined) queryParams.append('limit', params.limit.toString());
     const query = queryParams.toString();
-    return apiRequest<any[]>(`/notifications${query ? `?${query}` : ''}`);
+    return apiRequest<{ notifications: any[]; totalCount: number; hasMore: boolean }>(`/notifications${query ? `?${query}` : ''}`);
   },
   getUnreadCount: () => apiRequest<{ count: number }>('/notifications/unread/count'),
   getById: (id: string) => apiRequest<any>(`/notifications/${id}`),
@@ -234,6 +234,31 @@ export const notificationsAPI = {
     method: 'DELETE',
   }),
   deleteAllRead: () => apiRequest<{ message: string; deletedCount: number }>('/notifications/read/all', {
+    method: 'DELETE',
+  }),
+};
+
+// Notification Archive API (Settings Page - Permanent, all notifications)
+export const notificationArchiveAPI = {
+  getAll: (params?: { read?: boolean; limit?: number }) => {
+    const queryParams = new URLSearchParams();
+    if (params?.read !== undefined) queryParams.append('read', params.read.toString());
+    if (params?.limit !== undefined) queryParams.append('limit', params.limit.toString());
+    const query = queryParams.toString();
+    return apiRequest<any[]>(`/notifications/archive${query ? `?${query}` : ''}`);
+  },
+  getUnreadCount: () => apiRequest<{ count: number }>('/notifications/archive/unread/count'),
+  getById: (id: string) => apiRequest<any>(`/notifications/archive/${id}`),
+  markAsRead: (id: string) => apiRequest<any>(`/notifications/archive/${id}/read`, {
+    method: 'PATCH',
+  }),
+  markAllAsRead: () => apiRequest<{ message: string; updatedCount: number }>('/notifications/archive/read/all', {
+    method: 'PATCH',
+  }),
+  delete: (id: string) => apiRequest<{ message: string }>(`/notifications/archive/${id}`, {
+    method: 'DELETE',
+  }),
+  deleteAllRead: () => apiRequest<{ message: string; deletedCount: number }>('/notifications/archive/read/all', {
     method: 'DELETE',
   }),
 };
