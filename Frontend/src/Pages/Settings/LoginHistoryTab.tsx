@@ -104,7 +104,7 @@ const LoginHistoryTab: React.FC = () => {
   }
 
   const formatSessionDuration = (seconds?: number | null) => {
-    if (!seconds) return 'Active';
+    if (!seconds) return 'N/A';
     
     const hours = Math.floor(seconds / 3600);
     const minutes = Math.floor((seconds % 3600) / 60);
@@ -555,30 +555,10 @@ const LoginHistoryTab: React.FC = () => {
                       </div>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="text-sm text-gray-900">
-                        {formatNepaliDateTime(record.loginTime, {
-                          timeZone: 'Asia/Kathmandu',
-                          year: 'numeric',
-                          month: 'short',
-                          day: 'numeric',
-                          hour: '2-digit',
-                          minute: '2-digit',
-                          second: '2-digit',
-                          hour12: true,
-                        })}
-                      </div>
-                      <div className="text-xs text-gray-500">
-                        {new Date(record.loginTime).toLocaleDateString('en-US', { 
-                          timeZone: 'Asia/Kathmandu',
-                          weekday: 'long' 
-                        })}
-                      </div>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      {record.logoutTime ? (
+                      {record.success ? (
                         <>
                           <div className="text-sm text-gray-900">
-                            {formatNepaliDateTime(record.logoutTime, {
+                            {formatNepaliDateTime(record.loginTime, {
                               timeZone: 'Asia/Kathmandu',
                               year: 'numeric',
                               month: 'short',
@@ -589,17 +569,66 @@ const LoginHistoryTab: React.FC = () => {
                               hour12: true,
                             })}
                           </div>
+                          <div className="text-xs text-gray-500">
+                            {new Date(record.loginTime).toLocaleDateString('en-US', { 
+                              timeZone: 'Asia/Kathmandu',
+                              weekday: 'long' 
+                            })}
+                          </div>
                         </>
                       ) : (
-                        <span className="inline-flex px-2 py-1 text-xs font-medium rounded-full bg-green-100 text-green-800">
-                          Active Session
+                        <div className="text-sm text-gray-900">
+                          {formatNepaliDateTime(record.loginTime, {
+                            timeZone: 'Asia/Kathmandu',
+                            year: 'numeric',
+                            month: 'short',
+                            day: 'numeric',
+                            hour: '2-digit',
+                            minute: '2-digit',
+                            second: '2-digit',
+                            hour12: true,
+                          })}
+                        </div>
+                      )}
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      {record.success ? (
+                        record.logoutTime ? (
+                          <>
+                            <div className="text-sm text-gray-900">
+                              {formatNepaliDateTime(record.logoutTime, {
+                                timeZone: 'Asia/Kathmandu',
+                                year: 'numeric',
+                                month: 'short',
+                                day: 'numeric',
+                                hour: '2-digit',
+                                minute: '2-digit',
+                                second: '2-digit',
+                                hour12: true,
+                              })}
+                            </div>
+                          </>
+                        ) : (
+                          <span className="text-sm text-gray-500">
+                            Not logged out yet
+                          </span>
+                        )
+                      ) : (
+                        <span className="inline-flex px-2 py-1 text-xs font-medium rounded-full bg-red-100 text-red-800">
+                          Failed Login
                         </span>
                       )}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="text-sm text-gray-900 font-medium">
-                        {formatSessionDuration(record.sessionDuration)}
-                      </div>
+                      {record.success ? (
+                        <div className="text-sm text-gray-900 font-medium">
+                          {formatSessionDuration(record.sessionDuration)}
+                        </div>
+                      ) : (
+                        <span className="text-sm text-gray-500">
+                          -
+                        </span>
+                      )}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
                       <span className={`inline-flex px-2 py-1 text-xs font-medium rounded-full ${getMethodBadgeClass(record.loginMethod)}`}>

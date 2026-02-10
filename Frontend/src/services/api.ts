@@ -358,6 +358,21 @@ export const loginHistoryAPI = {
     method: 'POST',
     body: JSON.stringify({ userId }),
   }),
+  
+  updateHeartbeat: (userId: string) => apiRequest<{
+    message: string;
+    lastActivity: string;
+  }>('/login-history/heartbeat', {
+    method: 'POST',
+    body: JSON.stringify({ userId }),
+  }),
+  
+  autoLogoutInactiveSessions: () => apiRequest<{
+    message: string;
+    count: number;
+  }>('/login-history/auto-logout', {
+    method: 'POST',
+  }),
 };
 
 // Generic API client for direct usage

@@ -2,6 +2,7 @@ import React, { Suspense, lazy } from 'react'
 import { Routes, Route, Navigate, useLocation } from 'react-router-dom'
 import { Toaster } from 'sonner'
 import { useAuth } from './contexts/AuthContext'
+import SessionTracker from './components/SessionTracker'
 
 
 const Login = lazy(() => import('./Pages/Login'));
@@ -34,6 +35,7 @@ export const App = () => {
   return (
     <>
       <Toaster position="top-right" richColors />
+      {isAuthenticated && <SessionTracker />}
       <Suspense fallback={<PageLoader />}>
         <Routes>
          {/* // This is for login page */}
