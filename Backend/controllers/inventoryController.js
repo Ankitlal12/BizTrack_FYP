@@ -1,6 +1,7 @@
 const Inventory = require("../models/Inventory");
 const Notification = require("../models/Notification");
 const mongoose = require("mongoose");
+const { createNotification } = require("../utils/notificationHelper");
 
 // Check database connection
 const checkDBConnection = () => {
@@ -59,7 +60,7 @@ const checkAndCreateStockNotification = async (item) => {
       });
       
       if (!existingNotif) {
-        await Notification.create({
+        await createNotification({
           type: "out_of_stock",
           title: "Item Out of Stock",
           message: `${item.name} (SKU: ${item.sku}) is out of stock. Please restock immediately.`,
@@ -89,7 +90,7 @@ const checkAndCreateStockNotification = async (item) => {
       });
       
       if (!existingNotif) {
-        await Notification.create({
+        await createNotification({
           type: "low_stock",
           title: "Low Stock Alert",
           message: `${item.name} (SKU: ${item.sku}) is running low. Current stock: ${item.stock}, Reorder level: ${item.reorderLevel}.`,

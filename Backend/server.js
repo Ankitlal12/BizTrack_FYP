@@ -58,6 +58,7 @@ const saleRoutes = require("./routes/saleRoutes");
 const purchaseRoutes = require("./routes/purchaseRoutes");
 const invoiceRoutes = require("./routes/invoiceRoutes");
 const notificationRoutes = require("./routes/notificationRoutes");
+const notificationArchiveRoutes = require("./routes/notificationArchiveRoutes");
 const billingRoutes = require("./routes/billingRoutes");
 const transactionRoutes = require("./routes/transactionRoutes");
 const loginHistoryRoutes = require("./routes/loginHistoryRoutes");
@@ -69,6 +70,9 @@ app.use("/api/inventory", inventoryRoutes);
 app.use("/api/sales", saleRoutes);
 app.use("/api/purchases", purchaseRoutes);
 app.use("/api/invoices", invoiceRoutes);
+// IMPORTANT: Archive routes must come BEFORE general notification routes
+// to prevent /archive from being treated as an ID parameter
+app.use("/api/notifications/archive", notificationArchiveRoutes);
 app.use("/api/notifications", notificationRoutes);
 app.use("/api/billing", billingRoutes);
 app.use("/api/transactions", transactionRoutes);

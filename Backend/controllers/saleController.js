@@ -3,6 +3,7 @@ const Inventory = require("../models/Inventory");
 const Notification = require("../models/Notification");
 const { generateInvoiceFromSale } = require("./invoiceController");
 const { getNepaliCurrentDateTime } = require("../utils/dateUtils");
+const { createNotification } = require("../utils/notificationHelper");
 
 // Helper function to check and create low stock notifications
 const checkAndCreateStockNotification = async (item) => {
@@ -16,7 +17,7 @@ const checkAndCreateStockNotification = async (item) => {
       });
       
       if (!existingNotif) {
-        await Notification.create({
+        await createNotification({
           type: "out_of_stock",
           title: "Item Out of Stock",
           message: `${item.name} (SKU: ${item.sku}) is out of stock. Please restock immediately.`,
@@ -40,7 +41,7 @@ const checkAndCreateStockNotification = async (item) => {
       });
       
       if (!existingNotif) {
-        await Notification.create({
+        await createNotification({
           type: "low_stock",
           title: "Low Stock Alert",
           message: `${item.name} (SKU: ${item.sku}) is running low. Current stock: ${item.stock}, Reorder level: ${item.reorderLevel}.`,
@@ -238,7 +239,7 @@ exports.createSale = async (req, res) => {
     // Create notification for new sale
     try {
       const totalItems = req.body.items.reduce((sum, item) => sum + item.quantity, 0);
-      await Notification.create({
+      await createNotification({
         type: "sale",
         title: "New Sale Created",
         message: `Sale ${sale.invoiceNumber || sale._id} has been created with ${totalItems} item(s) for ${req.body.customerName || 'customer'}.`,
@@ -389,7 +390,7 @@ exports.recordPayment = async (req, res) => {
         notificationMessage = `Partial payment of Rs ${amount.toFixed(2)} received for sale ${sale.invoiceNumber || sale._id} from ${sale.customerName}. Total: Rs ${sale.total.toFixed(2)}, Paid: Rs ${newPaidAmount.toFixed(2)}, Remaining: Rs ${remaining.toFixed(2)}.`;
       }
 
-      await Notification.create({
+      await createNotification({
         type: "payment_received",
         title: notificationTitle,
         message: notificationMessage,

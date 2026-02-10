@@ -4,6 +4,7 @@ const Supplier = require("../models/Supplier");
 const Purchase = require("../models/Purchase");
 const Notification = require("../models/Notification");
 const { calculateReorderQuantity, calculatePriority, getUrgencyLevel } = require("../utils/reorderCalculator");
+const { createNotification } = require("../utils/notificationHelper");
 
 /**
  * Get low stock report with analytics
@@ -245,7 +246,7 @@ exports.createReorder = async (req, res) => {
     await inventory.save();
 
     // Create notification
-    await Notification.create({
+    await createNotification({
       type: 'reorder_created',
       title: 'Reorder Request Created',
       message: `Manual reorder request created for ${inventory.name} (SKU: ${inventory.sku})`,
@@ -420,7 +421,7 @@ exports.createQuickReorder = async (req, res) => {
     await reorder.save();
 
     // Create success notification for low-stock purchase
-    await Notification.create({
+    await createNotification({
       type: 'low_stock_purchase',
       title: 'Low Stock Item Restocked',
       message: `✅ Purchase order ${purchaseNumber} created for low-stock item "${inventory.name}". Stock increased from ${inventory.stock - quantity} to ${inventory.stock} units.`,
@@ -487,7 +488,7 @@ exports.approveReorder = async (req, res) => {
     await reorder.save();
 
     // Create notification
-    await Notification.create({
+    await createNotification({
       type: 'reorder_approved',
       title: 'Reorder Approved',
       message: `Reorder request approved for ${reorder.inventoryId.name}`,

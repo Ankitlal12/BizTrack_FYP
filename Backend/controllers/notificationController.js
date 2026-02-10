@@ -1,20 +1,30 @@
 const Notification = require("../models/Notification");
+const NotificationArchive = require("../models/NotificationArchive");
+const { dismissFromLayoutBar, createNotification: createNotificationHelper } = require("../utils/notificationHelper");
 
-// Get all notifications
+// Get all notifications for layout bar (max 7, most recent)
 exports.getAllNotifications = async (req, res) => {
   try {
-    const { read, limit = 50 } = req.query;
+    const { read } = req.query;
     const query = {};
     
     if (read !== undefined) {
       query.read = read === 'true';
     }
     
+    // Always limit to 7 for layout bar
     const notifications = await Notification.find(query)
       .sort({ createdAt: -1 })
-      .limit(parseInt(limit));
+      .limit(7);
     
-    res.json(notifications);
+    // Get total count for "View all" indicator
+    const totalCount = await Notification.countDocuments(query);
+    
+    res.json({
+      notifications,
+      totalCount,
+      hasMore: totalCount > 7
+    });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -46,16 +56,17 @@ exports.getNotificationById = async (req, res) => {
 // Create notification
 exports.createNotification = async (req, res) => {
   try {
-    const notification = await Notification.create(req.body);
-    res.status(201).json(notification);
+    const result = await createNotificationHelper(req.body);
+    res.status(201).json(result.temp); // Return the temp notification for backward compatibility
   } catch (err) {
     res.status(400).json({ error: err.message });
   }
 };
 
-// Mark notification as read
+// Mark notification as read (syncs to both temp and archive)
 exports.markAsRead = async (req, res) => {
   try {
+    // Update in temp storage
     const notification = await Notification.findByIdAndUpdate(
       req.params.id,
       { read: true },
@@ -64,19 +75,38 @@ exports.markAsRead = async (req, res) => {
     if (!notification) {
       return res.status(404).json({ error: "Notification not found" });
     }
+    
+    // Also update in archive (same ID)
+    await NotificationArchive.findByIdAndUpdate(
+      req.params.id,
+      { read: true }
+    );
+    
     res.json(notification);
   } catch (err) {
     res.status(400).json({ error: err.message });
   }
 };
 
-// Mark all as read
+// Mark all as read (syncs to both temp and archive)
 exports.markAllAsRead = async (req, res) => {
   try {
+    // Get all unread notifications from temp storage
+    const unreadNotifications = await Notification.find({ read: false });
+    const unreadIds = unreadNotifications.map(n => n._id);
+    
+    // Update in temp storage
     const result = await Notification.updateMany(
       { read: false },
       { read: true }
     );
+    
+    // Also update in archive (same IDs)
+    await NotificationArchive.updateMany(
+      { _id: { $in: unreadIds } },
+      { read: true }
+    );
+    
     res.json({ 
       message: "All notifications marked as read",
       updatedCount: result.modifiedCount 
@@ -86,26 +116,29 @@ exports.markAllAsRead = async (req, res) => {
   }
 };
 
-// Delete notification
+// Delete notification from layout bar (dismiss, but keep in archive)
 exports.deleteNotification = async (req, res) => {
   try {
-    const notification = await Notification.findByIdAndDelete(req.params.id);
-    if (!notification) {
-      return res.status(404).json({ error: "Notification not found" });
-    }
-    res.json({ message: "Notification deleted successfully" });
+    await dismissFromLayoutBar(req.params.id);
+    res.json({ message: "Notification dismissed from layout bar" });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
 };
 
-// Delete all read notifications
+// Delete all read notifications from layout bar
 exports.deleteAllRead = async (req, res) => {
   try {
-    const result = await Notification.deleteMany({ read: true });
+    const readNotifications = await Notification.find({ read: true });
+    
+    // Dismiss each one (removes from layout bar, keeps in archive)
+    await Promise.all(
+      readNotifications.map(notif => dismissFromLayoutBar(notif._id.toString()))
+    );
+    
     res.json({ 
-      message: "All read notifications deleted",
-      deletedCount: result.deletedCount 
+      message: "All read notifications dismissed from layout bar",
+      deletedCount: readNotifications.length 
     });
   } catch (err) {
     res.status(500).json({ error: err.message });

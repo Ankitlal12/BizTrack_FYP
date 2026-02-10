@@ -5,6 +5,7 @@ const bcrypt = require("bcryptjs");
 const { OAuth2Client } = require("google-auth-library");
 const { generateToken } = require("../utils/jwt");
 const { getNepaliCurrentDateTime } = require("../utils/dateUtils");
+const { createNotification } = require("../utils/notificationHelper");
 
 // Create a new user (staff member)
 exports.createUser = async (req, res) => {
@@ -46,7 +47,7 @@ exports.createUser = async (req, res) => {
 
     // Create notification for new staff member
     try {
-      await Notification.create({
+      await createNotification({
         type: "system",
         title: "New Staff Member Added",
         message: `${name} has been added as a ${role || 'staff'} member.`,
@@ -131,7 +132,7 @@ exports.login = async (req, res) => {
         console.log('🔔 Creating failed login notification for user:', user.name);
 
         // Create notification for failed login attempt
-        const notification = await Notification.create({
+        const notification = await createNotification({
           type: "login_failed",
           title: "Failed Login Attempt",
           message: `Failed login attempt for user ${user.name} (${username}). IP: ${req.ip || 'Unknown'}`,
@@ -146,7 +147,7 @@ exports.login = async (req, res) => {
           },
         });
 
-        console.log('✅ Failed login notification created successfully:', notification._id);
+        console.log('✅ Failed login notification created successfully:', notification.archive._id);
       } catch (historyError) {
         console.error("❌ Failed to record failed login:", historyError);
         console.error("Error details:", historyError.message);
@@ -316,7 +317,7 @@ exports.updateUser = async (req, res) => {
         changes: changeDetails
       });
 
-      const notification = await Notification.create({
+      const notification = await createNotification({
         type: "security_change",
         title: "Security Settings Changed",
         message: `Security settings for ${user.name} have been updated: ${changeDetails.join(', ')}.`,
@@ -330,7 +331,7 @@ exports.updateUser = async (req, res) => {
         },
       });
 
-      console.log('✅ Security change notification created successfully:', notification._id);
+      console.log('✅ Security change notification created successfully:', notification.archive._id);
     } catch (notifError) {
       console.error("❌ Failed to create security change notification:", notifError);
       console.error("Error details:", notifError.message);
@@ -356,7 +357,7 @@ exports.deleteUser = async (req, res) => {
 
     // Create notification for staff deletion
     try {
-      await Notification.create({
+      await createNotification({
         type: "system",
         title: "Staff Member Deleted",
         message: `${user.name} (${user.email}) has been removed from the system.`,

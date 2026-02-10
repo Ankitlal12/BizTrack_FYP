@@ -4,6 +4,7 @@ const Sale = require("../models/Sale");
 const Notification = require("../models/Notification");
 const { getNepaliCurrentDateTime } = require("../utils/dateUtils");
 const { generateInvoiceFromSale } = require("./invoiceController");
+const { createNotification } = require("../utils/notificationHelper");
 
 // Helper function to check and create low stock notifications
 const checkAndCreateStockNotification = async (item) => {
@@ -17,7 +18,7 @@ const checkAndCreateStockNotification = async (item) => {
       });
       
       if (!existingNotif) {
-        await Notification.create({
+        await createNotification({
           type: "out_of_stock",
           title: "Item Out of Stock",
           message: `${item.name} (SKU: ${item.sku}) is out of stock. Please restock immediately.`,
@@ -41,7 +42,7 @@ const checkAndCreateStockNotification = async (item) => {
       });
       
       if (!existingNotif) {
-        await Notification.create({
+        await createNotification({
           type: "low_stock",
           title: "Low Stock Alert",
           message: `${item.name} (SKU: ${item.sku}) is running low. Current stock: ${item.stock}, Reorder level: ${item.reorderLevel}.`,
@@ -425,7 +426,7 @@ exports.createBill = async (req, res) => {
     // Create notification for new sale
     try {
       const totalItems = saleItems.reduce((sum, item) => sum + item.quantity, 0);
-      await Notification.create({
+      await createNotification({
         type: "sale",
         title: "New Sale Completed",
         message: `Sale ${sale.invoiceNumber} has been completed with ${totalItems} item(s) for ${customerInfo.customerName || 'customer'}. Total: Rs ${sale.total.toFixed(2)}.`,
