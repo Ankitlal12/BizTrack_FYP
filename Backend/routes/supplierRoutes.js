@@ -9,6 +9,7 @@ const {
   getSupplierProducts,
   addProductToSupplier,
   removeProductFromSupplier,
+  getSupplierPurchaseHistory,
 } = require("../controllers/supplierController");
 
 const router = express.Router();
@@ -27,5 +28,8 @@ router.delete("/:id", deleteSupplier);
 router.get("/:id/products", getSupplierProducts);
 router.post("/:id/products", addProductToSupplier);
 router.delete("/:supplierId/products/:inventoryId", removeProductFromSupplier);
+
+// Supplier purchase history and payments
+router.get("/:id/purchase-history", getSupplierPurchaseHistory);
 
 module.exports = router;

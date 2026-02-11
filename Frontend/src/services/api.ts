@@ -449,6 +449,10 @@ export const suppliersAPI = {
     apiRequest<{ message: string }>(`/suppliers/${supplierId}/products/${inventoryId}`, {
       method: 'DELETE',
     }),
+  getPurchaseHistory: (id: string, params?: string) => {
+    const query = params ? `?${params}` : '';
+    return apiRequest<any>(`/suppliers/${id}/purchase-history${query}`);
+  },
 };
 
 // Reorder API

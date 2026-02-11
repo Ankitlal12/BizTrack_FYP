@@ -17,6 +17,7 @@ export interface Supplier {
   isActive: boolean;
   notes?: string;
   products: SupplierProduct[];
+  productCount?: number; // Count of inventory items linked to this supplier
   createdAt: string;
   updatedAt: string;
 }

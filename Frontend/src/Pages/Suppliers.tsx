@@ -9,15 +9,16 @@ import {
   Plus, 
   Search, 
   Edit, 
-  Eye, 
   UserX,
   Phone,
   Mail,
   MapPin,
   Star,
-  Package
+  Package,
+  Receipt
 } from 'lucide-react';
 import SupplierModal from '../components/SupplierModal';
+import SupplierPurchaseHistoryModal from '../components/SupplierPurchaseHistoryModal';
 import { useAuth } from '../contexts/AuthContext';
 
 const Suppliers: React.FC = () => {
@@ -27,6 +28,8 @@ const Suppliers: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
   const [selectedSupplier, setSelectedSupplier] = useState<Supplier | null>(null);
+  const [showPurchaseHistory, setShowPurchaseHistory] = useState(false);
+  const [selectedSupplierForHistory, setSelectedSupplierForHistory] = useState<{ id: string; name: string } | null>(null);
   const [filters, setFilters] = useState<SupplierFilters>({});
   const [searchTerm, setSearchTerm] = useState('');
   const [page, setPage] = useState(1);
@@ -74,6 +77,11 @@ const Suppliers: React.FC = () => {
   const handleEditSupplier = (supplier: Supplier) => {
     setSelectedSupplier(supplier);
     setShowModal(true);
+  };
+
+  const handleViewPurchaseHistory = (supplier: Supplier) => {
+    setSelectedSupplierForHistory({ id: supplier._id, name: supplier.name });
+    setShowPurchaseHistory(true);
   };
 
   const handleDeactivateSupplier = async (supplier: Supplier) => {
@@ -240,23 +248,25 @@ const Suppliers: React.FC = () => {
                 {/* Products Count */}
                 <div className="flex items-center gap-2 mb-4 text-sm text-gray-600">
                   <Package className="w-4 h-4" />
-                  <span>{supplier.products?.length || 0} product(s)</span>
+                  <span>{supplier.productCount || supplier.products?.length || 0} product(s)</span>
                 </div>
 
                 {/* Actions */}
                 <div className="flex gap-2">
                   <button
-                    onClick={() => handleEditSupplier(supplier)}
-                    className="flex-1 flex items-center justify-center gap-2 px-3 py-2 border border-gray-300 rounded-lg hover:bg-gray-50"
+                    onClick={() => handleViewPurchaseHistory(supplier)}
+                    className="flex-1 flex items-center justify-center gap-2 px-3 py-2 bg-teal-50 border border-teal-200 text-teal-700 rounded-lg hover:bg-teal-100"
+                    title="View Purchase History"
                   >
-                    <Edit className="w-4 h-4" />
-                    Edit
+                    <Receipt className="w-4 h-4" />
+                    History
                   </button>
                   <button
+                    onClick={() => handleEditSupplier(supplier)}
                     className="flex items-center justify-center gap-2 px-3 py-2 border border-gray-300 rounded-lg hover:bg-gray-50"
-                    title="View Products"
+                    title="Edit"
                   >
-                    <Eye className="w-4 h-4" />
+                    <Edit className="w-4 h-4" />
                   </button>
                   {supplier.isActive && (
                     <button
@@ -322,6 +332,18 @@ const Suppliers: React.FC = () => {
             loadSuppliers();
             setShowModal(false);
             setSelectedSupplier(null);
+          }}
+        />
+      )}
+
+      {/* Purchase History Modal */}
+      {showPurchaseHistory && selectedSupplierForHistory && (
+        <SupplierPurchaseHistoryModal
+          supplierId={selectedSupplierForHistory.id}
+          supplierName={selectedSupplierForHistory.name}
+          onClose={() => {
+            setShowPurchaseHistory(false);
+            setSelectedSupplierForHistory(null);
           }}
         />
       )}

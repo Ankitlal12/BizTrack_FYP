@@ -31,10 +31,34 @@ exports.getAllSuppliers = async (req, res) => {
       .skip(skip)
       .limit(parseInt(limit));
 
+    // Add product count for each supplier
+    const suppliersWithCount = await Promise.all(
+      suppliers.map(async (supplier) => {
+        // Count products in the supplier's products array
+        const linkedProductsCount = supplier.products?.length || 0;
+        
+        // Also count inventory items that have this supplier as preferred supplier
+        const inventoryCount = await Inventory.countDocuments({
+          $or: [
+            { preferredSupplierId: supplier._id },
+            { supplier: supplier.name }
+          ]
+        });
+        
+        // Use the maximum of both counts
+        const totalProductCount = Math.max(linkedProductsCount, inventoryCount);
+        
+        return {
+          ...supplier.toObject(),
+          productCount: totalProductCount
+        };
+      })
+    );
+
     const total = await Supplier.countDocuments(query);
 
     res.json({
-      data: suppliers,
+      data: suppliersWithCount,
       pagination: {
         page: parseInt(page),
         limit: parseInt(limit),
@@ -298,6 +322,86 @@ exports.removeProductFromSupplier = async (req, res) => {
     console.error('Error removing product from supplier:', error);
     res.status(500).json({ 
       error: 'Failed to remove product from supplier',
+      details: error.message 
+    });
+  }
+};
+
+/**
+ * Get supplier purchase history and payment details
+ */
+exports.getSupplierPurchaseHistory = async (req, res) => {
+  try {
+    const supplierId = req.params.id;
+    const { page = 1, limit = 10 } = req.query;
+    const skip = (page - 1) * limit;
+
+    // Get supplier details
+    const supplier = await Supplier.findById(supplierId);
+    if (!supplier) {
+      return res.status(404).json({ error: 'Supplier not found' });
+    }
+
+    // Get all purchases from this supplier
+    const purchases = await Purchase.find({ 
+      supplierName: supplier.name 
+    })
+      .populate('items.inventoryId', 'name sku')
+      .sort({ createdAt: -1 })
+      .skip(skip)
+      .limit(parseInt(limit));
+
+    const totalPurchases = await Purchase.countDocuments({ 
+      supplierName: supplier.name 
+    });
+
+    // Calculate financial summary
+    const allPurchases = await Purchase.find({ 
+      supplierName: supplier.name 
+    });
+
+    const financialSummary = {
+      totalPurchased: 0,
+      totalPaid: 0,
+      totalOutstanding: 0,
+      purchaseCount: allPurchases.length,
+      paidPurchases: 0,
+      partialPurchases: 0,
+      unpaidPurchases: 0
+    };
+
+    allPurchases.forEach(purchase => {
+      financialSummary.totalPurchased += purchase.total || 0;
+      financialSummary.totalPaid += purchase.paidAmount || 0;
+      
+      if (purchase.paymentStatus === 'paid') {
+        financialSummary.paidPurchases++;
+      } else if (purchase.paymentStatus === 'partial') {
+        financialSummary.partialPurchases++;
+      } else {
+        financialSummary.unpaidPurchases++;
+      }
+    });
+
+    financialSummary.totalOutstanding = financialSummary.totalPurchased - financialSummary.totalPaid;
+
+    res.json({
+      data: {
+        supplier,
+        purchases,
+        financialSummary,
+        pagination: {
+          page: parseInt(page),
+          limit: parseInt(limit),
+          total: totalPurchases,
+          pages: Math.ceil(totalPurchases / limit)
+        }
+      }
+    });
+  } catch (error) {
+    console.error('Error fetching supplier purchase history:', error);
+    res.status(500).json({ 
+      error: 'Failed to fetch supplier purchase history',
       details: error.message 
     });
   }
