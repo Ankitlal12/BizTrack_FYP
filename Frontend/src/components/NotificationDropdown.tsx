@@ -15,7 +15,7 @@ import {
   FiZap,
   FiExternalLink
 } from 'react-icons/fi'
-import QuickReorderModal from './QuickReorderModal'
+import QuickReorderModal from '../reorder/QuickReorderModal'
 
 interface Notification {
   _id: string

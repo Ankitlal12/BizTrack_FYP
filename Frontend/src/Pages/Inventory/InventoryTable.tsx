@@ -1,7 +1,7 @@
 import React, { useState } from 'react'
 import { Package2, AlertTriangle } from 'lucide-react'
 import { InventoryItem, getStatusClass, getStockStatus, getStockPriority, getPriorityClass, getStatusText } from './helpers'
-import SimpleRestockModal from '../../components/SimpleRestockModal'
+import SimpleRestockModal from '../../reorder/SimpleRestockModal'
 import { useAuth } from '../../contexts/AuthContext'
 
 type InventoryTableProps = {

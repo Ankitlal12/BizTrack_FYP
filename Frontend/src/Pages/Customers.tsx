@@ -2,8 +2,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { toast } from 'sonner';
 import { useNavigate } from 'react-router-dom';
 import Layout from '../layout/Layout';
-import { suppliersAPI } from '../services/api';
-import { Supplier, SupplierFilters } from './LowStock/types';
+import { customersAPI } from '../services/api';
 import { 
   Users, 
   Plus, 
@@ -13,29 +12,48 @@ import {
   Phone,
   Mail,
   MapPin,
-  Star,
-  Package,
-  Receipt
+  Receipt,
+  ShoppingBag
 } from 'lucide-react';
-import SupplierModal from '../suppliers/SupplierModal';
-import SupplierPurchaseHistoryModal from '../suppliers/SupplierPurchaseHistoryModal';
+import CustomerModal from '../customers/CustomerModal';
+import CustomerPurchaseHistoryModal from '../customers/CustomerPurchaseHistoryModal';
 import { useAuth } from '../contexts/AuthContext';
 
-const Suppliers: React.FC = () => {
+interface Customer {
+  _id: string;
+  name: string;
+  phone: string;
+  email?: string;
+  address?: {
+    street?: string;
+    city?: string;
+    state?: string;
+    zipCode?: string;
+    country?: string;
+  };
+  isActive: boolean;
+  notes?: string;
+  purchaseCount?: number;
+}
+
+interface CustomerFilters {
+  isActive?: boolean;
+}
+
+const Customers: React.FC = () => {
   const { user } = useAuth();
   const navigate = useNavigate();
-  const [suppliers, setSuppliers] = useState<Supplier[]>([]);
+  const [customers, setCustomers] = useState<Customer[]>([]);
   const [loading, setLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
-  const [selectedSupplier, setSelectedSupplier] = useState<Supplier | null>(null);
+  const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null);
   const [showPurchaseHistory, setShowPurchaseHistory] = useState(false);
-  const [selectedSupplierForHistory, setSelectedSupplierForHistory] = useState<{ id: string; name: string } | null>(null);
-  const [filters, setFilters] = useState<SupplierFilters>({});
+  const [selectedCustomerForHistory, setSelectedCustomerForHistory] = useState<{ id: string; name: string } | null>(null);
+  const [filters, setFilters] = useState<CustomerFilters>({});
   const [searchTerm, setSearchTerm] = useState('');
   const [page, setPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
 
-  // Check if user has access to suppliers page
   useEffect(() => {
     if (user?.role === 'staff') {
       toast.error('Access denied. You do not have permission to view this page.');
@@ -44,7 +62,7 @@ const Suppliers: React.FC = () => {
     }
   }, [user?.role, navigate]);
 
-  const loadSuppliers = useCallback(async () => {
+  const loadCustomers = useCallback(async () => {
     try {
       setLoading(true);
       
@@ -54,48 +72,48 @@ const Suppliers: React.FC = () => {
       params.append('page', page.toString());
       params.append('limit', '10');
 
-      const response = await suppliersAPI.getAll(params.toString());
-      setSuppliers(response.data || []);
+      const response = await customersAPI.getAll(params.toString());
+      setCustomers(response.data || []);
       setTotalPages(response.pagination?.pages || 1);
     } catch (error: any) {
-      console.error('Error loading suppliers:', error);
-      toast.error('Failed to load suppliers');
+      console.error('Error loading customers:', error);
+      toast.error('Failed to load customers');
     } finally {
       setLoading(false);
     }
   }, [searchTerm, filters, page]);
 
   useEffect(() => {
-    loadSuppliers();
-  }, [loadSuppliers]);
+    loadCustomers();
+  }, [loadCustomers]);
 
-  const handleCreateSupplier = () => {
-    setSelectedSupplier(null);
+  const handleCreateCustomer = () => {
+    setSelectedCustomer(null);
     setShowModal(true);
   };
 
-  const handleEditSupplier = (supplier: Supplier) => {
-    setSelectedSupplier(supplier);
+  const handleEditCustomer = (customer: Customer) => {
+    setSelectedCustomer(customer);
     setShowModal(true);
   };
 
-  const handleViewPurchaseHistory = (supplier: Supplier) => {
-    setSelectedSupplierForHistory({ id: supplier._id, name: supplier.name });
+  const handleViewPurchaseHistory = (customer: Customer) => {
+    setSelectedCustomerForHistory({ id: customer._id, name: customer.name });
     setShowPurchaseHistory(true);
   };
 
-  const handleDeactivateSupplier = async (supplier: Supplier) => {
-    if (!confirm(`Are you sure you want to deactivate ${supplier.name}?`)) {
+  const handleDeactivateCustomer = async (customer: Customer) => {
+    if (!confirm(`Are you sure you want to deactivate ${customer.name}?`)) {
       return;
     }
 
     try {
-      await suppliersAPI.delete(supplier._id);
-      toast.success('Supplier deactivated successfully');
-      loadSuppliers();
+      await customersAPI.delete(customer._id);
+      toast.success('Customer deactivated successfully');
+      loadCustomers();
     } catch (error: any) {
-      console.error('Error deactivating supplier:', error);
-      toast.error(error.message || 'Failed to deactivate supplier');
+      console.error('Error deactivating customer:', error);
+      toast.error(error.message || 'Failed to deactivate customer');
     }
   };
 
@@ -105,16 +123,7 @@ const Suppliers: React.FC = () => {
       : 'bg-red-100 text-red-800';
   };
 
-  const renderStars = (rating: number) => {
-    return Array.from({ length: 5 }, (_, i) => (
-      <Star
-        key={i}
-        className={`w-4 h-4 ${i < rating ? 'text-yellow-400 fill-current' : 'text-gray-300'}`}
-      />
-    ));
-  };
-
-  if (loading && suppliers.length === 0) {
+  if (loading && customers.length === 0) {
     return (
       <Layout>
         <div className="flex h-screen items-center justify-center">
@@ -127,29 +136,27 @@ const Suppliers: React.FC = () => {
   return (
     <Layout>
       <div className="p-6 space-y-6">
-        {/* Header */}
         <div className="flex justify-between items-center">
           <div>
-            <h1 className="text-2xl font-bold text-gray-900">Suppliers</h1>
-            <p className="text-gray-600">Manage your supplier relationships and contacts</p>
+            <h1 className="text-2xl font-bold text-gray-900">Customers</h1>
+            <p className="text-gray-600">Manage your customer relationships and purchase history</p>
           </div>
           <button
-            onClick={handleCreateSupplier}
+            onClick={handleCreateCustomer}
             className="flex items-center gap-2 px-4 py-2 bg-teal-600 text-white rounded-lg hover:bg-teal-700"
           >
             <Plus className="w-4 h-4" />
-            New Supplier
+            New Customer
           </button>
         </div>
 
-        {/* Filters */}
         <div className="bg-white p-4 rounded-lg shadow-sm border">
           <div className="flex flex-col md:flex-row gap-4 items-center">
             <div className="relative flex-1 max-w-md">
               <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
               <input
                 type="text"
-                placeholder="Search suppliers..."
+                placeholder="Search customers..."
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
                 className="pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-transparent w-full"
@@ -167,7 +174,7 @@ const Suppliers: React.FC = () => {
               }}
               className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-500"
             >
-              <option value="all">All Suppliers</option>
+              <option value="all">All Customers</option>
               <option value="true">Active</option>
               <option value="false">Inactive</option>
             </select>
@@ -184,77 +191,46 @@ const Suppliers: React.FC = () => {
           </div>
         </div>
 
-        {/* Suppliers Grid */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {suppliers.map((supplier) => (
-            <div key={supplier._id} className="bg-white rounded-lg shadow-sm border hover:shadow-md transition-shadow">
+          {customers.map((customer) => (
+            <div key={customer._id} className="bg-white rounded-lg shadow-sm border hover:shadow-md transition-shadow">
               <div className="p-6">
-                {/* Header */}
                 <div className="flex justify-between items-start mb-4">
                   <div className="flex-1">
-                    <h3 className="text-lg font-semibold text-gray-900">{supplier.name}</h3>
-                    {supplier.contactPerson && (
-                      <p className="text-sm text-gray-600">{supplier.contactPerson}</p>
-                    )}
+                    <h3 className="text-lg font-semibold text-gray-900">{customer.name}</h3>
                   </div>
-                  <span className={`px-2 py-1 text-xs font-medium rounded-full ${getStatusColor(supplier.isActive)}`}>
-                    {supplier.isActive ? 'Active' : 'Inactive'}
+                  <span className={`px-2 py-1 text-xs font-medium rounded-full ${getStatusColor(customer.isActive)}`}>
+                    {customer.isActive ? 'Active' : 'Inactive'}
                   </span>
                 </div>
 
-                {/* Contact Info */}
                 <div className="space-y-2 mb-4">
-                  {supplier.phone && (
-                    <div className="flex items-center gap-2 text-sm text-gray-600">
-                      <Phone className="w-4 h-4" />
-                      <span>{supplier.phone}</span>
-                    </div>
-                  )}
-                  {supplier.email && (
+                  <div className="flex items-center gap-2 text-sm text-gray-600">
+                    <Phone className="w-4 h-4" />
+                    <span>{customer.phone}</span>
+                  </div>
+                  {customer.email && (
                     <div className="flex items-center gap-2 text-sm text-gray-600">
                       <Mail className="w-4 h-4" />
-                      <span>{supplier.email}</span>
+                      <span>{customer.email}</span>
                     </div>
                   )}
-                  {supplier.address?.city && (
+                  {customer.address?.city && (
                     <div className="flex items-center gap-2 text-sm text-gray-600">
                       <MapPin className="w-4 h-4" />
-                      <span>{supplier.address.city}, {supplier.address.country}</span>
+                      <span>{customer.address.city}, {customer.address.country}</span>
                     </div>
                   )}
                 </div>
 
-                {/* Details */}
-                <div className="grid grid-cols-2 gap-4 mb-4 text-sm">
-                  <div>
-                    <p className="text-gray-600">Payment Terms</p>
-                    <p className="font-medium text-gray-900">{supplier.paymentTerms}</p>
-                  </div>
-                  <div>
-                    <p className="text-gray-600">Lead Time</p>
-                    <p className="font-medium text-gray-900">{supplier.averageLeadTimeDays} days</p>
-                  </div>
-                </div>
-
-                {/* Rating */}
-                <div className="flex items-center gap-2 mb-4">
-                  <span className="text-sm text-gray-600">Rating:</span>
-                  <div className="flex items-center gap-1">
-                    {renderStars(supplier.rating)}
-                    <span className="text-sm text-gray-600 ml-1">({supplier.rating}/5)</span>
-                  </div>
-                </div>
-
-                {/* Products Count */}
                 <div className="flex items-center gap-2 mb-4 text-sm text-gray-600">
-                  <Package className="w-4 h-4" />
-                  <span>{supplier.productCount || supplier.products?.length || 0} product(s)</span>
+                  <ShoppingBag className="w-4 h-4" />
+                  <span>{customer.purchaseCount || 0} purchase(s)</span>
                 </div>
 
-                {/* Actions */}
                 <div className="flex gap-2">
                   <button
-                    onClick={() => handleViewPurchaseHistory(supplier)}
+                    onClick={() => handleViewPurchaseHistory(customer)}
                     className="flex-1 flex items-center justify-center gap-2 px-3 py-2 bg-teal-50 border border-teal-200 text-teal-700 rounded-lg hover:bg-teal-100"
                     title="View Purchase History"
                   >
@@ -262,15 +238,15 @@ const Suppliers: React.FC = () => {
                     History
                   </button>
                   <button
-                    onClick={() => handleEditSupplier(supplier)}
+                    onClick={() => handleEditCustomer(customer)}
                     className="flex items-center justify-center gap-2 px-3 py-2 border border-gray-300 rounded-lg hover:bg-gray-50"
                     title="Edit"
                   >
                     <Edit className="w-4 h-4" />
                   </button>
-                  {supplier.isActive && (
+                  {customer.isActive && (
                     <button
-                      onClick={() => handleDeactivateSupplier(supplier)}
+                      onClick={() => handleDeactivateCustomer(customer)}
                       className="flex items-center justify-center gap-2 px-3 py-2 border border-red-300 text-red-600 rounded-lg hover:bg-red-50"
                       title="Deactivate"
                     >
@@ -283,20 +259,19 @@ const Suppliers: React.FC = () => {
           ))}
         </div>
 
-        {suppliers.length === 0 && !loading && (
+        {customers.length === 0 && !loading && (
           <div className="text-center py-12">
             <Users className="w-12 h-12 text-gray-400 mx-auto mb-4" />
-            <p className="text-gray-500">No suppliers found</p>
+            <p className="text-gray-500">No customers found</p>
             <button
-              onClick={handleCreateSupplier}
+              onClick={handleCreateCustomer}
               className="mt-4 px-4 py-2 bg-teal-600 text-white rounded-lg hover:bg-teal-700"
             >
-              Add Your First Supplier
+              Add Your First Customer
             </button>
           </div>
         )}
 
-        {/* Pagination */}
         {totalPages > 1 && (
           <div className="flex justify-center gap-2">
             <button
@@ -320,30 +295,28 @@ const Suppliers: React.FC = () => {
         )}
       </div>
 
-      {/* Modal */}
       {showModal && (
-        <SupplierModal
-          supplier={selectedSupplier}
+        <CustomerModal
+          customer={selectedCustomer}
           onClose={() => {
             setShowModal(false);
-            setSelectedSupplier(null);
+            setSelectedCustomer(null);
           }}
           onSuccess={() => {
-            loadSuppliers();
+            loadCustomers();
             setShowModal(false);
-            setSelectedSupplier(null);
+            setSelectedCustomer(null);
           }}
         />
       )}
 
-      {/* Purchase History Modal */}
-      {showPurchaseHistory && selectedSupplierForHistory && (
-        <SupplierPurchaseHistoryModal
-          supplierId={selectedSupplierForHistory.id}
-          supplierName={selectedSupplierForHistory.name}
+      {showPurchaseHistory && selectedCustomerForHistory && (
+        <CustomerPurchaseHistoryModal
+          customerId={selectedCustomerForHistory.id}
+          customerName={selectedCustomerForHistory.name}
           onClose={() => {
             setShowPurchaseHistory(false);
-            setSelectedSupplierForHistory(null);
+            setSelectedCustomerForHistory(null);
           }}
         />
       )}
@@ -351,4 +324,4 @@ const Suppliers: React.FC = () => {
   );
 };
 
-export default Suppliers;
+export default Customers;

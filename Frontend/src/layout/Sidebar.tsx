@@ -97,6 +97,11 @@ const Sidebar = memo(() => {
           icon: <Users size={20} />,
         },
         {
+          name: 'Customers',
+          path: '/customers',
+          icon: <Users size={20} />,
+        },
+        {
           name: 'Reorder History',
           path: '/reorder-history',
           icon: <RotateCcw size={20} />,
@@ -133,6 +138,11 @@ const Sidebar = memo(() => {
         {
           name: 'Suppliers',
           path: '/suppliers',
+          icon: <Users size={20} />,
+        },
+        {
+          name: 'Customers',
+          path: '/customers',
           icon: <Users size={20} />,
         },
         billingItem

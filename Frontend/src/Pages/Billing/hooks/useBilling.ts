@@ -195,13 +195,11 @@ export const useBilling = () => {
     if (!newCustomer.name.trim()) {
       errors.name = 'Name is required'
     }
-    if (!newCustomer.email.trim()) {
-      errors.email = 'Email is required'
-    } else if (!/\S+@\S+\.\S+/.test(newCustomer.email)) {
-      errors.email = 'Invalid email format'
-    }
     if (!newCustomer.phone.trim()) {
       errors.phone = 'Phone number is required'
+    }
+    if (newCustomer.email && !/\S+@\S+\.\S+/.test(newCustomer.email)) {
+      errors.email = 'Invalid email format'
     }
     if (Object.keys(errors).length > 0) {
       setValidationErrors(errors)
@@ -234,7 +232,7 @@ export const useBilling = () => {
       const errorMessage =
         error.message || error.details || 'Failed to create customer'
       if (errorMessage.includes('already exists')) {
-        setValidationErrors({ email: errorMessage })
+        setValidationErrors({ phone: errorMessage })
       } else {
         setValidationErrors({ general: errorMessage })
       }

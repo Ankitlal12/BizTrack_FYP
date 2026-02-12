@@ -455,6 +455,30 @@ export const suppliersAPI = {
   },
 };
 
+// Customers API
+export const customersAPI = {
+  getAll: (params?: string) => {
+    const query = params ? `?${params}` : '';
+    return apiRequest<any>(`/customers${query}`);
+  },
+  getById: (id: string) => apiRequest<any>(`/customers/${id}`),
+  create: (data: any) => apiRequest<any>('/customers', {
+    method: 'POST',
+    body: JSON.stringify(data),
+  }),
+  update: (id: string, data: any) => apiRequest<any>(`/customers/${id}`, {
+    method: 'PUT',
+    body: JSON.stringify(data),
+  }),
+  delete: (id: string) => apiRequest<{ message: string }>(`/customers/${id}`, {
+    method: 'DELETE',
+  }),
+  getPurchaseHistory: (id: string, params?: string) => {
+    const query = params ? `?${params}` : '';
+    return apiRequest<any>(`/customers/${id}/purchase-history${query}`);
+  },
+};
+
 // Reorder API
 export const reorderAPI = {
   getLowStockReport: (params?: string) => {

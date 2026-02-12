@@ -18,6 +18,7 @@ const TransactionHistory = lazy(() => import('./Pages/TransactionHistory.tsx'));
 const Billing=lazy(()=>import('./Pages/Billing.tsx') )
 const LowStock = lazy(() => import('./Pages/LowStock'));
 const Suppliers = lazy(() => import('./Pages/Suppliers'));
+const Customers = lazy(() => import('./Pages/Customers.tsx'));
 const ReorderHistory = lazy(() => import('./Pages/ReorderHistory'));
 
 const PageLoader = () => (
@@ -166,6 +167,17 @@ export const App = () => {
             element={
               isAuthenticated && (user?.role === 'owner' || user?.role === 'manager') ? (
                 <Suppliers />
+              ) : (
+                <Navigate to="/inventory" replace />
+              )
+            }
+          />
+
+          <Route
+            path="/customers"
+            element={
+              isAuthenticated && (user?.role === 'owner' || user?.role === 'manager') ? (
+                <Customers />
               ) : (
                 <Navigate to="/inventory" replace />
               )

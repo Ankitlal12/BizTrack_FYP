@@ -4,7 +4,7 @@ import { AlertTriangle, AlertCircle, Package2, ArrowLeft } from 'lucide-react'
 import Layout from '../layout/Layout'
 import { inventoryAPI } from '../services/api'
 import { InventoryItem, getStockStatus, getStockPriority, getPriorityClass, getStatusText } from './Inventory/helpers'
-import SimpleRestockModal from '../components/SimpleRestockModal'
+import SimpleRestockModal from '../reorder/SimpleRestockModal'
 import { useAuth } from '../contexts/AuthContext'
 
 const LowStock: React.FC = () => {
