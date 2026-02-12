@@ -106,23 +106,23 @@ exports.createCustomer = async (req, res) => {
     const { name, email, phone, address, city, state, zipCode, notes } = req.body;
 
     // Validate required fields
-    if (!name || !email || !phone) {
+    if (!name || !phone) {
       return res.status(400).json({
-        error: "Name, email, and phone are required fields",
+        error: "Name and phone are required fields",
       });
     }
 
-    // Check if customer with same email already exists
-    const existingCustomer = await Customer.findOne({ email: email.toLowerCase() });
+    // Check if customer with same phone already exists
+    const existingCustomer = await Customer.findOne({ phone });
     if (existingCustomer) {
       return res.status(400).json({
-        error: "Customer with this email already exists",
+        error: "Customer with this phone number already exists",
       });
     }
 
     const customer = await Customer.create({
       name,
-      email: email.toLowerCase(),
+      email: email || undefined,
       phone,
       address,
       city,

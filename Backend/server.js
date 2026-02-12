@@ -63,6 +63,7 @@ const billingRoutes = require("./routes/billingRoutes");
 const transactionRoutes = require("./routes/transactionRoutes");
 const loginHistoryRoutes = require("./routes/loginHistoryRoutes");
 const supplierRoutes = require("./routes/supplierRoutes");
+const customerRoutes = require("./routes/customerRoutes");
 const reorderRoutes = require("./routes/reorderRoutes");
 
 app.use("/api/users", userRoutes);
@@ -78,6 +79,7 @@ app.use("/api/billing", billingRoutes);
 app.use("/api/transactions", transactionRoutes);
 app.use("/api/login-history", loginHistoryRoutes);
 app.use("/api/suppliers", supplierRoutes);
+app.use("/api/customers", customerRoutes);
 app.use("/api/reorders", reorderRoutes);
 
 const PORT = process.env.PORT || 5000;

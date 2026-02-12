@@ -6,33 +6,37 @@ const customerSchema = new mongoose.Schema({
     required: true,
     trim: true,
   },
-  email: {
-    type: String,
-    required: true,
-    trim: true,
-    lowercase: true,
-    match: [/^\S+@\S+\.\S+$/, "Please enter a valid email address"],
-  },
   phone: {
     type: String,
     required: true,
     trim: true,
   },
+  email: {
+    type: String,
+    trim: true,
+    lowercase: true,
+  },
   address: {
-    type: String,
-    trim: true,
+    street: {
+      type: String,
+    },
+    city: {
+      type: String,
+    },
+    state: {
+      type: String,
+    },
+    zipCode: {
+      type: String,
+    },
+    country: {
+      type: String,
+      default: 'Nepal',
+    },
   },
-  city: {
-    type: String,
-    trim: true,
-  },
-  state: {
-    type: String,
-    trim: true,
-  },
-  zipCode: {
-    type: String,
-    trim: true,
+  isActive: {
+    type: Boolean,
+    default: true,
   },
   notes: {
     type: String,
@@ -43,7 +47,8 @@ const customerSchema = new mongoose.Schema({
 });
 
 // Index for faster search
-customerSchema.index({ name: 1, email: 1, phone: 1 });
+customerSchema.index({ name: 1, phone: 1 });
+customerSchema.index({ isActive: 1 });
 
 module.exports = mongoose.model("Customer", customerSchema);
 
