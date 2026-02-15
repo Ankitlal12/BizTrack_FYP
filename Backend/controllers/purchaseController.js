@@ -5,6 +5,9 @@ const { generateInvoiceFromPurchase } = require("./invoiceController");
 const { getNepaliCurrentDateTime } = require("../utils/dateUtils");
 const { createNotification } = require("../utils/notificationHelper");
 
+// Expiry notification function removed - notifications were too frequent and annoying
+// Visual banners on inventory page are sufficient for expiry tracking
+
 // Helper function to check and create low stock notifications
 const checkAndCreateStockNotification = async (item) => {
   try {
@@ -201,6 +204,25 @@ exports.createPurchase = async (req, res) => {
         if (item.sellingPrice && item.sellingPrice > 0) {
           inventoryItem.price = item.sellingPrice;
         }
+        // Update supplier information
+        if (req.body.supplierName) {
+          inventoryItem.supplier = req.body.supplierName;
+        }
+        if (req.body.supplierId) {
+          inventoryItem.preferredSupplierId = req.body.supplierId;
+        }
+        // Update expiry date if provided (for food items)
+        if (item.expiryDate) {
+          inventoryItem.expiryDate = new Date(item.expiryDate);
+        }
+        // Update category type if it's a food item
+        const foodKeywords = ['food', 'beverages', 'dairy', 'produce', 'frozen', 'bakery', 'meat', 'poultry', 'seafood', 'snacks', 'fresh'];
+        const isFoodItem = item.category && foodKeywords.some(keyword => 
+          item.category.toLowerCase().includes(keyword.toLowerCase())
+        );
+        if (isFoodItem) {
+          inventoryItem.categoryType = 'food';
+        }
         await inventoryItem.save();
         
         // Check for low stock after update
@@ -213,7 +235,13 @@ exports.createPurchase = async (req, res) => {
           .replace(/[^A-Z0-9]/g, '')
           .substring(0, 8) + '-' + Date.now().toString().slice(-6);
         
-        inventoryItem = await Inventory.create({
+        // Check if this is a food item
+        const foodKeywords = ['food', 'beverages', 'dairy', 'produce', 'frozen', 'bakery', 'meat', 'poultry', 'seafood', 'snacks', 'fresh'];
+        const isFoodItem = item.category && foodKeywords.some(keyword => 
+          item.category.toLowerCase().includes(keyword.toLowerCase())
+        );
+        
+        const inventoryData = {
           name: item.name,
           sku: sku,
           category: item.category || 'Other',
@@ -222,8 +250,17 @@ exports.createPurchase = async (req, res) => {
           stock: item.quantity,
           reorderLevel: 5,
           supplier: req.body.supplierName || 'Unknown',
+          preferredSupplierId: req.body.supplierId || null,
           location: 'Warehouse',
-        });
+          categoryType: isFoodItem ? 'food' : 'non-food',
+        };
+        
+        // Add expiry date if provided
+        if (item.expiryDate) {
+          inventoryData.expiryDate = new Date(item.expiryDate);
+        }
+        
+        inventoryItem = await Inventory.create(inventoryData);
       }
       
       // Add inventoryId to the item

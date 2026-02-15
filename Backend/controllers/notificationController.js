@@ -145,4 +145,28 @@ exports.deleteAllRead = async (req, res) => {
   }
 };
 
+// Delete all expiry-related notifications (both temp and archive)
+exports.deleteAllExpiryNotifications = async (req, res) => {
+  try {
+    // Delete from temp storage
+    const tempResult = await Notification.deleteMany({
+      type: { $in: ['expiring_soon', 'expired'] }
+    });
+    
+    // Delete from archive
+    const archiveResult = await NotificationArchive.deleteMany({
+      type: { $in: ['expiring_soon', 'expired'] }
+    });
+    
+    res.json({ 
+      message: "All expiry notifications deleted",
+      deletedFromTemp: tempResult.deletedCount,
+      deletedFromArchive: archiveResult.deletedCount,
+      totalDeleted: tempResult.deletedCount + archiveResult.deletedCount
+    });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+};
+
 

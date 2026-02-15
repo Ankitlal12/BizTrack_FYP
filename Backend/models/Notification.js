@@ -4,7 +4,7 @@ const notificationSchema = new mongoose.Schema({
   type: {
     type: String,
     required: true,
-    enum: ["purchase", "sale", "low_stock", "out_of_stock", "system", "payment_received", "payment_made", "reorder_needed", "reorder_created", "reorder_approved", "auto_reorder", "low_stock_purchase", "login_failed", "login_success", "security_change"],
+    enum: ["purchase", "sale", "low_stock", "out_of_stock", "system", "payment_received", "payment_made", "reorder_needed", "reorder_created", "reorder_approved", "auto_reorder", "low_stock_purchase", "login_failed", "login_success", "security_change", "expiring_soon", "expired"],
   },
   title: {
     type: String,

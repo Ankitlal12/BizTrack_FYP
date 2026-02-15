@@ -14,6 +14,9 @@ router.patch("/read/all", notificationController.markAllAsRead);
 // Delete all read notifications - MUST come before /:id
 router.delete("/read/all", notificationController.deleteAllRead);
 
+// Delete all expiry notifications - MUST come before /:id
+router.delete("/expiry/all", notificationController.deleteAllExpiryNotifications);
+
 // Create notification
 router.post("/", notificationController.createNotification);
 

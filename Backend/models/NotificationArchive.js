@@ -19,7 +19,9 @@ const notificationArchiveSchema = new mongoose.Schema({
       "low_stock_purchase",
       "login_failed",
       "login_success",
-      "security_change"
+      "security_change",
+      "expiring_soon",
+      "expired"
     ],
   },
   title: {

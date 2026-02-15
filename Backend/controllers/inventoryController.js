@@ -8,6 +8,9 @@ const checkDBConnection = () => {
   return mongoose.connection.readyState === 1;
 };
 
+// Expiry notification function removed - notifications were too frequent and annoying
+// Visual banners on inventory page are sufficient for expiry tracking
+
 // Get all inventory items
 exports.getAllInventory = async (req, res) => {
   try {
@@ -20,6 +23,14 @@ exports.getAllInventory = async (req, res) => {
     }
 
     const items = await Inventory.find().sort({ createdAt: 1 });
+    
+    // Only check for expiring items once per day (not on every inventory load)
+    // This prevents notification spam
+    // Notifications will be created when:
+    // 1. Item is purchased with expiry date
+    // 2. Item is updated with expiry date
+    // 3. Daily scheduled check (if implemented)
+    
     res.json(items);
   } catch (err) {
     console.error("Error fetching inventory:", err);

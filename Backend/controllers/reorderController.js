@@ -571,6 +571,7 @@ exports.createPurchaseFromReorder = async (req, res) => {
       subtotal: total,
       total: total,
       status: 'pending',
+      paymentStatus: 'unpaid',
       notes: notes || `Created from reorder request #${reorder._id}`,
       createdBy: {
         userId: req.user._id,
@@ -578,6 +579,21 @@ exports.createPurchaseFromReorder = async (req, res) => {
         role: req.user.role
       }
     });
+
+    // Auto-generate invoice for the purchase
+    try {
+      const { generateInvoiceFromPurchase } = require('./invoiceController');
+      const userInfo = {
+        userId: req.user._id,
+        name: req.user.name,
+        role: req.user.role,
+      };
+      
+      await generateInvoiceFromPurchase(purchase, userInfo);
+    } catch (invoiceError) {
+      console.error("Failed to generate invoice for purchase:", invoiceError);
+      // Don't fail the purchase creation if invoice generation fails
+    }
 
     // Update reorder
     reorder.status = 'ordered';

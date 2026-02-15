@@ -87,6 +87,14 @@ const inventorySchema = new mongoose.Schema({
     type: String,
     required: true,
   },
+  expiryDate: {
+    type: Date,
+  },
+  categoryType: {
+    type: String,
+    enum: ['food', 'non-food'],
+    default: 'non-food',
+  },
   lastUpdated: {
     type: Date,
     default: Date.now,
