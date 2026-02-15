@@ -39,3 +39,9 @@ Thumbs.db
 # Build outputs
 dist/
 build/
+
+# Documentation files
+README.md
+README*.md
+readme.md
+readme*.md
