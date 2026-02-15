@@ -17,7 +17,6 @@ interface InvoiceTableProps {
   invoices: Invoice[];
   highlightedInvoiceId?: string;
   onViewInvoice: (invoice: Invoice) => void;
-  onEditInvoice: (invoice: Invoice) => void;
   onDeleteInvoice: (invoice: Invoice) => void;
   onUpdatePayment: (invoice: Invoice) => void;
 }
@@ -26,7 +25,6 @@ const InvoiceTable: React.FC<InvoiceTableProps> = ({
   invoices,
   highlightedInvoiceId,
   onViewInvoice,
-  onEditInvoice,
   onDeleteInvoice,
   onUpdatePayment,
 }) => {
@@ -194,13 +192,6 @@ const InvoiceTable: React.FC<InvoiceTableProps> = ({
                           Payment
                         </button>
                       )}
-                      <button
-                        onClick={() => onEditInvoice(invoice)}
-                        className="text-indigo-600 hover:text-indigo-900 text-sm"
-                        title="Edit Invoice"
-                      >
-                        Edit
-                      </button>
                       <button
                         onClick={() => onDeleteInvoice(invoice)}
                         className="text-red-600 hover:text-red-900 text-sm"

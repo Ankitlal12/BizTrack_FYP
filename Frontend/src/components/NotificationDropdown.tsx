@@ -19,7 +19,7 @@ import QuickReorderModal from '../reorder/QuickReorderModal'
 
 interface Notification {
   _id: string
-  type: 'purchase' | 'sale' | 'low_stock' | 'out_of_stock' | 'system' | 'payment_received' | 'payment_made' | 'reorder_needed' | 'reorder_created' | 'reorder_approved' | 'auto_reorder' | 'low_stock_purchase' | 'login_failed' | 'login_success' | 'security_change'
+  type: 'purchase' | 'sale' | 'low_stock' | 'out_of_stock' | 'system' | 'payment_received' | 'payment_made' | 'reorder_needed' | 'reorder_created' | 'reorder_approved' | 'auto_reorder' | 'low_stock_purchase' | 'login_failed' | 'login_success' | 'security_change' | 'expiring_soon' | 'expired'
   title: string
   message: string
   read: boolean
@@ -301,8 +301,14 @@ const NotificationDropdown: React.FC<NotificationDropdownProps> = ({
 
       case 'low_stock':
       case 'out_of_stock':
-        // Navigate to low stock page
-        navigate('/low-stock');
+      case 'expiring_soon':
+      case 'expired':
+        // Navigate to inventory page with item highlighted
+        if (notification.relatedId) {
+          navigate(`/inventory?highlight=${notification.relatedId}`);
+        } else {
+          navigate('/inventory');
+        }
         break;
 
       case 'reorder_needed':
@@ -378,6 +384,10 @@ const NotificationDropdown: React.FC<NotificationDropdownProps> = ({
         return <FiAlertCircle className="h-5 w-5 text-yellow-500" />
       case 'out_of_stock':
         return <FiPackage className="h-5 w-5 text-red-500" />
+      case 'expiring_soon':
+        return <FiAlertCircle className="h-5 w-5 text-orange-500" />
+      case 'expired':
+        return <FiAlertCircle className="h-5 w-5 text-red-600" />
       case 'reorder_needed':
       case 'reorder_created':
       case 'reorder_approved':

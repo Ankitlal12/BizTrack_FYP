@@ -13,15 +13,32 @@ import { LuShoppingBag } from "react-icons/lu"
 import { IoBarChartSharp } from "react-icons/io5"
 import { FiMenu } from "react-icons/fi"
 import { RxCross2 } from "react-icons/rx"
-import { AlertTriangle, Users, RotateCcw } from "lucide-react"
+import { AlertTriangle, Users, RotateCcw, ChevronDown, ChevronRight, Calendar } from "lucide-react"
 
 import { useAuth } from '../contexts/AuthContext'
 import { reorderAPI } from '../services/api'
+
+interface NavItem {
+  name: string
+  path: string
+  icon: React.ReactNode
+  badge?: number
+  badgeColor?: string
+}
+
+interface NavGroup {
+  name: string
+  icon: React.ReactNode
+  items: NavItem[]
+  badge?: number
+  badgeColor?: string
+}
 
 const Sidebar = memo(() => {
   const [collapsed, setCollapsed] = useState(false)
   const [mobileOpen, setMobileOpen] = useState(false)
   const [lowStockCount, setLowStockCount] = useState(0)
+  const [openGroups, setOpenGroups] = useState<string[]>([])
   const { user } = useAuth()
 
   // Load low stock count for owner and manager
@@ -43,69 +60,103 @@ const Sidebar = memo(() => {
     }
   }, [user?.role])
 
-  const navItems = useMemo(() => {
-    const inventoryItems = [
-      {
-        name: 'Inventory',
-        path: '/inventory',
-        icon: <FiPackage size={20} />,
-      },
-    ]
+  const toggleGroup = (groupName: string) => {
+    setOpenGroups(prev => 
+      prev.includes(groupName) 
+        ? prev.filter(g => g !== groupName)
+        : [...prev, groupName]
+    )
+  }
 
-    const billingItem = {
-      name: 'Billing',
-      path: '/billing',
-      icon: <LuShoppingBag size={20} />,
-    }
+  const navStructure = useMemo(() => {
+    const result: (NavItem | NavGroup)[] = []
 
-    const purchasesItem = {
-      name: 'Purchases',
-      path: '/purchases',
-      icon: <CiDeliveryTruck size={20} />,
-    }
-
+    // Dashboard (Owner only)
     if (user?.role === 'owner') {
-      return [
-        {
-          name: 'Dashboard',
-          path: '/',  // ✅ FIXED HERE!
-          icon: <TbLayoutDashboard size={20} />,
-        },
-        ...inventoryItems,
-        {
-          name: 'Low Stock',
-          path: '/low-stock',
-          icon: <AlertTriangle size={20} />,
-          badge: lowStockCount > 0 ? lowStockCount : undefined,
-          badgeColor: 'bg-red-500'
-        },
+      result.push({
+        name: 'Dashboard',
+        path: '/',
+        icon: <TbLayoutDashboard size={20} />,
+      })
+    }
+
+    // Inventory
+    result.push({
+      name: 'Inventory',
+      path: '/inventory',
+      icon: <FiPackage size={20} />,
+    })
+
+    // Stock Control Group (right after Inventory for owner and manager)
+    if (user?.role === 'owner' || user?.role === 'manager') {
+      result.push({
+        name: 'Stock Control',
+        icon: <AlertTriangle size={20} />,
+        items: [
+          {
+            name: 'Low Stock',
+            path: '/low-stock',
+            icon: <AlertTriangle size={18} />,
+          },
+          {
+            name: 'Expiry Management',
+            path: '/expiry-management',
+            icon: <Calendar size={18} />,
+          },
+          ...(user?.role === 'owner' ? [{
+            name: 'Reorder History',
+            path: '/reorder-history',
+            icon: <RotateCcw size={18} />,
+          }] : [])
+        ]
+      })
+    }
+
+    // Sales, Purchases, Billing, Invoices (Owner only)
+    if (user?.role === 'owner') {
+      result.push(
         {
           name: 'Sales',
           path: '/sales',
           icon: <FiShoppingCart size={20} />,
         },
-        purchasesItem,
-        billingItem,
+        {
+          name: 'Purchases',
+          path: '/purchases',
+          icon: <CiDeliveryTruck size={20} />,
+        },
+        {
+          name: 'Billing',
+          path: '/billing',
+          icon: <LuShoppingBag size={20} />,
+        },
         {
           name: 'Invoices',
           path: '/invoices',
           icon: <FiFileText size={20} />,
-        },
-        {
-          name: 'Suppliers',
-          path: '/suppliers',
-          icon: <Users size={20} />,
-        },
-        {
-          name: 'Customers',
-          path: '/customers',
-          icon: <Users size={20} />,
-        },
-        {
-          name: 'Reorder History',
-          path: '/reorder-history',
-          icon: <RotateCcw size={20} />,
-        },
+        }
+      )
+
+      // Contacts Group (after Invoices)
+      result.push({
+        name: 'Contacts',
+        icon: <Users size={20} />,
+        items: [
+          {
+            name: 'Suppliers',
+            path: '/suppliers',
+            icon: <Users size={18} />,
+          },
+          {
+            name: 'Customers',
+            path: '/customers',
+            icon: <Users size={18} />,
+          }
+        ]
+      })
+
+      // Transaction History, Reports, Settings
+      result.push(
         {
           name: 'Transaction History',
           path: '/transactions',
@@ -120,36 +171,50 @@ const Sidebar = memo(() => {
           name: 'Settings',
           path: '/settings',
           icon: <CiSettings size={20} />,
-        },
-      ]
-    }
+        }
+      )
+    } else if (user?.role === 'manager') {
+      // Manager: Purchases
+      result.push({
+        name: 'Purchases',
+        path: '/purchases',
+        icon: <CiDeliveryTruck size={20} />,
+      })
 
-    if (user?.role === 'manager') {
-      return [
-        ...inventoryItems,
-        {
-          name: 'Low Stock',
-          path: '/low-stock',
-          icon: <AlertTriangle size={20} />,
-          badge: lowStockCount > 0 ? lowStockCount : undefined,
-          badgeColor: 'bg-red-500'
-        },
-        purchasesItem,
-        {
-          name: 'Suppliers',
-          path: '/suppliers',
-          icon: <Users size={20} />,
-        },
-        {
-          name: 'Customers',
-          path: '/customers',
-          icon: <Users size={20} />,
-        },
-        billingItem
-      ]
-    }
+      // Contacts Group for manager
+      result.push({
+        name: 'Contacts',
+        icon: <Users size={20} />,
+        items: [
+          {
+            name: 'Suppliers',
+            path: '/suppliers',
+            icon: <Users size={18} />,
+          },
+          {
+            name: 'Customers',
+            path: '/customers',
+            icon: <Users size={18} />,
+          }
+        ]
+      })
 
-    return [...inventoryItems, billingItem]
+      // Billing
+      result.push({
+        name: 'Billing',
+        path: '/billing',
+        icon: <LuShoppingBag size={20} />,
+      })
+    } else {
+      // Staff role: just Billing
+      result.push({
+        name: 'Billing',
+        path: '/billing',
+        icon: <LuShoppingBag size={20} />,
+      })
+    }
+    
+    return result
   }, [user?.role])
 
   const toggleSidebar = useCallback(() => {
@@ -204,37 +269,96 @@ const Sidebar = memo(() => {
             </button>
           </div>
 
-          <nav className="flex-1 pt-4">
+          <nav className="flex-1 pt-4 overflow-y-auto">
             <ul className="space-y-1">
-              {navItems.map(item => (
-                <li key={item.path}>
-                  <NavLink
-                    to={item.path}
-                    className={({ isActive }) =>
-                      `flex items-center ${collapsed ? 'justify-center' : 'px-6'} py-3
-                      ${isActive
-                        ? 'bg-teal-50 text-teal-600 border-r-4 border-teal-500'
-                        : 'text-gray-600 hover:bg-gray-100'
-                      }
-                      transition-colors duration-200`
-                    }
-                    onClick={closeMobileSidebar}
-                    end
-                  >
-                    <span className="inline-flex">{item.icon}</span>
-                    {!collapsed && (
-                      <div className="ml-3 flex items-center justify-between w-full">
-                        <span>{item.name}</span>
-                        {item.badge && (
-                          <span className={`px-2 py-1 text-xs font-bold text-white rounded-full ${item.badgeColor || 'bg-teal-500'}`}>
-                            {item.badge}
-                          </span>
+              {navStructure.map((item, index) => {
+                // Check if it's a group
+                if ('items' in item) {
+                  const group = item as NavGroup
+                  const isOpen = openGroups.includes(group.name)
+                  
+                  return (
+                    <li key={group.name}>
+                      {/* Group Header */}
+                      <button
+                        onClick={() => toggleGroup(group.name)}
+                        className={`w-full flex items-center ${collapsed ? 'justify-center' : 'px-6'} py-3 text-gray-600 hover:bg-gray-100 transition-colors duration-200`}
+                      >
+                        <span className="inline-flex">{group.icon}</span>
+                        {!collapsed && (
+                          <>
+                            <div className="ml-3 flex items-center justify-between w-full">
+                              <span>{group.name}</span>
+                              <div className="flex items-center gap-2">
+                                {isOpen ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
+                              </div>
+                            </div>
+                          </>
                         )}
-                      </div>
-                    )}
-                  </NavLink>
-                </li>
-              ))}
+                      </button>
+                      
+                      {/* Group Items */}
+                      {!collapsed && isOpen && (
+                        <ul className="bg-gray-50">
+                          {group.items.map(subItem => (
+                            <li key={subItem.path}>
+                              <NavLink
+                                to={subItem.path}
+                                className={({ isActive }) =>
+                                  `flex items-center pl-12 pr-6 py-2.5
+                                  ${isActive
+                                    ? 'bg-teal-50 text-teal-600 border-r-4 border-teal-500'
+                                    : 'text-gray-600 hover:bg-gray-100'
+                                  }
+                                  transition-colors duration-200`
+                                }
+                                onClick={closeMobileSidebar}
+                              >
+                                <span className="inline-flex">{subItem.icon}</span>
+                                <div className="ml-3 flex items-center justify-between w-full">
+                                  <span className="text-sm">{subItem.name}</span>
+                                </div>
+                              </NavLink>
+                            </li>
+                          ))}
+                        </ul>
+                      )}
+                    </li>
+                  )
+                }
+                
+                // Regular nav item
+                const navItem = item as NavItem
+                return (
+                  <li key={navItem.path}>
+                    <NavLink
+                      to={navItem.path}
+                      className={({ isActive }) =>
+                        `flex items-center ${collapsed ? 'justify-center' : 'px-6'} py-3
+                        ${isActive
+                          ? 'bg-teal-50 text-teal-600 border-r-4 border-teal-500'
+                          : 'text-gray-600 hover:bg-gray-100'
+                        }
+                        transition-colors duration-200`
+                      }
+                      onClick={closeMobileSidebar}
+                      end
+                    >
+                      <span className="inline-flex">{navItem.icon}</span>
+                      {!collapsed && (
+                        <div className="ml-3 flex items-center justify-between w-full">
+                          <span>{navItem.name}</span>
+                          {navItem.badge && (
+                            <span className={`px-2 py-1 text-xs font-bold text-white rounded-full ${navItem.badgeColor || 'bg-teal-500'}`}>
+                              {navItem.badge}
+                            </span>
+                          )}
+                        </div>
+                      )}
+                    </NavLink>
+                  </li>
+                )
+              })}
             </ul>
           </nav>
 

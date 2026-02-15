@@ -17,7 +17,6 @@ interface InvoiceDetailsModalProps {
   invoice: Invoice | null;
   isOpen: boolean;
   onClose: () => void;
-  onEdit: (invoice: Invoice) => void;
   onUpdatePayment: (invoice: Invoice) => void;
 }
 
@@ -25,7 +24,6 @@ const InvoiceDetailsModal: React.FC<InvoiceDetailsModalProps> = ({
   invoice,
   isOpen,
   onClose,
-  onEdit,
   onUpdatePayment,
 }) => {
   if (!isOpen || !invoice) return null;
@@ -271,12 +269,6 @@ const InvoiceDetailsModal: React.FC<InvoiceDetailsModalProps> = ({
                 Update Payment
               </button>
             )}
-            <button
-              onClick={() => onEdit(invoice)}
-              className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors"
-            >
-              Edit Invoice
-            </button>
             <button
               onClick={onClose}
               className="px-4 py-2 bg-gray-300 text-gray-700 rounded-md hover:bg-gray-400 transition-colors"

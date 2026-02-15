@@ -2,6 +2,7 @@ import React, { useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { RefreshCw, AlertTriangle, AlertCircle } from 'lucide-react'
 import { InventoryItem, getStockStatus, getStockPriority } from './helpers'
+import { useAuth } from '../../contexts/AuthContext'
 
 type InventorySummaryProps = {
   items: InventoryItem[]
@@ -9,6 +10,7 @@ type InventorySummaryProps = {
 
 const InventorySummary: React.FC<InventorySummaryProps> = ({ items }) => {
   const navigate = useNavigate()
+  const { user } = useAuth()
   
   const totals = useMemo(() => {
     const totalStock = items.reduce((sum, item) => sum + item.stock, 0)
@@ -60,10 +62,12 @@ const InventorySummary: React.FC<InventorySummaryProps> = ({ items }) => {
           <p className="text-xs text-yellow-600">Stock 25-49</p>
         </div>
 
-        <div className="bg-white p-4 rounded-lg shadow-sm border">
-          <h3 className="text-sm text-gray-500">Inventory Value</h3>
-          <p className="text-2xl font-bold text-gray-900">Rs {totals.inventoryValue}</p>
-        </div>
+        {user?.role === 'owner' && (
+          <div className="bg-white p-4 rounded-lg shadow-sm border">
+            <h3 className="text-sm text-gray-500">Inventory Value</h3>
+            <p className="text-2xl font-bold text-gray-900">Rs {totals.inventoryValue}</p>
+          </div>
+        )}
       </div>
 
       {/* Out of Stock Alert */}

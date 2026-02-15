@@ -72,6 +72,15 @@ export const useTransactions = () => {
     setPagination(prev => ({ ...prev, current: page }))
   }
 
+  const handleLimitChange = (newLimit: number) => {
+    setPagination(prev => ({
+      ...prev,
+      limit: newLimit,
+      current: 1,
+      pages: Math.ceil(prev.total / newLimit)
+    }))
+  }
+
   const handleSort = (field: string) => {
     if (sortField === field) {
       setSortDirection(sortDirection === 'asc' ? 'desc' : 'asc')
@@ -122,6 +131,7 @@ export const useTransactions = () => {
     error,
     loadTransactions,
     handlePageChange,
+    handleLimitChange,
     handleSort,
     clearFilters,
   }

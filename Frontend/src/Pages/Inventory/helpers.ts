@@ -23,6 +23,8 @@ export type InventoryItem = {
   supplier: string
   location: string
   lastUpdated?: string | Date
+  expiryDate?: string | Date
+  categoryType?: 'food' | 'non-food'
 }
 
 export type InventoryStatus = 'out-of-stock' | 'critical' | 'high' | 'low' | 'in-stock'
@@ -97,5 +99,53 @@ export const getPriorityText = (priority: StockPriority): string => {
     default:
       return 'Normal'
   }
+}
+
+// Expiry date helpers
+export const getExpiryStatus = (expiryDate?: string | Date): 'expired' | 'expiring-soon' | 'fresh' | 'none' => {
+  if (!expiryDate) return 'none'
+  
+  const expiry = new Date(expiryDate)
+  const today = new Date()
+  const daysUntilExpiry = Math.ceil((expiry.getTime() - today.getTime()) / (1000 * 60 * 60 * 24))
+  
+  if (daysUntilExpiry < 0) return 'expired'
+  if (daysUntilExpiry <= 7) return 'expiring-soon'
+  return 'fresh'
+}
+
+export const getExpiryStatusClass = (status: 'expired' | 'expiring-soon' | 'fresh' | 'none'): string => {
+  switch (status) {
+    case 'expired':
+      return 'bg-red-100 text-red-800 border-red-200'
+    case 'expiring-soon':
+      return 'bg-orange-100 text-orange-800 border-orange-200'
+    case 'fresh':
+      return 'bg-green-100 text-green-800 border-green-200'
+    default:
+      return ''
+  }
+}
+
+export const getExpiryStatusText = (expiryDate?: string | Date): string => {
+  if (!expiryDate) return ''
+  
+  const expiry = new Date(expiryDate)
+  const today = new Date()
+  const daysUntilExpiry = Math.ceil((expiry.getTime() - today.getTime()) / (1000 * 60 * 60 * 24))
+  
+  if (daysUntilExpiry < 0) return 'Expired'
+  if (daysUntilExpiry === 0) return 'Expires Today'
+  if (daysUntilExpiry === 1) return 'Expires Tomorrow'
+  if (daysUntilExpiry <= 7) return `Expires in ${daysUntilExpiry} days`
+  return 'Fresh'
+}
+
+export const isFoodCategory = (category: string): boolean => {
+  const foodKeywords = [
+    'food', 'beverages', 'dairy', 'produce', 'frozen', 'bakery',
+    'meat', 'poultry', 'seafood', 'snacks', 'fresh'
+  ]
+  return foodKeywords.some(keyword => category.toLowerCase().includes(keyword))
 }
 

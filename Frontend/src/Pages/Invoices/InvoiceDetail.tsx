@@ -36,11 +36,6 @@ const InvoiceDetail: React.FC = () => {
     }
   };
 
-  const handleEditInvoice = () => {
-    // TODO: Implement edit functionality
-    console.log('Edit invoice:', invoice);
-  };
-
   const handleUpdatePayment = () => {
     setShowPaymentModal(true);
   };
@@ -111,7 +106,6 @@ const InvoiceDetail: React.FC = () => {
           invoice={invoice}
           isOpen={true}
           onClose={handleClose}
-          onEdit={handleEditInvoice}
           onUpdatePayment={handleUpdatePayment}
         />
 

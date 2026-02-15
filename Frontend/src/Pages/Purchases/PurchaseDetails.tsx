@@ -263,12 +263,6 @@ const PurchaseDetails: React.FC<PurchaseDetailsProps> = ({
               <FileTextIcon size={14} className="mr-1" />
               View Invoice
             </button>
-            <button className="bg-white border border-gray-300 text-gray-700 py-1 px-3 rounded text-sm hover:bg-gray-50">
-              Print
-            </button>
-            <button className="bg-white border border-gray-300 text-gray-700 py-1 px-3 rounded text-sm hover:bg-gray-50">
-              Export
-            </button>
             {purchase.status !== 'received' &&
               purchase.status !== 'cancelled' && (
                 <button className="bg-teal-500 hover:bg-teal-600 text-white py-1 px-3 rounded text-sm">

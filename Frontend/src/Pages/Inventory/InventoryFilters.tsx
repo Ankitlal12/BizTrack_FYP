@@ -24,6 +24,10 @@ type InventoryFiltersProps = {
   onCostMinChange: (value: string) => void
   costMax: string
   onCostMaxChange: (value: string) => void
+  sortBy: 'createdAt' | 'name' | 'stock' | 'price'
+  onSortByChange: (value: 'createdAt' | 'name' | 'stock' | 'price') => void
+  sortOrder: 'asc' | 'desc'
+  onSortOrderChange: (value: 'asc' | 'desc') => void
   onClearFilters: () => void
 }
 
@@ -50,6 +54,10 @@ const InventoryFilters: React.FC<InventoryFiltersProps> = ({
   onCostMinChange,
   costMax,
   onCostMaxChange,
+  sortBy,
+  onSortByChange,
+  sortOrder,
+  onSortOrderChange,
   onClearFilters,
 }) => {
   const [showMoreFilters, setShowMoreFilters] = useState(false)
@@ -67,7 +75,9 @@ const InventoryFilters: React.FC<InventoryFiltersProps> = ({
     priceMin !== '' ||
     priceMax !== '' ||
     costMin !== '' ||
-    costMax !== ''
+    costMax !== '' ||
+    sortBy !== 'createdAt' ||
+    sortOrder !== 'desc'
 
   return (
     <div className="mb-6">
@@ -108,6 +118,37 @@ const InventoryFilters: React.FC<InventoryFiltersProps> = ({
           <option value="low">Low Stock</option>
           <option value="in-stock">In Stock</option>
         </select>
+
+        {/* Sort By */}
+        <div className="flex items-center gap-2">
+          <select
+            className="border border-gray-300 rounded-lg py-2 px-4 focus:outline-none focus:ring-2 focus:ring-teal-500"
+            value={sortBy}
+            onChange={(e) => onSortByChange(e.target.value as 'createdAt' | 'name' | 'stock' | 'price')}
+          >
+            <option value="createdAt">Sort: Purchase Date</option>
+            <option value="name">Sort: Name</option>
+            <option value="stock">Sort: Stock</option>
+            <option value="price">Sort: Price</option>
+          </select>
+
+          {/* Sort Order Toggle Button */}
+          <button
+            onClick={() => onSortOrderChange(sortOrder === 'asc' ? 'desc' : 'asc')}
+            className="border border-gray-300 bg-white hover:bg-gray-50 p-2 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-500 transition-colors"
+            title={sortOrder === 'asc' ? 'Ascending order' : 'Descending order'}
+          >
+            {sortOrder === 'asc' ? (
+              <svg className="w-5 h-5 text-gray-700" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 15l7-7 7 7" />
+              </svg>
+            ) : (
+              <svg className="w-5 h-5 text-gray-700" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+              </svg>
+            )}
+          </button>
+        </div>
 
         {/* More Filters Button */}
         <button

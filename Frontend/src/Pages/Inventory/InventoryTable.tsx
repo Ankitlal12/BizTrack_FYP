@@ -1,6 +1,6 @@
-import React, { useState } from 'react'
-import { Package2, AlertTriangle } from 'lucide-react'
-import { InventoryItem, getStatusClass, getStockStatus, getStockPriority, getPriorityClass, getStatusText } from './helpers'
+import React, { useState, useEffect } from 'react'
+import { Package2, AlertTriangle, Calendar, X } from 'lucide-react'
+import { InventoryItem, getStatusClass, getStockStatus, getStockPriority, getPriorityClass, getStatusText, getExpiryStatus, getExpiryStatusClass, getExpiryStatusText, isFoodCategory } from './helpers'
 import SimpleRestockModal from '../../reorder/SimpleRestockModal'
 import { useAuth } from '../../contexts/AuthContext'
 
@@ -8,19 +8,36 @@ type InventoryTableProps = {
   items: InventoryItem[]
   isLoading: boolean
   onItemUpdated?: () => void
+  highlightId?: string | null
 }
 
 const InventoryTable: React.FC<InventoryTableProps> = ({
   items,
   isLoading,
   onItemUpdated,
+  highlightId,
 }) => {
   const { user } = useAuth();
   const [selectedItem, setSelectedItem] = useState<InventoryItem | null>(null);
   const [showRestockModal, setShowRestockModal] = useState(false);
+  const [expiryPopup, setExpiryPopup] = useState<{ itemId: string | number; show: boolean }>({ itemId: '', show: false });
 
   // Check if user can restock (only owner and manager)
   const canRestock = user?.role === 'owner' || user?.role === 'manager';
+
+  // Auto-open expiry popup for highlighted item
+  useEffect(() => {
+    if (highlightId) {
+      setExpiryPopup({ itemId: highlightId, show: true });
+      // Scroll to the highlighted item
+      setTimeout(() => {
+        const element = document.getElementById(`inventory-item-${highlightId}`);
+        if (element) {
+          element.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }
+      }, 100);
+    }
+  }, [highlightId]);
 
   const handleRestockClick = (item: InventoryItem) => {
     setSelectedItem(item);
@@ -33,6 +50,13 @@ const InventoryTable: React.FC<InventoryTableProps> = ({
     if (onItemUpdated) {
       onItemUpdated();
     }
+  };
+
+  const toggleExpiryPopup = (itemId: string | number) => {
+    setExpiryPopup(prev => ({
+      itemId,
+      show: prev.itemId === itemId ? !prev.show : true
+    }));
   };
   return (
     <div className="overflow-x-auto">
@@ -67,12 +91,17 @@ const InventoryTable: React.FC<InventoryTableProps> = ({
             items.map((item) => {
               const status = getStockStatus(item)
               const priority = getStockPriority(item)
-              const itemId = item._id || item.id
+              const itemId = item._id || item.id || ''
+              const expiryStatus = getExpiryStatus(item.expiryDate)
+              const hasExpiry = isFoodCategory(item.category) && item.expiryDate
 
               return (
                 <tr
                   key={itemId}
-                  className={`${getPriorityClass(priority)} transition-colors hover:bg-opacity-75`}
+                  id={`inventory-item-${itemId}`}
+                  className={`${getPriorityClass(priority)} transition-colors hover:bg-opacity-75 ${
+                    highlightId === itemId ? 'ring-2 ring-blue-500 bg-blue-50' : ''
+                  }`}
                 >
                   <td className="px-4 py-4">
                     <div className="flex items-center">
@@ -87,7 +116,72 @@ const InventoryTable: React.FC<InventoryTableProps> = ({
                   </td>
 
                   <td className="px-4 py-4 font-mono text-gray-600">{item.sku}</td>
-                  <td className="px-4 py-4">{item.category}</td>
+                  <td className="px-4 py-4">
+                    <div>{item.category}</div>
+                    {isFoodCategory(item.category) && (
+                      <div className="relative">
+                        <button
+                          type="button"
+                          onClick={() => toggleExpiryPopup(itemId)}
+                          className="text-xs text-blue-600 flex items-center gap-1 mt-1 hover:text-blue-800 cursor-pointer"
+                        >
+                          <Calendar className="w-3 h-3" />
+                          Food Item - Click for expiry
+                        </button>
+                        
+                        {/* Expiry Popup */}
+                        {expiryPopup.show && expiryPopup.itemId === itemId && (
+                          <div className="absolute z-10 mt-1 bg-white border-2 border-blue-300 rounded-lg shadow-lg p-3 min-w-[250px]">
+                            <div className="flex justify-between items-start mb-2">
+                              <h4 className="font-semibold text-gray-800 text-sm">Expiry Information</h4>
+                              <button
+                                onClick={() => setExpiryPopup({ itemId: '', show: false })}
+                                className="text-gray-400 hover:text-gray-600"
+                              >
+                                <X className="w-4 h-4" />
+                              </button>
+                            </div>
+                            {item.expiryDate ? (
+                              <div className="space-y-2">
+                                <div>
+                                  <span className="text-xs text-gray-600">Expiry Date:</span>
+                                  <div className="text-sm font-medium text-gray-900">
+                                    {new Date(item.expiryDate).toLocaleDateString('en-US', {
+                                      year: 'numeric',
+                                      month: 'long',
+                                      day: 'numeric'
+                                    })}
+                                  </div>
+                                </div>
+                                <div>
+                                  <span className="text-xs text-gray-600">Status:</span>
+                                  <div>
+                                    <span className={`inline-block px-2 py-0.5 rounded-full text-xs font-medium border mt-1 ${getExpiryStatusClass(getExpiryStatus(item.expiryDate))}`}>
+                                      {getExpiryStatusText(item.expiryDate)}
+                                    </span>
+                                  </div>
+                                </div>
+                                {getExpiryStatus(item.expiryDate) === 'expiring-soon' && (
+                                  <div className="text-xs text-orange-600 bg-orange-50 p-2 rounded mt-2">
+                                    ⚠️ This item is expiring soon! Consider selling or using it quickly.
+                                  </div>
+                                )}
+                                {getExpiryStatus(item.expiryDate) === 'expired' && (
+                                  <div className="text-xs text-red-600 bg-red-50 p-2 rounded mt-2">
+                                    🚫 This item has expired! Do not sell or use.
+                                  </div>
+                                )}
+                              </div>
+                            ) : (
+                              <div className="text-sm text-gray-500">
+                                No expiry date set for this item.
+                              </div>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </td>
 
                   <td className="px-4 py-4">
                     <div className="font-medium">Rs {item.price.toFixed(2)}</div>

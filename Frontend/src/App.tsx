@@ -17,6 +17,7 @@ const Settings=lazy(()=>import('./Pages/Settings.tsx'));
 const TransactionHistory = lazy(() => import('./Pages/TransactionHistory.tsx'));
 const Billing=lazy(()=>import('./Pages/Billing.tsx') )
 const LowStock = lazy(() => import('./Pages/LowStock'));
+const ExpiryManagement = lazy(() => import('./Pages/ExpiryManagement.tsx'));
 const Suppliers = lazy(() => import('./Pages/Suppliers'));
 const Customers = lazy(() => import('./Pages/Customers.tsx'));
 const ReorderHistory = lazy(() => import('./Pages/ReorderHistory'));
@@ -158,6 +159,17 @@ export const App = () => {
                 <LowStock />
               ) : (
                 <Navigate to="/inventory" replace />
+              )
+            }
+          />
+
+          <Route
+            path="/expiry-management"
+            element={
+              isAuthenticated ? (
+                <ExpiryManagement />
+              ) : (
+                <Navigate to="/login" replace />
               )
             }
           />

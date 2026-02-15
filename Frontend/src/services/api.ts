@@ -236,6 +236,9 @@ export const notificationsAPI = {
   deleteAllRead: () => apiRequest<{ message: string; deletedCount: number }>('/notifications/read/all', {
     method: 'DELETE',
   }),
+  deleteAllExpiry: () => apiRequest<{ message: string; deletedFromTemp: number; deletedFromArchive: number; totalDeleted: number }>('/notifications/expiry/all', {
+    method: 'DELETE',
+  }),
 };
 
 // Notification Archive API (Settings Page - Permanent, all notifications)

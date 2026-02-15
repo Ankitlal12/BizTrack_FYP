@@ -11,6 +11,8 @@ interface SimpleRestockModalProps {
     sku: string;
     stock: number;
     cost: number;
+    supplier?: string;
+    preferredSupplierId?: string;
   };
   onClose: () => void;
   onSuccess: () => void;
@@ -38,6 +40,45 @@ const SimpleRestockModal: React.FC<SimpleRestockModalProps> = ({
   useEffect(() => {
     loadSuppliers();
   }, []);
+
+  useEffect(() => {
+    // Auto-select preferred supplier when suppliers are loaded
+    if (suppliers.length > 0 && !selectedSupplierId) {
+      if (item.preferredSupplierId) {
+        // Use preferredSupplierId if available
+        setSelectedSupplierId(item.preferredSupplierId);
+      } else if (item.supplier) {
+        // Otherwise, try to find supplier by name
+        const matchingSupplier = suppliers.find(
+          s => s.name.toLowerCase() === item.supplier?.toLowerCase()
+        );
+        if (matchingSupplier) {
+          setSelectedSupplierId(matchingSupplier._id);
+        } else {
+          // If no match found, select the first supplier
+          if (suppliers.length > 0) {
+            setSelectedSupplierId(suppliers[0]._id);
+          }
+        }
+      } else {
+        // No preferred supplier, select first one
+        if (suppliers.length > 0) {
+          setSelectedSupplierId(suppliers[0]._id);
+        }
+      }
+    }
+  }, [suppliers, item.preferredSupplierId, item.supplier]);
+
+  // Get the preferred supplier info
+  const preferredSupplier = suppliers.find(s => 
+    s._id === item.preferredSupplierId || 
+    s.name.toLowerCase() === item.supplier?.toLowerCase()
+  );
+
+  const isUsingPreferredSupplier = selectedSupplierId && (
+    selectedSupplierId === item.preferredSupplierId ||
+    suppliers.find(s => s._id === selectedSupplierId)?.name.toLowerCase() === item.supplier?.toLowerCase()
+  );
 
   const loadSuppliers = async () => {
     try {
@@ -139,6 +180,23 @@ const SimpleRestockModal: React.FC<SimpleRestockModalProps> = ({
 
         {/* Content */}
         <div className="p-6 space-y-4">
+          {/* Preferred Supplier Info */}
+          {preferredSupplier && (
+            <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
+              <div className="flex items-start gap-2">
+                <div className="text-blue-600 mt-0.5">ℹ️</div>
+                <div className="flex-1">
+                  <p className="text-sm font-medium text-blue-900">
+                    Original Supplier: {preferredSupplier.name}
+                  </p>
+                  <p className="text-xs text-blue-700 mt-1">
+                    This item was previously purchased from this supplier. Using the same supplier ensures consistency.
+                  </p>
+                </div>
+              </div>
+            </div>
+          )}
+
           <div className="bg-gray-50 rounded-lg p-3">
             <p className="text-sm text-gray-600">Current Stock: <span className="font-medium">{item.stock} units</span></p>
             <p className="text-sm text-gray-600">New Stock: <span className="font-medium text-green-600">{item.stock + quantity} units</span></p>
@@ -161,26 +219,42 @@ const SimpleRestockModal: React.FC<SimpleRestockModalProps> = ({
 
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">
-                Supplier
+                Supplier {preferredSupplier && <span className="text-xs text-gray-500">(Auto-selected)</span>}
               </label>
               {loadingSuppliers ? (
                 <div className="flex items-center justify-center py-4">
                   <div className="w-5 h-5 border-2 border-blue-500 border-t-transparent rounded-full animate-spin"></div>
                 </div>
               ) : (
-                <select
-                  value={selectedSupplierId}
-                  onChange={(e) => setSelectedSupplierId(e.target.value)}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                  required
-                >
-                  <option value="">Select a supplier</option>
-                  {suppliers.map((supplier) => (
-                    <option key={supplier._id} value={supplier._id}>
-                      {supplier.name}
-                    </option>
-                  ))}
-                </select>
+                <>
+                  <select
+                    value={selectedSupplierId}
+                    onChange={(e) => setSelectedSupplierId(e.target.value)}
+                    className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent ${
+                      isUsingPreferredSupplier ? 'border-green-300 bg-green-50' : 'border-gray-300'
+                    }`}
+                    required
+                  >
+                    <option value="">Select a supplier</option>
+                    {suppliers.map((supplier) => (
+                      <option key={supplier._id} value={supplier._id}>
+                        {supplier.name}
+                        {(supplier._id === item.preferredSupplierId || 
+                          supplier.name.toLowerCase() === item.supplier?.toLowerCase()) && ' ⭐ (Original)'}
+                      </option>
+                    ))}
+                  </select>
+                  {isUsingPreferredSupplier && (
+                    <p className="text-xs text-green-600 mt-1 flex items-center gap-1">
+                      ✓ Using original supplier - Recommended for consistency
+                    </p>
+                  )}
+                  {!isUsingPreferredSupplier && selectedSupplierId && preferredSupplier && (
+                    <p className="text-xs text-orange-600 mt-1 flex items-center gap-1">
+                      ⚠️ Different supplier selected - Original was {preferredSupplier.name}
+                    </p>
+                  )}
+                </>
               )}
             </div>
 

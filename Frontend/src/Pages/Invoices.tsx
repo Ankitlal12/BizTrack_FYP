@@ -181,12 +181,6 @@ const Invoices: React.FC = () => {
     setShowDetailsModal(true);
   };
 
-  // Handle edit invoice
-  const handleEditInvoice = (invoice: Invoice) => {
-    // TODO: Implement edit functionality
-    console.log('Edit invoice:', invoice);
-  };
-
   // Handle delete invoice
   const handleDeleteInvoice = async (invoice: Invoice) => {
     if (!confirm(`Are you sure you want to delete invoice ${invoice.invoiceNumber}?`)) {
@@ -284,51 +278,76 @@ const Invoices: React.FC = () => {
               invoices={invoices}
               highlightedInvoiceId={highlightInvoiceId ?? undefined}
               onViewInvoice={handleViewInvoice}
-              onEditInvoice={handleEditInvoice}
               onDeleteInvoice={handleDeleteInvoice}
               onUpdatePayment={handleUpdatePayment}
             />
 
             {/* Pagination */}
-            {pagination.pages > 1 && (
-              <div className="flex items-center justify-between mt-6">
-                <div className="text-sm text-gray-700">
-                  Showing {((pagination.current - 1) * filters.limit!) + 1} to{' '}
-                  {Math.min(pagination.current * filters.limit!, pagination.total)} of{' '}
-                  {pagination.total} results
+            {pagination.total > 0 && (
+              <div className="flex flex-col sm:flex-row items-center justify-between gap-4 mt-6 p-4 border-t">
+                <div className="flex items-center gap-4">
+                  <div className="text-sm text-gray-700">
+                    Showing {((pagination.current - 1) * filters.limit!) + 1} to{' '}
+                    {Math.min(pagination.current * filters.limit!, pagination.total)} of{' '}
+                    {pagination.total} results
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <label className="text-sm text-gray-600">Per page:</label>
+                    <select
+                      value={filters.limit}
+                      onChange={(e) => {
+                        const newLimit = parseInt(e.target.value)
+                        setFilters(prev => ({ ...prev, limit: newLimit, page: 1 }))
+                        setPagination(prev => ({
+                          ...prev,
+                          limit: newLimit,
+                          current: 1,
+                          pages: Math.ceil(prev.total / newLimit)
+                        }))
+                      }}
+                      className="px-2 py-1 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-blue-500"
+                    >
+                      <option value={10}>10</option>
+                      <option value={25}>25</option>
+                      <option value={50}>50</option>
+                      <option value={100}>100</option>
+                    </select>
+                  </div>
                 </div>
-                <div className="flex space-x-2">
-                  <button
-                    onClick={() => handlePageChange(pagination.current - 1)}
-                    disabled={pagination.current === 1}
-                    className="px-3 py-2 text-sm bg-gray-200 text-gray-700 rounded-md hover:bg-gray-300 disabled:opacity-50 disabled:cursor-not-allowed"
-                  >
-                    Previous
-                  </button>
-                  {[...Array(pagination.pages)].map((_, index) => {
-                    const page = index + 1;
-                    return (
-                      <button
-                        key={page}
-                        onClick={() => handlePageChange(page)}
-                        className={`px-3 py-2 text-sm rounded-md ${
-                          page === pagination.current
-                            ? 'bg-blue-600 text-white'
-                            : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
-                        }`}
-                      >
-                        {page}
-                      </button>
-                    );
-                  })}
-                  <button
-                    onClick={() => handlePageChange(pagination.current + 1)}
-                    disabled={pagination.current === pagination.pages}
-                    className="px-3 py-2 text-sm bg-gray-200 text-gray-700 rounded-md hover:bg-gray-300 disabled:opacity-50 disabled:cursor-not-allowed"
-                  >
-                    Next
-                  </button>
-                </div>
+                {pagination.pages > 1 && (
+                  <div className="flex space-x-2">
+                    <button
+                      onClick={() => handlePageChange(pagination.current - 1)}
+                      disabled={pagination.current === 1}
+                      className="px-3 py-2 text-sm bg-gray-200 text-gray-700 rounded-md hover:bg-gray-300 disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      Previous
+                    </button>
+                    {[...Array(pagination.pages)].map((_, index) => {
+                      const page = index + 1;
+                      return (
+                        <button
+                          key={page}
+                          onClick={() => handlePageChange(page)}
+                          className={`px-3 py-2 text-sm rounded-md ${
+                            page === pagination.current
+                              ? 'bg-blue-600 text-white'
+                              : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+                          }`}
+                        >
+                          {page}
+                        </button>
+                      );
+                    })}
+                    <button
+                      onClick={() => handlePageChange(pagination.current + 1)}
+                      disabled={pagination.current === pagination.pages}
+                      className="px-3 py-2 text-sm bg-gray-200 text-gray-700 rounded-md hover:bg-gray-300 disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      Next
+                    </button>
+                  </div>
+                )}
               </div>
             )}
           </>
@@ -339,7 +358,6 @@ const Invoices: React.FC = () => {
           invoice={highlightedInvoice || selectedInvoice}
           isOpen={showDetailsModal}
           onClose={handleCloseModals}
-          onEdit={handleEditInvoice}
           onUpdatePayment={handleUpdatePayment}
         />
 

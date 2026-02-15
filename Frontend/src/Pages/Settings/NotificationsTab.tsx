@@ -33,16 +33,24 @@ const NotificationsTab: React.FC = () => {
   const [unreadCount, setUnreadCount] = useState(0)
   const [isLoading, setIsLoading] = useState(false)
   const [isRefreshing, setIsRefreshing] = useState(false)
+  const [currentPage, setCurrentPage] = useState(1)
+  const [totalNotifications, setTotalNotifications] = useState(0)
+  const [itemsPerPage, setItemsPerPage] = useState(25)
 
   const loadNotifications = async () => {
     try {
       setIsLoading(true)
       const [notifs, count] = await Promise.all([
-        notificationArchiveAPI.getAll({ limit: 100 }),
+        notificationArchiveAPI.getAll({ 
+          limit: itemsPerPage,
+          skip: (currentPage - 1) * itemsPerPage 
+        }),
         notificationArchiveAPI.getUnreadCount(),
       ])
       setNotifications(notifs)
       setUnreadCount(count.count)
+      // Assuming the API returns total count - if not, we'll use notifications length
+      setTotalNotifications(notifs.length < itemsPerPage ? (currentPage - 1) * itemsPerPage + notifs.length : currentPage * itemsPerPage + 1)
     } catch (error: any) {
       console.error('Failed to load notifications:', error)
       toast.error('Failed to load notifications', {
@@ -56,7 +64,7 @@ const NotificationsTab: React.FC = () => {
 
   useEffect(() => {
     loadNotifications()
-  }, [])
+  }, [currentPage, itemsPerPage])
 
   const handleMarkAsRead = async (id: string) => {
     try {
@@ -119,6 +127,18 @@ const NotificationsTab: React.FC = () => {
   const handleRefresh = () => {
     setIsRefreshing(true)
     loadNotifications()
+  }
+
+  const totalPages = Math.ceil(totalNotifications / itemsPerPage)
+
+  const handlePageChange = (page: number) => {
+    setCurrentPage(page)
+    window.scrollTo({ top: 0, behavior: 'smooth' })
+  }
+
+  const handleItemsPerPageChange = (value: number) => {
+    setItemsPerPage(value)
+    setCurrentPage(1) // Reset to first page when changing items per page
   }
 
   const handleNotificationClick = async (notification: Notification) => {
@@ -429,6 +449,75 @@ const NotificationsTab: React.FC = () => {
             </div>
           )}
         </div>
+
+        {/* Pagination */}
+        {totalNotifications > 0 && (
+          <div className="mt-6 flex flex-col sm:flex-row items-center justify-between gap-4">
+            <div className="flex items-center gap-2">
+              <span className="text-sm text-gray-600">Per page:</span>
+              <select
+                value={itemsPerPage}
+                onChange={(e) => handleItemsPerPageChange(Number(e.target.value))}
+                className="px-3 py-1.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-teal-500"
+              >
+                <option value={10}>10</option>
+                <option value={25}>25</option>
+                <option value={50}>50</option>
+                <option value={100}>100</option>
+              </select>
+              <span className="text-sm text-gray-600">
+                Showing {Math.min((currentPage - 1) * itemsPerPage + 1, totalNotifications)} to{' '}
+                {Math.min(currentPage * itemsPerPage, totalNotifications)} of {totalNotifications}
+              </span>
+            </div>
+
+            {totalPages > 1 && (
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => handlePageChange(currentPage - 1)}
+                  disabled={currentPage === 1}
+                  className="px-3 py-1.5 border border-gray-300 rounded-lg text-sm hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  Previous
+                </button>
+                <div className="flex items-center gap-1">
+                  {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
+                    let pageNum
+                    if (totalPages <= 5) {
+                      pageNum = i + 1
+                    } else if (currentPage <= 3) {
+                      pageNum = i + 1
+                    } else if (currentPage >= totalPages - 2) {
+                      pageNum = totalPages - 4 + i
+                    } else {
+                      pageNum = currentPage - 2 + i
+                    }
+                    return (
+                      <button
+                        key={pageNum}
+                        onClick={() => handlePageChange(pageNum)}
+                        className={`px-3 py-1.5 border rounded-lg text-sm ${
+                          currentPage === pageNum
+                            ? 'bg-teal-600 text-white border-teal-600'
+                            : 'border-gray-300 hover:bg-gray-50'
+                        }`}
+                      >
+                        {pageNum}
+                      </button>
+                    )
+                  })}
+                </div>
+                <button
+                  onClick={() => handlePageChange(currentPage + 1)}
+                  disabled={currentPage === totalPages}
+                  className="px-3 py-1.5 border border-gray-300 rounded-lg text-sm hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  Next
+                </button>
+              </div>
+            )}
+          </div>
+        )}
       </div>
     </div>
   )

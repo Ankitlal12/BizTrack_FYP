@@ -129,22 +129,16 @@ const TransactionDetails: React.FC<Props> = ({ transaction }) => {
           </p>
         </div>
       )}
-      <div className="flex justify-end space-x-2">
-        <button className="bg-white border border-gray-300 text-gray-700 py-1 px-3 rounded text-sm hover:bg-gray-50">
-          Print
-        </button>
-        <button className="bg-white border border-gray-300 text-gray-700 py-1 px-3 rounded text-sm hover:bg-gray-50">
-          Export
-        </button>
-        {transaction.reference && (
+      {transaction.reference && (
+        <div className="flex justify-end">
           <button 
             onClick={handleViewInvoice}
             className="bg-teal-500 hover:bg-teal-600 text-white py-1 px-3 rounded text-sm"
           >
             View Invoice
           </button>
-        )}
-      </div>
+        </div>
+      )}
     </div>
   )
 }

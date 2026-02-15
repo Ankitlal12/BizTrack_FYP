@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
 import Layout from '../layout/Layout';
 import { reorderAPI } from '../services/api';
@@ -6,22 +7,21 @@ import { Reorder, ReorderFilters } from './LowStock/types';
 import { 
   RotateCcw, 
   Filter, 
-  Search, 
   Eye, 
   CheckCircle, 
   XCircle, 
   Clock,
   ShoppingCart,
   Package,
-  Calendar
+  FileText
 } from 'lucide-react';
 
 const ReorderHistory: React.FC = () => {
+  const navigate = useNavigate();
   const [reorders, setReorders] = useState<Reorder[]>([]);
   const [loading, setLoading] = useState(true);
   const [filters, setFilters] = useState<ReorderFilters>({});
   const [showFilters, setShowFilters] = useState(false);
-  const [searchTerm, setSearchTerm] = useState('');
   const [page, setPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
   const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set());
@@ -89,6 +89,29 @@ const ReorderHistory: React.FC = () => {
     } catch (error: any) {
       console.error('Error creating purchase order:', error);
       toast.error(error.message || 'Failed to create purchase order');
+    }
+  };
+
+  const handleViewInvoice = async (purchaseId: string) => {
+    try {
+      // Import the invoices API
+      const { invoicesAPI } = await import('../services/api');
+      
+      // Find the invoice for this purchase
+      const response = await invoicesAPI.getAll(`relatedId=${purchaseId}&type=purchase`);
+      
+      if (response.invoices && response.invoices.length > 0) {
+        const invoice = response.invoices[0];
+        // Navigate to the specific invoice detail page
+        navigate(`/invoices/${invoice._id}`);
+      } else {
+        toast.info('Invoice not found', {
+          description: 'No invoice found for this purchase order.'
+        });
+      }
+    } catch (error) {
+      console.error('Error finding invoice:', error);
+      toast.error('Failed to load invoice');
     }
   };
 
@@ -355,6 +378,13 @@ const ReorderHistory: React.FC = () => {
                                   {reorder.receivedQuantity && (
                                     <p><span className="text-gray-600">Received Qty:</span> {reorder.receivedQuantity}</p>
                                   )}
+                                  <button
+                                    onClick={() => reorder.purchaseOrderId?._id && handleViewInvoice(reorder.purchaseOrderId._id)}
+                                    className="mt-2 inline-flex items-center gap-2 px-3 py-1.5 text-sm bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors"
+                                  >
+                                    <FileText className="w-4 h-4" />
+                                    View Invoice
+                                  </button>
                                 </div>
                               </div>
                             )}

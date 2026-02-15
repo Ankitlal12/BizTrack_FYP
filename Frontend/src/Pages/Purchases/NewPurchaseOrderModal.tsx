@@ -30,6 +30,7 @@ const NewPurchaseOrderModal: React.FC<NewPurchaseOrderModalProps> = ({
       costPrice: 0,
       sellingPrice: 0,
       total: 0,
+      expiryDate: '',
     },
   ])
   const [notes, setNotes] = useState('')
@@ -61,8 +62,8 @@ const NewPurchaseOrderModal: React.FC<NewPurchaseOrderModalProps> = ({
     setSupplier(selected ? selected.name : '')
   }
 
-  // Common product categories
-  const categories = [
+  // Common product categories with food items
+  const [categories, setCategories] = useState([
     'Electronics',
     'Office Supplies',
     'Furniture',
@@ -72,8 +73,35 @@ const NewPurchaseOrderModal: React.FC<NewPurchaseOrderModalProps> = ({
     'Lighting',
     'Networking',
     'Software',
+    'Food & Beverages',
+    'Dairy Products',
+    'Fresh Produce',
+    'Frozen Foods',
+    'Bakery Items',
     'Other',
-  ]
+  ])
+  const [newCategory, setNewCategory] = useState('')
+  const [showAddCategory, setShowAddCategory] = useState(false)
+
+  const handleAddCategory = () => {
+    if (newCategory.trim() && !categories.includes(newCategory.trim())) {
+      setCategories([...categories.slice(0, -1), newCategory.trim(), 'Other'])
+      setNewCategory('')
+      setShowAddCategory(false)
+      toast.success(`Category "${newCategory.trim()}" added successfully`)
+    }
+  }
+
+  // Check if category is food-related
+  const isFoodCategory = (category: string) => {
+    const foodKeywords = [
+      'food', 'beverages', 'dairy', 'produce', 'frozen', 'bakery',
+      'meat', 'poultry', 'seafood', 'snacks', 'fresh'
+    ]
+    return category && foodKeywords.some(keyword => 
+      category.toLowerCase().includes(keyword.toLowerCase())
+    )
+  }
   if (!isOpen) return null
   const addItem = () => {
     const newItem = {
@@ -84,6 +112,7 @@ const NewPurchaseOrderModal: React.FC<NewPurchaseOrderModalProps> = ({
       costPrice: 0,
       sellingPrice: 0,
       total: 0,
+      expiryDate: '',
     }
     setItems([...items, newItem])
   }
@@ -152,6 +181,12 @@ const NewPurchaseOrderModal: React.FC<NewPurchaseOrderModalProps> = ({
         validationErrors[`item_${item.id}_sellingPrice`] = `Selling price (Rs ${item.sellingPrice}) cannot be less than cost price (Rs ${item.costPrice}) for ${item.name}`
         hasErrors = true
       }
+      
+      // Validate expiry date for food items
+      if (isFoodCategory(item.category) && !item.expiryDate) {
+        validationErrors[`item_${item.id}_expiryDate`] = `Expiry date is required for food item: ${item.name}`
+        hasErrors = true
+      }
     })
     
     const subtotal = calculateSubtotal()
@@ -164,6 +199,7 @@ const NewPurchaseOrderModal: React.FC<NewPurchaseOrderModalProps> = ({
     
     if (hasErrors) {
       setErrors(validationErrors)
+      toast.error('Please fix the validation errors before submitting')
       return
     }
     
@@ -176,6 +212,7 @@ const NewPurchaseOrderModal: React.FC<NewPurchaseOrderModalProps> = ({
         .toString()
         .padStart(3, '0')}`,
       supplierName: supplier,
+      supplierId: selectedSupplier?._id || null,
       supplierEmail: selectedSupplier?.email || '',
       supplierPhone: selectedSupplier?.phone || '',
       items: items.map((item) => ({
@@ -185,6 +222,7 @@ const NewPurchaseOrderModal: React.FC<NewPurchaseOrderModalProps> = ({
         cost: item.costPrice,
         sellingPrice: item.sellingPrice,
         total: item.total,
+        expiryDate: item.expiryDate || undefined,
       })),
       subtotal,
       tax: 0,
@@ -414,6 +452,49 @@ const NewPurchaseOrderModal: React.FC<NewPurchaseOrderModalProps> = ({
               </ul>
             </div>
           )}
+
+          {/* Add Category Modal */}
+          {showAddCategory && (
+            <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+              <div className="bg-white rounded-lg p-6 w-96">
+                <h3 className="text-lg font-semibold mb-4">Add New Category</h3>
+                <input
+                  type="text"
+                  className="w-full border border-gray-300 rounded-lg py-2 px-4 focus:outline-none focus:ring-2 focus:ring-teal-500 mb-4"
+                  placeholder="Enter category name"
+                  value={newCategory}
+                  onChange={(e) => setNewCategory(e.target.value)}
+                  onKeyPress={(e) => {
+                    if (e.key === 'Enter') {
+                      e.preventDefault()
+                      handleAddCategory()
+                    }
+                  }}
+                  autoFocus
+                />
+                <div className="flex gap-3">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowAddCategory(false)
+                      setNewCategory('')
+                    }}
+                    className="flex-1 px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleAddCategory}
+                    className="flex-1 px-4 py-2 bg-teal-500 text-white rounded-lg hover:bg-teal-600"
+                    disabled={!newCategory.trim()}
+                  >
+                    Add Category
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
           
           <div>
             <div className="flex justify-between items-center mb-2">
@@ -470,21 +551,35 @@ const NewPurchaseOrderModal: React.FC<NewPurchaseOrderModalProps> = ({
                         />
                       </td>
                       <td className="px-4 py-2">
-                        <select
-                          className="w-full border border-gray-300 rounded py-1 px-2 focus:outline-none focus:ring-1 focus:ring-teal-500"
-                          value={item.category}
-                          onChange={(e) =>
-                            updateItem(item.id, 'category', e.target.value)
-                          }
-                          required
-                        >
-                          <option value="">Select category</option>
-                          {categories.map((category) => (
-                            <option key={category} value={category}>
-                              {category}
+                        <div className="relative">
+                          <select
+                            className="w-full border border-gray-300 rounded py-1 px-2 focus:outline-none focus:ring-1 focus:ring-teal-500"
+                            value={item.category}
+                            onChange={(e) => {
+                              if (e.target.value === '__add_new__') {
+                                setShowAddCategory(true)
+                              } else {
+                                updateItem(item.id, 'category', e.target.value)
+                              }
+                            }}
+                            required
+                          >
+                            <option value="">Select category</option>
+                            {categories.map((category) => (
+                              <option key={category} value={category}>
+                                {category}
+                              </option>
+                            ))}
+                            <option value="__add_new__" className="text-teal-600 font-medium">
+                              + Add New Category
                             </option>
-                          ))}
-                        </select>
+                          </select>
+                        </div>
+                        {isFoodCategory(item.category) && (
+                          <div className="text-xs text-blue-600 mt-1 flex items-center gap-1">
+                            🍽️ Food item
+                          </div>
+                        )}
                       </td>
                       <td className="px-4 py-2">
                         <input
@@ -573,7 +668,61 @@ const NewPurchaseOrderModal: React.FC<NewPurchaseOrderModalProps> = ({
                 </tfoot>
               </table>
             </div>
+            
+            {/* Expiry Dates Section - Only show if there are food items */}
+            {items.some(item => isFoodCategory(item.category)) && (
+              <div className="mt-4 bg-yellow-50 border border-yellow-200 rounded-lg p-4">
+                <div className="flex items-center gap-2 mb-3">
+                  <span className="text-lg">🍽️</span>
+                  <h4 className="text-md font-semibold text-gray-800">Food Items - Expiry Dates Required</h4>
+                </div>
+                <div className="space-y-3">
+                  {items
+                    .filter(item => isFoodCategory(item.category))
+                    .map((item) => (
+                      <div key={item.id} className="bg-white rounded-lg p-3 border border-yellow-300">
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 items-center">
+                          <div>
+                            <label className="text-sm font-medium text-gray-700">Item Name</label>
+                            <div className="text-sm text-gray-900 font-medium mt-1">{item.name || 'Unnamed Item'}</div>
+                            <div className="text-xs text-gray-500">{item.category}</div>
+                          </div>
+                          <div>
+                            <label className="text-sm font-medium text-gray-700">Quantity</label>
+                            <div className="text-sm text-gray-900 mt-1">{item.quantity} units</div>
+                          </div>
+                          <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-1">
+                              Expiry Date <span className="text-red-500">*</span>
+                            </label>
+                            <input
+                              type="date"
+                              className={`w-full border ${errors[`item_${item.id}_expiryDate`] ? 'border-red-500' : 'border-gray-300'} rounded-lg py-2 px-3 focus:outline-none focus:ring-2 focus:ring-yellow-500`}
+                              value={item.expiryDate || ''}
+                              onChange={(e) =>
+                                updateItem(item.id, 'expiryDate', e.target.value)
+                              }
+                              min={new Date().toISOString().split('T')[0]}
+                              required
+                            />
+                            {errors[`item_${item.id}_expiryDate`] && (
+                              <div className="text-red-500 text-xs mt-1">
+                                Required
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                </div>
+                <div className="mt-3 text-xs text-gray-600 flex items-start gap-2">
+                  <span>ℹ️</span>
+                  <span>Expiry dates are required for all food items to ensure product freshness and safety.</span>
+                </div>
+              </div>
+            )}
           </div>
+          
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">
               Notes
