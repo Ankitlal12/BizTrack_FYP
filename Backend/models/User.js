@@ -45,6 +45,24 @@ const userSchema = new mongoose.Schema({
     type: Date,
     default: Date.now,
   },
+  // OTP fields for two-factor authentication
+  otp: {
+    code: {
+      type: String,
+    },
+    expiresAt: {
+      type: Date,
+    },
+    verified: {
+      type: Boolean,
+      default: false,
+    },
+  },
+  // Track if user has enabled 2FA
+  twoFactorEnabled: {
+    type: Boolean,
+    default: false,
+  },
 }, {
   timestamps: true,
 });

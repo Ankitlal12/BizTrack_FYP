@@ -546,3 +546,315 @@ exports.googleLogin = async (req, res) => {
     res.status(500).json({ error: err.message });
   }
 };
+
+// OTP Service imports
+const { 
+  generateOTP, 
+  getOTPExpiration, 
+  verifyOTP, 
+  sendOTPEmail 
+} = require("../utils/otpService");
+
+// Google Login with OTP (Step 1: Verify Google token and send OTP)
+exports.googleLoginWithOTP = async (req, res) => {
+  try {
+    const { credential } = req.body;
+
+    if (!credential) {
+      return res.status(400).json({ 
+        error: "Google credential is required" 
+      });
+    }
+
+    // Get Google Client ID from environment
+    const GOOGLE_CLIENT_ID = process.env.GOOGLE_CLIENT_ID || "905396434192-03aqn8vkab2knh33brep80bfvmh3ojik.apps.googleusercontent.com";
+    
+    // Verify the Google token
+    const client = new OAuth2Client(GOOGLE_CLIENT_ID);
+    
+    let ticket;
+    try {
+      ticket = await client.verifyIdToken({
+        idToken: credential,
+        audience: GOOGLE_CLIENT_ID,
+      });
+    } catch (verifyError) {
+      return res.status(401).json({ 
+        error: "Invalid Google token" 
+      });
+    }
+
+    const payload = ticket.getPayload();
+    const { sub: googleId, email, name, picture } = payload;
+
+    if (!email) {
+      return res.status(400).json({ 
+        error: "Email not provided by Google" 
+      });
+    }
+
+    // Check if user exists by email or googleId
+    let user = await User.findOne({
+      $or: [{ email }, { googleId }]
+    });
+
+    if (user) {
+      // Update user if they logged in with Google before but didn't have googleId
+      let updated = false;
+      if (!user.googleId) {
+        user.googleId = googleId;
+        updated = true;
+      }
+      if (picture && user.avatar !== picture) {
+        user.avatar = picture;
+        updated = true;
+      }
+      
+      // Check if user is active
+      if (!user.active) {
+        return res.status(401).json({ 
+          error: "Account is inactive. Please contact administrator." 
+        });
+      }
+
+      if (updated) {
+        await user.save();
+      }
+    } else {
+      // Create new user from Google account
+      const baseUsername = email.split('@')[0].toLowerCase().replace(/[^a-z0-9]/g, '');
+      let username = baseUsername || `user${Date.now()}`;
+      let counter = 1;
+      
+      // Ensure username is unique
+      while (await User.findOne({ username })) {
+        username = `${baseUsername}${counter}`;
+        counter++;
+        if (counter > 1000) {
+          username = `user${Date.now()}`;
+          break;
+        }
+      }
+
+      user = await User.create({
+        name: name || email.split('@')[0],
+        email,
+        username,
+        googleId,
+        avatar: picture,
+        role: 'owner',
+        active: true,
+        dateAdded: new Date(),
+        twoFactorEnabled: true, // Enable 2FA for new Google users
+      });
+    }
+
+    // Generate OTP
+    const otp = generateOTP();
+    const otpExpiration = getOTPExpiration();
+
+    // Save OTP to user
+    user.otp = {
+      code: otp,
+      expiresAt: otpExpiration,
+      verified: false,
+    };
+    await user.save();
+
+    // Send OTP via email
+    const emailResult = await sendOTPEmail(email, otp, name);
+
+    if (!emailResult.success) {
+      return res.status(500).json({ 
+        error: "Failed to send OTP. Please try again." 
+      });
+    }
+
+    // Return temporary session info (without full token)
+    res.json({
+      message: "OTP sent successfully",
+      requiresOTP: true,
+      userId: user._id,
+      email: user.email,
+      name: user.name,
+      expiresAt: otpExpiration,
+    });
+  } catch (err) {
+    console.error("Google login with OTP error:", err);
+    res.status(500).json({ error: err.message });
+  }
+};
+
+// Verify OTP and complete login (Step 2: Verify OTP)
+exports.verifyOTPAndLogin = async (req, res) => {
+  try {
+    const { userId, otp } = req.body;
+
+    if (!userId || !otp) {
+      return res.status(400).json({ 
+        error: "User ID and OTP are required" 
+      });
+    }
+
+    // Find user
+    const user = await User.findById(userId);
+
+    if (!user) {
+      return res.status(404).json({ 
+        error: "User not found" 
+      });
+    }
+
+    // Check if user is active
+    if (!user.active) {
+      return res.status(401).json({ 
+        error: "Account is inactive. Please contact administrator." 
+      });
+    }
+
+    // Verify OTP
+    const verification = verifyOTP(
+      user.otp?.code,
+      otp,
+      user.otp?.expiresAt
+    );
+
+    if (!verification.valid) {
+      return res.status(401).json({ 
+        error: verification.message 
+      });
+    }
+
+    // Mark OTP as verified and clear it
+    user.otp = {
+      code: null,
+      expiresAt: null,
+      verified: true,
+    };
+    await user.save();
+
+    // Record successful login
+    try {
+      await LoginHistory.create({
+        userId: user._id,
+        userName: user.name,
+        userRole: user.role,
+        ipAddress: req.ip || req.connection.remoteAddress,
+        userAgent: req.get('User-Agent'),
+        loginMethod: "google_otp",
+        success: true,
+        loginTime: getNepaliCurrentDateTime(),
+      });
+    } catch (historyError) {
+      console.error("Failed to record login history:", historyError);
+    }
+
+    // Generate JWT token
+    const token = generateToken(user);
+
+    // Return user without password and token
+    const userResponse = user.toObject();
+    delete userResponse.password;
+    delete userResponse.otp;
+
+    res.json({
+      user: userResponse,
+      token,
+      message: "Login successful",
+    });
+  } catch (err) {
+    console.error("OTP verification error:", err);
+    res.status(500).json({ error: err.message });
+  }
+};
+
+// Resend OTP
+exports.resendOTP = async (req, res) => {
+  try {
+    const { userId } = req.body;
+
+    if (!userId) {
+      return res.status(400).json({ 
+        error: "User ID is required" 
+      });
+    }
+
+    // Find user
+    const user = await User.findById(userId);
+
+    if (!user) {
+      return res.status(404).json({ 
+        error: "User not found" 
+      });
+    }
+
+    // Check if user is active
+    if (!user.active) {
+      return res.status(401).json({ 
+        error: "Account is inactive. Please contact administrator." 
+      });
+    }
+
+    // Generate new OTP
+    const otp = generateOTP();
+    const otpExpiration = getOTPExpiration();
+
+    // Save OTP to user
+    user.otp = {
+      code: otp,
+      expiresAt: otpExpiration,
+      verified: false,
+    };
+    await user.save();
+
+    // Send OTP via email
+    const emailResult = await sendOTPEmail(user.email, otp, user.name);
+
+    if (!emailResult.success) {
+      return res.status(500).json({ 
+        error: "Failed to send OTP. Please try again." 
+      });
+    }
+
+    res.json({
+      message: "OTP resent successfully",
+      expiresAt: otpExpiration,
+    });
+  } catch (err) {
+    console.error("Resend OTP error:", err);
+    res.status(500).json({ error: err.message });
+  }
+};
+
+// Toggle 2FA for user
+exports.toggle2FA = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { enabled } = req.body;
+
+    if (typeof enabled !== 'boolean') {
+      return res.status(400).json({ 
+        error: "Enabled status must be a boolean value" 
+      });
+    }
+
+    const user = await User.findByIdAndUpdate(
+      id,
+      { twoFactorEnabled: enabled },
+      { new: true }
+    ).select('-password -otp');
+
+    if (!user) {
+      return res.status(404).json({ error: "User not found" });
+    }
+
+    res.json({
+      message: `Two-factor authentication ${enabled ? 'enabled' : 'disabled'} successfully`,
+      user,
+    });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+};
+
+

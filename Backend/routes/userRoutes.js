@@ -6,6 +6,10 @@ const {
   updateUserStatus,
   getUserById,
   googleLogin,
+  googleLoginWithOTP,
+  verifyOTPAndLogin,
+  resendOTP,
+  toggle2FA,
   updateUser,
   deleteUser
 } = require("../controllers/userController");
@@ -17,8 +21,20 @@ router.post("/add", createUser);
 // Login
 router.post("/login", login);
 
-// Google Login
+// Google Login (without OTP)
 router.post("/google-login", googleLogin);
+
+// Google Login with OTP (Step 1: Send OTP)
+router.post("/google-login-otp", googleLoginWithOTP);
+
+// Verify OTP and complete login (Step 2: Verify OTP)
+router.post("/verify-otp", verifyOTPAndLogin);
+
+// Resend OTP
+router.post("/resend-otp", resendOTP);
+
+// Toggle 2FA for user
+router.put("/:id/toggle-2fa", toggle2FA);
 
 // Get all users
 router.get("/", getAllUsers);
