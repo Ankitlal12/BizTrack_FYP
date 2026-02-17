@@ -39,6 +39,8 @@ interface AuthContextType {
   login: (username: string, password: string) => Promise<boolean>
   googleLogin: (credential: string) => Promise<boolean>
   logout: () => void
+  setUser: (user: User | null) => void
+  setIsAuthenticated: (isAuthenticated: boolean) => void
   addStaffMember: (staff: Omit<StaffMember, 'id'>) => Promise<StaffMember>
   toggleStaffStatus: (id: string) => Promise<void>
   updateStaffMember: (id: string, data: { username?: string; password?: string }) => Promise<StaffMember>
@@ -56,6 +58,8 @@ const AuthContext = createContext<AuthContextType>({
   login: async () => false,
   googleLogin: async () => false,
   logout: () => {},
+  setUser: () => {},
+  setIsAuthenticated: () => {},
   addStaffMember: async () => ({ id: '', name: '', email: '', username: '', role: 'staff', active: true, dateAdded: '' }),
   toggleStaffStatus: async () => {},
   updateStaffMember: async () => ({ id: '', name: '', email: '', username: '', role: 'staff', active: true, dateAdded: '' }),
@@ -454,6 +458,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       login,
       googleLogin,
       logout,
+      setUser,
+      setIsAuthenticated,
       addStaffMember,
       toggleStaffStatus,
       updateStaffMember,

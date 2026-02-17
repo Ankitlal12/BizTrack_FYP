@@ -39,6 +39,7 @@ const Sidebar = memo(() => {
   const [mobileOpen, setMobileOpen] = useState(false)
   const [lowStockCount, setLowStockCount] = useState(0)
   const [openGroups, setOpenGroups] = useState<string[]>([])
+  const [hoveredGroups, setHoveredGroups] = useState<string[]>([])
   const { user } = useAuth()
 
   // Load low stock count for owner and manager
@@ -66,6 +67,20 @@ const Sidebar = memo(() => {
         ? prev.filter(g => g !== groupName)
         : [...prev, groupName]
     )
+  }
+
+  const handleGroupHover = (groupName: string, isHovering: boolean) => {
+    setHoveredGroups(prev => {
+      if (isHovering) {
+        return prev.includes(groupName) ? prev : [...prev, groupName]
+      } else {
+        return prev.filter(g => g !== groupName)
+      }
+    })
+  }
+
+  const isGroupOpen = (groupName: string) => {
+    return openGroups.includes(groupName) || hoveredGroups.includes(groupName)
   }
 
   const navStructure = useMemo(() => {
@@ -275,13 +290,15 @@ const Sidebar = memo(() => {
                 // Check if it's a group
                 if ('items' in item) {
                   const group = item as NavGroup
-                  const isOpen = openGroups.includes(group.name)
+                  const isOpen = isGroupOpen(group.name)
                   
                   return (
                     <li key={group.name}>
                       {/* Group Header */}
                       <button
                         onClick={() => toggleGroup(group.name)}
+                        onMouseEnter={() => handleGroupHover(group.name, true)}
+                        onMouseLeave={() => handleGroupHover(group.name, false)}
                         className={`w-full flex items-center ${collapsed ? 'justify-center' : 'px-6'} py-3 text-gray-600 hover:bg-gray-100 transition-colors duration-200`}
                       >
                         <span className="inline-flex">{group.icon}</span>
@@ -299,7 +316,11 @@ const Sidebar = memo(() => {
                       
                       {/* Group Items */}
                       {!collapsed && isOpen && (
-                        <ul className="bg-gray-50">
+                        <ul 
+                          className="bg-gray-50"
+                          onMouseEnter={() => handleGroupHover(group.name, true)}
+                          onMouseLeave={() => handleGroupHover(group.name, false)}
+                        >
                           {group.items.map(subItem => (
                             <li key={subItem.path}>
                               <NavLink

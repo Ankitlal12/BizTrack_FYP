@@ -192,6 +192,22 @@ export const usersAPI = {
     method: 'POST',
     body: JSON.stringify({ credential }),
   }),
+  googleLoginWithOTP: (credential: string) => apiRequest<any>('/users/google-login-otp', {
+    method: 'POST',
+    body: JSON.stringify({ credential }),
+  }),
+  verifyOTP: (userId: string, otp: string) => apiRequest<any>('/users/verify-otp', {
+    method: 'POST',
+    body: JSON.stringify({ userId, otp }),
+  }),
+  resendOTP: (userId: string) => apiRequest<any>('/users/resend-otp', {
+    method: 'POST',
+    body: JSON.stringify({ userId }),
+  }),
+  toggle2FA: (id: string, enabled: boolean) => apiRequest<any>(`/users/${id}/toggle-2fa`, {
+    method: 'PUT',
+    body: JSON.stringify({ enabled }),
+  }),
   updateStatus: (id: string, active: boolean) => apiRequest<any>(`/users/${id}/status`, {
     method: 'PUT',
     body: JSON.stringify({ active }),

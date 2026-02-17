@@ -2,16 +2,32 @@ import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { CiLock, CiUser } from "react-icons/ci";
+import { Eye, EyeOff } from "lucide-react";
 import { GoogleLogin } from '@react-oauth/google';
+import OTPVerification from '../components/OTPVerification';
+import { usersAPI, tokenManager } from '../services/api';
+import { toast } from 'sonner';
 
 
 const Login = () => {
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [isGoogleLoading, setIsGoogleLoading] = useState(false);
-  const { login, googleLogin } = useAuth();
+  
+  // OTP state
+  const [showOTP, setShowOTP] = useState(false);
+  const [otpData, setOtpData] = useState<{
+    userId: string;
+    email: string;
+    name: string;
+    expiresAt: string;
+  } | null>(null);
+  const [isVerifying, setIsVerifying] = useState(false);
+  
+  const { login, setUser, setIsAuthenticated } = useAuth();
   const navigate = useNavigate();
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -33,10 +49,105 @@ const Login = () => {
     }
   };
 
-  const handleForgotPassword = (e: React.MouseEvent) => {
-    e.preventDefault();
-    alert('Password reset feature coming soon!');
+  const handleGoogleLoginWithOTP = async (credential: string) => {
+    setIsGoogleLoading(true);
+    setError('');
+    
+    try {
+      const response = await usersAPI.googleLoginWithOTP(credential);
+      
+      if (response.requiresOTP) {
+        // Show OTP screen
+        setOtpData({
+          userId: response.userId,
+          email: response.email,
+          name: response.name,
+          expiresAt: response.expiresAt,
+        });
+        setShowOTP(true);
+        toast.success('OTP sent to your email');
+      }
+    } catch (err: any) {
+      console.error("Google login error:", err);
+      setError(err.message || 'Google authentication failed. Please try again.');
+      toast.error(err.message || 'Failed to send OTP');
+    } finally {
+      setIsGoogleLoading(false);
+    }
   };
+
+  const handleVerifyOTP = async (otp: string) => {
+    if (!otpData) return;
+    
+    setIsVerifying(true);
+    
+    try {
+      const response = await usersAPI.verifyOTP(otpData.userId, otp);
+      
+      // Save token and user data
+      tokenManager.setToken(response.token);
+      
+      // Convert user data to proper format
+      const userObj = {
+        id: response.user._id || response.user.id,
+        name: response.user.name,
+        email: response.user.email,
+        role: response.user.role,
+        avatar: response.user.avatar,
+      };
+      
+      setUser(userObj);
+      setIsAuthenticated(true);
+      localStorage.setItem('biztrack_user', JSON.stringify(userObj));
+      
+      toast.success('Login successful!');
+      navigate('/', { replace: true });
+    } catch (err: any) {
+      console.error("OTP verification error:", err);
+      toast.error(err.message || 'Invalid OTP. Please try again.');
+      throw err; // Re-throw to prevent OTP component from clearing
+    } finally {
+      setIsVerifying(false);
+    }
+  };
+
+  const handleResendOTP = async () => {
+    if (!otpData) return;
+    
+    try {
+      const response = await usersAPI.resendOTP(otpData.userId);
+      setOtpData({
+        ...otpData,
+        expiresAt: response.expiresAt,
+      });
+    } catch (err: any) {
+      console.error("Resend OTP error:", err);
+      toast.error(err.message || 'Failed to resend OTP');
+      throw err;
+    }
+  };
+
+  const handleBackToLoginFromOTP = () => {
+    setShowOTP(false);
+    setOtpData(null);
+    setError('');
+  };
+
+  // Show OTP verification screen
+  if (showOTP && otpData) {
+    return (
+      <OTPVerification
+        userId={otpData.userId}
+        email={otpData.email}
+        name={otpData.name}
+        expiresAt={otpData.expiresAt}
+        onVerify={handleVerifyOTP}
+        onResend={handleResendOTP}
+        onBack={handleBackToLoginFromOTP}
+        isVerifying={isVerifying}
+      />
+    );
+  }
 
   return (
     <div className="relative min-h-screen flex items-center justify-center bg-gradient-to-br from-white via-gray-50 to-teal-50 overflow-hidden">
@@ -98,19 +209,31 @@ const Login = () => {
               <CiLock className="absolute left-3 top-3.5 text-gray-400 text-lg" />
               <input
                 id="password"
-                type="password"
+                type={showPassword ? "text" : "password"}
                 required
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 placeholder="Enter your password"
-                className="pl-10 w-full border border-gray-200 rounded-xl py-3 
+                className="pl-10 pr-10 w-full border border-gray-200 rounded-xl py-3 
                   focus:ring-2 focus:ring-teal-500 focus:border-teal-500 
                   outline-none transition-all text-gray-800 placeholder-gray-400"
               />
+              <button
+                type="button"
+                onClick={() => setShowPassword(!showPassword)}
+                className="absolute right-3 top-3.5 text-gray-400 hover:text-gray-600 transition-colors"
+                tabIndex={-1}
+              >
+                {showPassword ? (
+                  <EyeOff className="w-5 h-5" />
+                ) : (
+                  <Eye className="w-5 h-5" />
+                )}
+              </button>
             </div>
           </div>
 
-          {/* Remember + Forgot */}
+          {/* Remember + Help */}
           <div className="flex items-center justify-between text-sm">
             <label className="flex items-center text-gray-700">
               <input
@@ -120,12 +243,9 @@ const Login = () => {
               <span className="ml-2">Remember me</span>
             </label>
 
-            <button
-              onClick={handleForgotPassword}
-              className="text-teal-600 hover:text-teal-500 font-medium transition-colors"
-            >
-              Forgot password?
-            </button>
+            <span className="text-gray-500 text-xs">
+              Forgot password? Contact admin
+            </span>
           </div>
 
           {/* Submit Button */}
@@ -140,30 +260,35 @@ const Login = () => {
           </button>
         </form>
 
+        {/* Divider */}
+        <div className="relative my-6">
+          <div className="absolute inset-0 flex items-center">
+            <div className="w-full border-t border-gray-200"></div>
+          </div>
+          <div className="relative flex justify-center text-sm">
+            <span className="px-4 bg-white text-gray-500">Or continue with</span>
+          </div>
+        </div>
+
         {/* Google Login */}
-        <div className="mt-6 flex justify-center">
-          <GoogleLogin
-            onSuccess={async (response) => {
-              if (response.credential) {
-                setIsGoogleLoading(true);
-                setError('');
-                try {
-                  const success = await googleLogin(response.credential);
-                  if (!success) {
-                    setError('Google authentication failed. Please try again.');
-                  }
-                } catch (err) {
-                  console.error("Google login error:", err);
-                  setError('An error occurred during Google authentication.');
-                } finally {
-                  setIsGoogleLoading(false);
+        <div className="flex justify-center">
+          {isGoogleLoading ? (
+            <div className="flex items-center gap-2 text-gray-600">
+              <div className="w-5 h-5 border-2 border-teal-600 border-t-transparent rounded-full animate-spin"></div>
+              <span>Authenticating...</span>
+            </div>
+          ) : (
+            <GoogleLogin
+              onSuccess={async (response) => {
+                if (response.credential) {
+                  await handleGoogleLoginWithOTP(response.credential);
                 }
-              }
-            }}
-            onError={() => {
-              setError('Google login was cancelled or failed.');
-            }}
-          />
+              }}
+              onError={() => {
+                setError('Google login was cancelled or failed.');
+              }}
+            />
+          )}
         </div>
 
         {/* Footer */}
