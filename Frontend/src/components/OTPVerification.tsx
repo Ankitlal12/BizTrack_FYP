@@ -148,7 +148,7 @@ const OTPVerification: React.FC<OTPVerificationProps> = ({
             {otp.map((digit, index) => (
               <input
                 key={index}
-                ref={(el) => (inputRefs.current[index] = el)}
+                ref={(el) => { inputRefs.current[index] = el; }}
                 type="text"
                 inputMode="numeric"
                 maxLength={1}
@@ -157,6 +157,8 @@ const OTPVerification: React.FC<OTPVerificationProps> = ({
                 onKeyDown={(e) => handleKeyDown(index, e)}
                 onPaste={handlePaste}
                 disabled={isVerifying}
+                aria-label={`Enter digit ${index + 1} of OTP code`}
+                title={`Digit ${index + 1} of 6-digit OTP code`}
                 className={`w-12 h-14 text-center text-2xl font-bold border-2 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-500 transition-all ${
                   digit
                     ? 'border-teal-500 bg-teal-50'

@@ -21,6 +21,7 @@ const ExpiryManagement = lazy(() => import('./Pages/ExpiryManagement.tsx'));
 const Suppliers = lazy(() => import('./Pages/Suppliers'));
 const Customers = lazy(() => import('./Pages/Customers.tsx'));
 const ReorderHistory = lazy(() => import('./Pages/ReorderHistory'));
+const StockList = lazy(() => import('./Pages/StockList'));
 
 const PageLoader = () => (
   <div className="flex h-screen items-center justify-center bg-gray-50">
@@ -203,6 +204,17 @@ export const App = () => {
                 <ReorderHistory />
               ) : (
                 <Navigate to="/login" replace />
+              )
+            }
+          />
+
+          <Route
+            path="/stock-list"
+            element={
+              isAuthenticated && user?.role === 'owner' ? (
+                <StockList />
+              ) : (
+                <Navigate to="/inventory" replace />
               )
             }
           />

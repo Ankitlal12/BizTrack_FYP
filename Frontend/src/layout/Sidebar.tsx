@@ -108,6 +108,11 @@ const Sidebar = memo(() => {
         name: 'Stock Control',
         icon: <AlertTriangle size={20} />,
         items: [
+          ...(user?.role === 'owner' ? [{
+            name: 'Stock List',
+            path: '/stock-list',
+            icon: <FiFileText size={18} />,
+          }] : []),
           {
             name: 'Low Stock',
             path: '/low-stock',

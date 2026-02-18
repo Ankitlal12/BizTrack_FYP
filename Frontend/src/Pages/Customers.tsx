@@ -139,15 +139,21 @@ const Customers: React.FC = () => {
         <div className="flex justify-between items-center">
           <div>
             <h1 className="text-2xl font-bold text-gray-900">Customers</h1>
-            <p className="text-gray-600">Manage your customer relationships and purchase history</p>
+            <p className="text-gray-600">
+              {user?.role === 'manager' 
+                ? 'View customer contact information' 
+                : 'Manage your customer relationships and purchase history'}
+            </p>
           </div>
-          <button
-            onClick={handleCreateCustomer}
-            className="flex items-center gap-2 px-4 py-2 bg-teal-600 text-white rounded-lg hover:bg-teal-700"
-          >
-            <Plus className="w-4 h-4" />
-            New Customer
-          </button>
+          {user?.role === 'owner' && (
+            <button
+              onClick={handleCreateCustomer}
+              className="flex items-center gap-2 px-4 py-2 bg-teal-600 text-white rounded-lg hover:bg-teal-700"
+            >
+              <Plus className="w-4 h-4" />
+              New Customer
+            </button>
+          )}
         </div>
 
         <div className="bg-white p-4 rounded-lg shadow-sm border">
@@ -164,6 +170,7 @@ const Customers: React.FC = () => {
             </div>
 
             <select
+              aria-label="Filter customers by status"
               value={filters.isActive === undefined ? 'all' : filters.isActive.toString()}
               onChange={(e) => {
                 const value = e.target.value;
@@ -229,22 +236,26 @@ const Customers: React.FC = () => {
                 </div>
 
                 <div className="flex gap-2">
-                  <button
-                    onClick={() => handleViewPurchaseHistory(customer)}
-                    className="flex-1 flex items-center justify-center gap-2 px-3 py-2 bg-teal-50 border border-teal-200 text-teal-700 rounded-lg hover:bg-teal-100"
-                    title="View Purchase History"
-                  >
-                    <Receipt className="w-4 h-4" />
-                    History
-                  </button>
-                  <button
-                    onClick={() => handleEditCustomer(customer)}
-                    className="flex items-center justify-center gap-2 px-3 py-2 border border-gray-300 rounded-lg hover:bg-gray-50"
-                    title="Edit"
-                  >
-                    <Edit className="w-4 h-4" />
-                  </button>
-                  {customer.isActive && (
+                  {user?.role === 'owner' && (
+                    <button
+                      onClick={() => handleViewPurchaseHistory(customer)}
+                      className="flex-1 flex items-center justify-center gap-2 px-3 py-2 bg-teal-50 border border-teal-200 text-teal-700 rounded-lg hover:bg-teal-100"
+                      title="View Purchase History"
+                    >
+                      <Receipt className="w-4 h-4" />
+                      History
+                    </button>
+                  )}
+                  {user?.role === 'owner' && (
+                    <button
+                      onClick={() => handleEditCustomer(customer)}
+                      className="flex items-center justify-center gap-2 px-3 py-2 border border-gray-300 rounded-lg hover:bg-gray-50"
+                      title="Edit"
+                    >
+                      <Edit className="w-4 h-4" />
+                    </button>
+                  )}
+                  {user?.role === 'owner' && customer.isActive && (
                     <button
                       onClick={() => handleDeactivateCustomer(customer)}
                       className="flex items-center justify-center gap-2 px-3 py-2 border border-red-300 text-red-600 rounded-lg hover:bg-red-50"
@@ -252,6 +263,11 @@ const Customers: React.FC = () => {
                     >
                       <UserX className="w-4 h-4" />
                     </button>
+                  )}
+                  {user?.role === 'manager' && (
+                    <div className="flex-1 text-center text-sm text-gray-500 py-2">
+                      View only
+                    </div>
                   )}
                 </div>
               </div>
