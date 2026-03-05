@@ -322,6 +322,16 @@ export const billingAPI = {
     return apiRequest<any[]>(`/billing/bills${query ? `?${query}` : ''}`);
   },
   getBillById: (id: string) => apiRequest<any>(`/billing/bills/${id}`),
+  
+  // Khalti payment endpoints
+  initiateKhaltiPayment: (data: any) => apiRequest<any>('/billing/khalti/initiate', {
+    method: 'POST',
+    body: JSON.stringify(data),
+  }),
+  verifyKhaltiPayment: (pidx: string) => apiRequest<any>('/billing/khalti/verify', {
+    method: 'POST',
+    body: JSON.stringify({ pidx }),
+  }),
 };
 
 // Export token management functions

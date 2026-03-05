@@ -253,7 +253,15 @@ export const useBilling = () => {
     if (!validateSale()) {
       return
     }
-    // Start processing
+    
+    // Check if Khalti payment is selected
+    if (paymentMethod === 'khalti') {
+      // Initiate Khalti payment
+      await handleKhaltiPayment();
+      return;
+    }
+    
+    // Start processing for non-Khalti payments
     setIsProcessing(true)
     try {
       // Prepare bill data for API
@@ -346,6 +354,65 @@ export const useBilling = () => {
       })
     } finally {
       setIsProcessing(false)
+    }
+  }
+
+  const handleKhaltiPayment = async () => {
+    setIsProcessing(true);
+    try {
+      // Prepare Khalti payment data
+      const khaltiData = {
+        customerId: typeof selectedCustomer?.id === 'string' ? selectedCustomer.id : undefined,
+        customer: selectedCustomer
+          ? {
+              name: selectedCustomer.name,
+              email: selectedCustomer.email,
+              phone: selectedCustomer.phone,
+            }
+          : undefined,
+        items: cartItems.map((item) => ({
+          id: item.id,
+          name: item.name,
+          quantity: item.quantity,
+          price: item.price,
+          total: item.total,
+        })),
+        total,
+      };
+
+      // Initiate Khalti payment
+      const khaltiResponse = await billingAPI.initiateKhaltiPayment(khaltiData);
+
+      // Store sale data temporarily in localStorage for after payment
+      const tempSaleData = {
+        customerId: khaltiData.customerId,
+        customer: khaltiData.customer,
+        items: khaltiData.items,
+        subtotal,
+        tax,
+        discount: 0,
+        total,
+        paymentMethod: 'khalti',
+        paidAmount: total, // Full amount for Khalti
+        notes,
+        khaltiPidx: khaltiResponse.pidx,
+        purchaseOrderId: khaltiResponse.purchaseOrderId,
+      };
+      
+      localStorage.setItem('biztrack_pending_sale', JSON.stringify(tempSaleData));
+
+      // Redirect to Khalti payment page
+      window.location.href = khaltiResponse.payment_url;
+    } catch (error: any) {
+      console.error('Error initiating Khalti payment:', error);
+      const errorMessage = error.message || 'Failed to initiate Khalti payment';
+      setValidationErrors({
+        general: errorMessage,
+      });
+      toast.error('Khalti Payment Failed', {
+        description: errorMessage,
+      });
+      setIsProcessing(false);
     }
   }
 

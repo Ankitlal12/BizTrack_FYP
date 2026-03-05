@@ -16,6 +16,7 @@ const Sales=lazy(()=>import('./Pages/Sales.tsx'));
 const Settings=lazy(()=>import('./Pages/Settings.tsx'));
 const TransactionHistory = lazy(() => import('./Pages/TransactionHistory.tsx'));
 const Billing=lazy(()=>import('./Pages/Billing.tsx') )
+const KhaltiPaymentSuccess = lazy(() => import('./Pages/KhaltiPaymentSuccess'));
 const LowStock = lazy(() => import('./Pages/LowStock'));
 const ExpiryManagement = lazy(() => import('./Pages/ExpiryManagement.tsx'));
 const Suppliers = lazy(() => import('./Pages/Suppliers'));
@@ -224,6 +225,17 @@ export const App = () => {
             element={
               isAuthenticated ? (
                 <Billing />
+              ) : (
+                <Navigate to="/login" replace />
+              )
+            }
+          />
+
+          <Route
+            path="/billing/payment-success"
+            element={
+              isAuthenticated ? (
+                <KhaltiPaymentSuccess />
               ) : (
                 <Navigate to="/login" replace />
               )

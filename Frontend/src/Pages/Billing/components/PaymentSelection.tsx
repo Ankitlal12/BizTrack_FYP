@@ -59,6 +59,7 @@ const PaymentSection: React.FC<PaymentSectionProps> = ({
           <option value="cash">Cash</option>
           <option value="card">Credit/Debit Card</option>
           <option value="bank_transfer">Bank Transfer</option>
+          <option value="khalti">Khalti (Digital Wallet)</option>
           <option value="other">Other</option>
         </select>
         {validationErrors.payment && (
