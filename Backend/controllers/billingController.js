@@ -268,6 +268,7 @@ exports.createBill = async (req, res) => {
       paymentMethod,
       paidAmount,
       notes,
+      khaltiPayment, // New field for Khalti payment
     } = req.body;
 
     // Validate required fields
@@ -381,6 +382,15 @@ exports.createBill = async (req, res) => {
         role: req.user?.role || "staff",
       },
     };
+
+    // Add Khalti payment information if provided
+    if (khaltiPayment) {
+      saleData.khaltiPayment = {
+        pidx: khaltiPayment.pidx,
+        transactionId: khaltiPayment.transactionId,
+        status: khaltiPayment.status,
+      };
+    }
 
     // If there's a payment, add it to the payments array
     if (actualPaidAmount > 0) {
@@ -502,3 +512,131 @@ exports.getBillById = async (req, res) => {
 
 
 
+
+
+// ==================== KHALTI PAYMENT ENDPOINTS ====================
+
+const { initiateKhaltiPayment, verifyKhaltiPayment } = require("../utils/khaltiService");
+
+// Initiate Khalti payment for a bill
+exports.initiateKhaltiPayment = async (req, res) => {
+  try {
+    const {
+      customerId,
+      customer,
+      items,
+      total,
+      invoiceNumber,
+    } = req.body;
+
+    // Validate required fields
+    if (!items || items.length === 0) {
+      return res.status(400).json({ error: "Items are required" });
+    }
+
+    if (!total || total <= 0) {
+      return res.status(400).json({ error: "Total must be greater than 0" });
+    }
+
+    // Get customer information
+    let customerInfo = {};
+    if (customerId) {
+      const customerDoc = await Customer.findById(customerId);
+      if (!customerDoc) {
+        return res.status(404).json({ error: "Customer not found" });
+      }
+      customerInfo = {
+        name: customerDoc.name,
+        email: customerDoc.email || '',
+        phone: customerDoc.phone,
+      };
+    } else if (customer) {
+      customerInfo = {
+        name: customer.name,
+        email: customer.email || '',
+        phone: customer.phone || '',
+      };
+    } else {
+      return res.status(400).json({ error: "Customer information is required" });
+    }
+
+    // Validate customer phone
+    if (!customerInfo.phone) {
+      return res.status(400).json({ error: "Customer phone number is required for Khalti payment" });
+    }
+
+    // Generate purchase order ID (use invoice number or generate new one)
+    const purchaseOrderId = invoiceNumber || `ORD-${Date.now().toString().slice(-8)}`;
+
+    // Prepare product details for Khalti
+    const productDetails = items.map(item => ({
+      id: item.id,
+      name: item.name,
+      total_price: item.total || (item.quantity * item.price),
+      quantity: item.quantity,
+      unit_price: item.price,
+    }));
+
+    // Initiate Khalti payment
+    const paymentData = {
+      amount: total,
+      purchaseOrderId,
+      purchaseOrderName: `BizTrack Invoice ${purchaseOrderId}`,
+      customerInfo,
+      productDetails,
+    };
+
+    const khaltiResponse = await initiateKhaltiPayment(paymentData);
+
+    res.json({
+      success: true,
+      pidx: khaltiResponse.pidx,
+      payment_url: khaltiResponse.payment_url,
+      expires_at: khaltiResponse.expires_at,
+      expires_in: khaltiResponse.expires_in,
+      purchaseOrderId,
+    });
+  } catch (err) {
+    console.error("Khalti payment initiation error:", err);
+    res.status(500).json({ 
+      error: err.message || "Failed to initiate Khalti payment" 
+    });
+  }
+};
+
+// Verify Khalti payment and complete the sale
+exports.verifyKhaltiPayment = async (req, res) => {
+  try {
+    const { pidx } = req.body;
+
+    if (!pidx) {
+      return res.status(400).json({ error: "Payment identifier (pidx) is required" });
+    }
+
+    // Verify payment with Khalti
+    const verificationResult = await verifyKhaltiPayment(pidx);
+
+    if (!verificationResult.isCompleted) {
+      return res.status(400).json({
+        error: verificationResult.message,
+        status: verificationResult.status,
+        details: verificationResult,
+      });
+    }
+
+    // Payment is successful
+    res.json({
+      success: true,
+      message: "Payment verified successfully",
+      pidx: verificationResult.pidx,
+      transaction_id: verificationResult.transaction_id,
+      total_amount: verificationResult.total_amount,
+      status: verificationResult.status,
+    });
+  } catch (err) {
+    console.error("Khalti payment verification error:", err);
+    res.status(500).json({ 
+      error: err.message || "Failed to verify Khalti payment" 
+    });
+  }
+};

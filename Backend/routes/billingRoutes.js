@@ -14,6 +14,9 @@ const {
   createBill,
   getAllBills,
   getBillById,
+  // Khalti payment endpoints
+  initiateKhaltiPayment,
+  verifyKhaltiPayment,
 } = require("../controllers/billingController");
 const router = express.Router();
 
@@ -35,6 +38,10 @@ router.get("/products/:id", getBillingProductById);
 router.post("/bills", createBill);
 router.get("/bills", getAllBills);
 router.get("/bills/:id", getBillById);
+
+// Khalti payment routes
+router.post("/khalti/initiate", initiateKhaltiPayment);
+router.post("/khalti/verify", verifyKhaltiPayment);
 
 module.exports = router;
 
