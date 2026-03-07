@@ -7,6 +7,7 @@ const {
   updateCustomer,
   deleteCustomer,
   getCustomerPurchaseHistory,
+  getCustomerRetentionAnalytics,
 } = require("../controllers/customerController");
 
 const router = express.Router();
@@ -23,5 +24,8 @@ router.delete("/:id", deleteCustomer);
 
 // Customer purchase history and payments
 router.get("/:id/purchase-history", getCustomerPurchaseHistory);
+
+// Customer retention analytics
+router.get("/analytics/retention", getCustomerRetentionAnalytics);
 
 module.exports = router;

@@ -320,7 +320,9 @@ exports.recordPayment = async (req, res) => {
     }
 
     const currentPaidAmount = sale.paidAmount || 0;
-    const remainingBalance = sale.total - currentPaidAmount;
+    const currentScheduledAmount = sale.scheduledAmount || 0;
+    const totalAllocatedAmount = currentPaidAmount + currentScheduledAmount;
+    const remainingBalance = sale.total - totalAllocatedAmount;
 
     if (amount > remainingBalance) {
       return res.status(400).json({ 
@@ -328,84 +330,108 @@ exports.recordPayment = async (req, res) => {
       });
     }
 
-    const newPaidAmount = currentPaidAmount + amount;
+    const paymentDate = date ? new Date(date) : new Date();
+    const currentDate = new Date();
+    
+    // Check if the payment date is in the future (more than 1 day from now)
+    const isScheduledPayment = paymentDate > new Date(currentDate.getTime() + 24 * 60 * 60 * 1000);
+    
     const oldPaymentStatus = sale.paymentStatus;
     
-    // Determine new payment status
-    let newPaymentStatus;
-    if (newPaidAmount >= sale.total) {
-      newPaymentStatus = "paid";
-    } else if (newPaidAmount > 0) {
-      newPaymentStatus = "partial";
-    } else {
-      newPaymentStatus = "unpaid";
-    }
-
     // Add payment to payments array
     const paymentRecord = {
       amount,
-      date: date ? new Date(date) : getNepaliCurrentDateTime(),
+      date: paymentDate,
       method: method || "cash",
       notes: notes || "",
+      status: isScheduledPayment ? "scheduled" : "completed",
     };
 
     sale.payments = sale.payments || [];
     sale.payments.push(paymentRecord);
-    sale.paidAmount = newPaidAmount;
-    sale.paymentStatus = newPaymentStatus;
+
+    // Update amounts and status based on whether it's scheduled or immediate
+    if (isScheduledPayment) {
+      // For scheduled payments, add to scheduledAmount but don't add to paidAmount yet
+      sale.scheduledAmount = currentScheduledAmount + amount;
+      
+      // Payment status remains the same for scheduled payments
+      // (they don't affect current payment status until they're processed)
+    } else {
+      // For immediate payments, add to paidAmount and update status
+      const newPaidAmount = currentPaidAmount + amount;
+      sale.paidAmount = newPaidAmount;
+      
+      // Determine new payment status based on total paid amount
+      if (newPaidAmount >= sale.total) {
+        sale.paymentStatus = "paid";
+      } else if (newPaidAmount > 0) {
+        sale.paymentStatus = "partial";
+      } else {
+        sale.paymentStatus = "unpaid";
+      }
+    }
 
     await sale.save();
 
-    // SYNC: Update the related Invoice
-    try {
-      const Invoice = require('../models/Invoice');
-      const invoice = await Invoice.findOne({ relatedId: sale._id, type: 'sale' });
-      if (invoice) {
-        invoice.paymentStatus = newPaymentStatus;
-        invoice.paidAmount = newPaidAmount;
-        if (method) invoice.paymentMethod = method;
-        if (newPaymentStatus === "paid") {
-          invoice.status = "paid";
-        } else if (newPaymentStatus === "partial") {
-          invoice.status = "sent";
+    // SYNC: Update the related Invoice (only for immediate payments)
+    if (!isScheduledPayment) {
+      try {
+        const Invoice = require('../models/Invoice');
+        const invoice = await Invoice.findOne({ relatedId: sale._id, type: 'sale' });
+        if (invoice) {
+          invoice.paymentStatus = sale.paymentStatus;
+          invoice.paidAmount = sale.paidAmount;
+          if (method) invoice.paymentMethod = method;
+          if (sale.paymentStatus === "paid") {
+            invoice.status = "paid";
+          } else if (sale.paymentStatus === "partial") {
+            invoice.status = "sent";
+          }
+          await invoice.save();
+          console.log(`✅ Synced payment update to Invoice ${invoice._id}`);
         }
-        await invoice.save();
-        console.log(`✅ Synced payment update to Invoice ${invoice._id}`);
+      } catch (syncError) {
+        console.error('⚠️ Failed to sync payment to invoice:', syncError);
+        // Don't fail the payment recording if sync fails
       }
-    } catch (syncError) {
-      console.error('⚠️ Failed to sync payment to invoice:', syncError);
-      // Don't fail the payment recording if sync fails
     }
 
     // Create notification for payment received from customer
     try {
       let notificationTitle, notificationMessage;
       
-      if (newPaymentStatus === "paid") {
+      if (isScheduledPayment) {
+        notificationTitle = "Payment Scheduled";
+        notificationMessage = `Payment of Rs ${amount.toFixed(2)} scheduled for ${paymentDate.toDateString()} for sale ${sale.invoiceNumber || sale._id} from ${sale.customerName || sale.customer?.name || 'Customer'}. Payment will be processed automatically on the scheduled date.`;
+      } else if (sale.paymentStatus === "paid") {
         notificationTitle = "Sale Payment Completed";
-        notificationMessage = `Full payment of Rs ${amount.toFixed(2)} received for sale ${sale.invoiceNumber || sale._id} from ${sale.customerName}. Total amount: Rs ${sale.total.toFixed(2)} - Fully Paid.`;
-      } else if (newPaymentStatus === "partial") {
-        const remaining = sale.total - newPaidAmount;
+        notificationMessage = `Full payment of Rs ${amount.toFixed(2)} received for sale ${sale.invoiceNumber || sale._id} from ${sale.customerName || sale.customer?.name || 'Customer'}. Total amount: Rs ${sale.total.toFixed(2)} - Fully Paid.`;
+      } else if (sale.paymentStatus === "partial") {
+        const remaining = sale.total - sale.paidAmount;
         notificationTitle = "Partial Payment Received";
-        notificationMessage = `Partial payment of Rs ${amount.toFixed(2)} received for sale ${sale.invoiceNumber || sale._id} from ${sale.customerName}. Total: Rs ${sale.total.toFixed(2)}, Paid: Rs ${newPaidAmount.toFixed(2)}, Remaining: Rs ${remaining.toFixed(2)}.`;
+        notificationMessage = `Partial payment of Rs ${amount.toFixed(2)} received for sale ${sale.invoiceNumber || sale._id} from ${sale.customerName || sale.customer?.name || 'Customer'}. Total: Rs ${sale.total.toFixed(2)}, Paid: Rs ${sale.paidAmount.toFixed(2)}, Remaining: Rs ${remaining.toFixed(2)}.`;
       }
 
       await createNotification({
-        type: "payment_received",
+        type: isScheduledPayment ? "payment_scheduled" : "payment_received",
         title: notificationTitle,
         message: notificationMessage,
         relatedId: sale._id,
         relatedModel: "Sale",
         metadata: {
           invoiceNumber: sale.invoiceNumber,
-          customerName: sale.customerName,
+          customerName: sale.customerName || sale.customer?.name || 'Customer',
           paymentAmount: amount,
           totalAmount: sale.total,
-          paidAmount: newPaidAmount,
-          remainingAmount: sale.total - newPaidAmount,
-          paymentStatus: newPaymentStatus,
+          paidAmount: sale.paidAmount || 0,
+          scheduledAmount: sale.scheduledAmount || 0,
+          remainingAmount: sale.total - (sale.paidAmount || 0) - (sale.scheduledAmount || 0),
+          paymentStatus: sale.paymentStatus,
           previousPaymentStatus: oldPaymentStatus,
           paymentMethod: method || "cash",
+          isScheduled: isScheduledPayment,
+          scheduledDate: isScheduledPayment ? paymentDate : null,
         },
       });
     } catch (notifError) {

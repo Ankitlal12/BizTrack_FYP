@@ -62,10 +62,14 @@ const saleSchema = new mongoose.Schema({
   },
   paymentStatus: {
     type: String,
-    enum: ["unpaid", "partial", "paid"],
+    enum: ["unpaid", "partial", "paid", "scheduled"],
     default: "unpaid",
   },
   paidAmount: {
+    type: Number,
+    default: 0,
+  },
+  scheduledAmount: {
     type: Number,
     default: 0,
   },
@@ -97,6 +101,11 @@ const saleSchema = new mongoose.Schema({
     },
     notes: {
       type: String,
+    },
+    status: {
+      type: String,
+      enum: ["completed", "scheduled"],
+      default: "completed",
     },
   }],
   status: {

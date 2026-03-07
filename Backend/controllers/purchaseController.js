@@ -501,7 +501,9 @@ exports.recordPayment = async (req, res) => {
     }
 
     const currentPaidAmount = purchase.paidAmount || 0;
-    const remainingBalance = purchase.total - currentPaidAmount;
+    const currentScheduledAmount = purchase.scheduledAmount || 0;
+    const totalAllocatedAmount = currentPaidAmount + currentScheduledAmount;
+    const remainingBalance = purchase.total - totalAllocatedAmount;
 
     if (amount > remainingBalance) {
       return res.status(400).json({ 
@@ -509,75 +511,114 @@ exports.recordPayment = async (req, res) => {
       });
     }
 
-    const newPaidAmount = currentPaidAmount + amount;
+    const paymentDate = date ? new Date(date) : new Date();
+    const currentDate = new Date();
+    
+    // Check if the payment date is in the future (more than 1 day from now)
+    const isScheduledPayment = paymentDate > new Date(currentDate.getTime() + 24 * 60 * 60 * 1000);
+    
     const oldPaymentStatus = purchase.paymentStatus;
     
-    // Determine new payment status
-    let newPaymentStatus;
-    if (newPaidAmount >= purchase.total) {
-      newPaymentStatus = "paid";
-    } else if (newPaidAmount > 0) {
-      newPaymentStatus = "partial";
-    } else {
-      newPaymentStatus = "unpaid";
-    }
-
     // Add payment to payments array
     const paymentRecord = {
       amount,
-      date: date ? new Date(date) : getNepaliCurrentDateTime(),
+      date: paymentDate,
       method: method || "cash",
       notes: notes || "",
+      status: isScheduledPayment ? "scheduled" : "completed",
     };
 
     purchase.payments = purchase.payments || [];
     purchase.payments.push(paymentRecord);
-    purchase.paidAmount = newPaidAmount;
-    purchase.paymentStatus = newPaymentStatus;
 
-    // Update main status when payment is completed
-    if (newPaymentStatus === "paid" && purchase.status === "pending") {
-      purchase.status = "received";
+    // Update amounts and status based on whether it's scheduled or immediate
+    if (isScheduledPayment) {
+      // For scheduled payments, add to scheduledAmount but don't add to paidAmount yet
+      purchase.scheduledAmount = currentScheduledAmount + amount;
+      
+      // Determine payment status including scheduled amounts
+      const totalPlannedAmount = currentPaidAmount + purchase.scheduledAmount;
+      
+      if (totalPlannedAmount >= purchase.total) {
+        purchase.paymentStatus = "scheduled"; // Fully scheduled
+      } else if (currentPaidAmount > 0 || purchase.scheduledAmount > 0) {
+        purchase.paymentStatus = "partial"; // Partially paid/scheduled
+      } else {
+        purchase.paymentStatus = "unpaid";
+      }
+      
+      console.log(`📅 Scheduled payment of Rs ${amount} for ${paymentDate.toDateString()}`);
+      
+    } else {
+      // For immediate payments, add to paidAmount
+      const newPaidAmount = currentPaidAmount + amount;
+      purchase.paidAmount = newPaidAmount;
+      
+      // Determine new payment status
+      let newPaymentStatus;
+      const totalPlannedAmount = newPaidAmount + currentScheduledAmount;
+      
+      if (newPaidAmount >= purchase.total) {
+        newPaymentStatus = "paid";
+      } else if (newPaidAmount > 0 || currentScheduledAmount > 0) {
+        newPaymentStatus = "partial";
+      } else {
+        newPaymentStatus = "unpaid";
+      }
+      
+      purchase.paymentStatus = newPaymentStatus;
+      
+      // Update main status when payment is completed
+      if (newPaymentStatus === "paid" && purchase.status === "pending") {
+        purchase.status = "received";
+      }
     }
 
     await purchase.save();
 
-    // SYNC: Update the related Invoice
-    try {
-      const Invoice = require('../models/Invoice');
-      const invoice = await Invoice.findOne({ relatedId: purchase._id, type: 'purchase' });
-      if (invoice) {
-        invoice.paymentStatus = newPaymentStatus;
-        invoice.paidAmount = newPaidAmount;
-        if (method) invoice.paymentMethod = method;
-        if (newPaymentStatus === "paid") {
-          invoice.status = "paid";
-        } else if (newPaymentStatus === "partial") {
-          invoice.status = "sent";
+    // SYNC: Update the related Invoice (only for immediate payments)
+    if (!isScheduledPayment) {
+      try {
+        const Invoice = require('../models/Invoice');
+        const invoice = await Invoice.findOne({ relatedId: purchase._id, type: 'purchase' });
+        if (invoice) {
+          invoice.paymentStatus = purchase.paymentStatus;
+          invoice.paidAmount = purchase.paidAmount;
+          if (method) invoice.paymentMethod = method;
+          if (purchase.paymentStatus === "paid") {
+            invoice.status = "paid";
+          } else if (purchase.paymentStatus === "partial") {
+            invoice.status = "sent";
+          }
+          await invoice.save();
+          console.log(`✅ Synced payment update to Invoice ${invoice._id}`);
         }
-        await invoice.save();
-        console.log(`✅ Synced payment update to Invoice ${invoice._id}`);
+      } catch (syncError) {
+        console.error('⚠️ Failed to sync payment to invoice:', syncError);
+        // Don't fail the payment recording if sync fails
       }
-    } catch (syncError) {
-      console.error('⚠️ Failed to sync payment to invoice:', syncError);
-      // Don't fail the payment recording if sync fails
     }
 
     // Create notification for payment made to supplier
     try {
       let notificationTitle, notificationMessage;
       
-      if (newPaymentStatus === "paid") {
-        notificationTitle = "Purchase Payment Completed";
-        notificationMessage = `Full payment of Rs ${amount.toFixed(2)} made for purchase ${purchase.purchaseNumber} to ${purchase.supplierName}. Total amount: Rs ${purchase.total.toFixed(2)} - Fully Paid.`;
-      } else if (newPaymentStatus === "partial") {
-        const remaining = purchase.total - newPaidAmount;
-        notificationTitle = "Partial Payment Made";
-        notificationMessage = `Partial payment of Rs ${amount.toFixed(2)} made for purchase ${purchase.purchaseNumber} to ${purchase.supplierName}. Total: Rs ${purchase.total.toFixed(2)}, Paid: Rs ${newPaidAmount.toFixed(2)}, Remaining: Rs ${remaining.toFixed(2)}.`;
+      if (isScheduledPayment) {
+        notificationTitle = "Payment Scheduled";
+        notificationMessage = `Payment of Rs ${amount.toFixed(2)} scheduled for ${paymentDate.toDateString()} for purchase ${purchase.purchaseNumber} to ${purchase.supplierName}.`;
+      } else {
+        if (purchase.paymentStatus === "paid") {
+          notificationTitle = "Purchase Payment Completed";
+          notificationMessage = `Full payment of Rs ${amount.toFixed(2)} made for purchase ${purchase.purchaseNumber} to ${purchase.supplierName}. Total amount: Rs ${purchase.total.toFixed(2)} - Fully Paid.`;
+        } else if (purchase.paymentStatus === "partial") {
+          const remaining = purchase.total - purchase.paidAmount;
+          notificationTitle = "Partial Payment Made";
+          notificationMessage = `Partial payment of Rs ${amount.toFixed(2)} made for purchase ${purchase.purchaseNumber} to ${purchase.supplierName}. Total: Rs ${purchase.total.toFixed(2)}, Paid: Rs ${purchase.paidAmount.toFixed(2)}, Remaining: Rs ${remaining.toFixed(2)}.`;
+        }
       }
 
       await createNotification({
-        type: "payment_made",
+        type: isScheduledPayment ? "payment_scheduled" : "payment_made",
         title: notificationTitle,
         message: notificationMessage,
         relatedId: purchase._id,
@@ -587,9 +628,11 @@ exports.recordPayment = async (req, res) => {
           supplierName: purchase.supplierName,
           paymentAmount: amount,
           totalAmount: purchase.total,
-          paidAmount: newPaidAmount,
-          remainingAmount: purchase.total - newPaidAmount,
-          paymentStatus: newPaymentStatus,
+          paidAmount: purchase.paidAmount,
+          scheduledAmount: purchase.scheduledAmount,
+          scheduledDate: isScheduledPayment ? paymentDate : null,
+          remainingAmount: purchase.total - purchase.paidAmount,
+          paymentStatus: purchase.paymentStatus,
           previousPaymentStatus: oldPaymentStatus,
           paymentMethod: method || "cash",
         },
