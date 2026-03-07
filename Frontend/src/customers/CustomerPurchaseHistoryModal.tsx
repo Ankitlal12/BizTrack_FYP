@@ -66,22 +66,47 @@ const CustomerPurchaseHistoryModal: React.FC<CustomerPurchaseHistoryModalProps> 
   const handleViewInvoice = async (sale: any) => {
     try {
       setLoadingInvoice(sale._id);
-      
-      // Search for invoice by relatedId (the sale ID)
-      const params = new URLSearchParams();
-      params.append('relatedId', sale._id);
-      params.append('type', 'sale');
-      
-      const response = await invoicesAPI.getAll(params.toString());
-      
-      if (response.data && response.data.length > 0) {
-        const invoice = response.data[0];
-        // Navigate to invoice detail page
+
+      let invoice: any = null;
+
+      // First try: search by invoiceNumber (most reliable — sale and invoice share the same number)
+      if (sale.invoiceNumber) {
+        const byNumber = new URLSearchParams();
+        byNumber.append('search', sale.invoiceNumber);
+        byNumber.append('type', 'sale');
+        const res1 = await invoicesAPI.getAll(byNumber.toString());
+        if (res1.invoices && res1.invoices.length > 0) {
+          invoice = res1.invoices.find((inv: any) => inv.invoiceNumber === sale.invoiceNumber) || res1.invoices[0];
+        }
+      }
+
+      // Second try: search by relatedId (the sale _id)
+      if (!invoice) {
+        const byRelated = new URLSearchParams();
+        byRelated.append('relatedId', sale._id);
+        byRelated.append('type', 'sale');
+        const res2 = await invoicesAPI.getAll(byRelated.toString());
+        if (res2.invoices && res2.invoices.length > 0) {
+          invoice = res2.invoices[0];
+        }
+      }
+
+      // Third try: auto-generate the invoice from this sale
+      if (!invoice) {
+        try {
+          invoice = await invoicesAPI.generateFromSale(sale._id);
+          toast.success('Invoice generated successfully');
+        } catch (genErr) {
+          console.error('Could not generate invoice:', genErr);
+        }
+      }
+
+      if (invoice) {
         navigate(`/invoices/${invoice._id}`);
-        onClose(); // Close the modal
+        onClose();
       } else {
         toast.error('Invoice not found', {
-          description: 'This sale may not have an associated invoice yet.'
+          description: 'Could not find or generate an invoice for this sale.'
         });
       }
     } catch (error: any) {
