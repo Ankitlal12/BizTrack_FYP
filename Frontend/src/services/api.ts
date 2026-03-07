@@ -506,6 +506,10 @@ export const customersAPI = {
     const query = params ? `?${params}` : '';
     return apiRequest<any>(`/customers/${id}/purchase-history${query}`);
   },
+  getRetentionAnalytics: (params?: string) => {
+    const query = params ? `?${params}` : '';
+    return apiRequest<any>(`/customers/analytics/retention${query}`);
+  },
 };
 
 // Reorder API

@@ -19,6 +19,7 @@ interface ReportChatbotProps {
   categorySales: Array<{ name: string; value: number }>;
   topProducts: Array<{ name: string; quantity: number; revenue: number }>;
   timeRange: string;
+  customerRetention?: any;
 }
 
 const ReportChatbot: React.FC<ReportChatbotProps> = ({
@@ -31,6 +32,7 @@ const ReportChatbot: React.FC<ReportChatbotProps> = ({
   categorySales,
   topProducts,
   timeRange,
+  customerRetention,
 }) => {
   const [isOpen, setIsOpen] = useState(false);
   const [messages, setMessages] = useState<Message[]>([
@@ -317,6 +319,88 @@ const ReportChatbot: React.FC<ReportChatbotProps> = ({
         `💡 Note: This is an estimate. Check Financial Summary for accurate data.`;
     }
 
+    // Customer retention analysis
+    if (q.includes('customer retention') || q.includes('customer loyalty') || q.includes('retention rate')) {
+      if (!customerRetention) {
+        return '⏳ Customer retention data is loading... Please try again in a moment.';
+      }
+      
+      return `👥 **Customer Retention Analysis (${getTimePeriod()})**\n\n` +
+        `🔄 Retention Rate: ${customerRetention.overview.retentionRate}%\n` +
+        `🔁 Repeat Customer Rate: ${customerRetention.overview.repeatCustomerRate}%\n` +
+        `📊 Total Customers: ${customerRetention.overview.totalCustomers}\n` +
+        `🆕 New Customers: ${customerRetention.overview.newCustomers}\n` +
+        `↩️ Returning Customers: ${customerRetention.overview.returningCustomers}\n\n` +
+        `💰 Avg Customer Lifetime Value: ${formatCurrency(customerRetention.overview.avgCustomerLifetimeValue)}\n` +
+        `⏱️ Avg Days Between Purchases: ${Math.round(customerRetention.overview.avgDaysBetweenPurchases)} days\n\n` +
+        `${customerRetention.overview.retentionRate > 60 ? '🎉 Excellent retention! Your customers love coming back!' : 
+          customerRetention.overview.retentionRate > 30 ? '📈 Good retention rate, but there\'s room for improvement!' : 
+          '⚠️ Low retention rate. Consider loyalty programs or customer engagement strategies.'}`;
+    }
+
+    // Customer segmentation
+    if (q.includes('customer segment') || q.includes('customer types') || q.includes('customer groups')) {
+      if (!customerRetention) {
+        return '⏳ Customer segmentation data is loading... Please try again in a moment.';
+      }
+      
+      return `🎯 **Customer Segmentation Analysis**\n\n` +
+        `💎 High Value Customers: ${customerRetention.segmentation.highValueCustomers}\n` +
+        `🌟 Recent Active Customers: ${customerRetention.segmentation.recentCustomers}\n` +
+        `⚠️ At Risk Customers: ${customerRetention.segmentation.atRiskCustomers}\n` +
+        `🛍️ One-time Buyers: ${customerRetention.segmentation.oneTimeBuyers}\n\n` +
+        `**Recommendations:**\n` +
+        `• Reward high-value customers with exclusive offers\n` +
+        `• Re-engage at-risk customers with personalized campaigns\n` +
+        `• Convert one-time buyers into repeat customers\n` +
+        `• Maintain regular communication with recent customers`;
+    }
+
+    // Top customers
+    if (q.includes('top customer') || q.includes('best customer') || q.includes('valuable customer')) {
+      if (!customerRetention || !customerRetention.topCustomers) {
+        return '⏳ Top customer data is loading... Please try again in a moment.';
+      }
+      
+      if (customerRetention.topCustomers.length === 0) {
+        return '📊 No customer data available yet.';
+      }
+      
+      let response = `🏆 **Top Customers by Value**\n\n`;
+      customerRetention.topCustomers.slice(0, 5).forEach((customer: any, index: number) => {
+        const emoji = index === 0 ? '👑' : index === 1 ? '🥇' : index === 2 ? '🥈' : index === 3 ? '🥉' : '⭐';
+        response += `${emoji} ${index + 1}. ${customer.name}\n`;
+        response += `   • Total Spent: ${formatCurrency(customer.totalSpent)}\n`;
+        response += `   • Total Orders: ${customer.totalPurchases}\n`;
+        response += `   • Last Purchase: ${customer.daysSinceLastPurchase} days ago\n`;
+        response += `   • Customer Since: ${customer.firstPurchase}\n\n`;
+      });
+      response += `💡 Nurture these valuable relationships with personalized service!`;
+      return response;
+    }
+
+    // Customer lifecycle
+    if (q.includes('customer lifecycle') || q.includes('customer journey') || q.includes('customer behavior')) {
+      if (!customerRetention) {
+        return '⏳ Customer lifecycle data is loading... Please try again in a moment.';
+      }
+      
+      return `📈 **Customer Lifecycle Analysis**\n\n` +
+        `🆕 **Acquisition:**\n` +
+        `• New customers this period: ${customerRetention.overview.newCustomers}\n` +
+        `• Total customers acquired: ${customerRetention.overview.totalCustomers}\n\n` +
+        `🔄 **Retention:**\n` +
+        `• Retention rate: ${customerRetention.overview.retentionRate}%\n` +
+        `• Repeat purchase rate: ${customerRetention.overview.repeatCustomerRate}%\n\n` +
+        `💰 **Value:**\n` +
+        `• Average CLV: ${formatCurrency(customerRetention.overview.avgCustomerLifetimeValue)}\n` +
+        `• Purchase frequency: Every ${Math.round(customerRetention.overview.avgDaysBetweenPurchases)} days\n\n` +
+        `🎯 **Recommendations:**\n` +
+        `• Focus on converting one-time buyers to repeat customers\n` +
+        `• Implement loyalty programs for high-value segments\n` +
+        `• Use personalized marketing for better retention`;
+    }
+
     // Performance summary
     if (q.includes('summary') || q.includes('overview') || q.includes('performance')) {
       const avgPerDay = totalSales / (timeRange === 'week' ? 7 : 30);
@@ -485,7 +569,12 @@ const ReportChatbot: React.FC<ReportChatbotProps> = ({
         `• Stock alerts\n` +
         `• Inventory valuation\n` +
         `• Reorder suggestions\n\n` +
-        `💰 **Financial:**\n` +
+        `� **Customer Analytics:**\n` +
+        `• Customer retention analysis\n` +
+        `• Customer segmentation\n` +
+        `• Top customers by value\n` +
+        `• Customer lifecycle insights\n\n` +
+        `�💰 **Financial:**\n` +
         `• Profit analysis\n` +
         `• Margin calculations\n` +
         `• Business summary\n\n` +

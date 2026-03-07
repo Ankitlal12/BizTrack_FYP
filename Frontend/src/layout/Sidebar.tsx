@@ -184,8 +184,19 @@ const Sidebar = memo(() => {
         },
         {
           name: 'Reports',
-          path: '/reports',
           icon: <IoBarChartSharp size={20} />,
+          items: [
+            {
+              name: 'Sales Report',
+              path: '/reports',
+              icon: <IoBarChartSharp size={18} />,
+            },
+            {
+              name: 'Stock Report',
+              path: '/stock-report',
+              icon: <FiPackage size={18} />,
+            },
+          ],
         },
         {
           name: 'Settings',
