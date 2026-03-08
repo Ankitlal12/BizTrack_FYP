@@ -25,6 +25,9 @@ const purchaseSchema = new mongoose.Schema({
       type: String,
       required: true,
     },
+    category: {
+      type: String,
+    },
     quantity: {
       type: Number,
       required: true,
@@ -33,9 +36,15 @@ const purchaseSchema = new mongoose.Schema({
       type: Number,
       required: true,
     },
+    sellingPrice: {
+      type: Number,
+    },
     total: {
       type: Number,
       required: true,
+    },
+    expiryDate: {
+      type: Date,
     },
   }],
   subtotal: {

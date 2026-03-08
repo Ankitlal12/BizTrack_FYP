@@ -8,6 +8,8 @@ const {
   deletePurchase,
   recordPayment,
   getSuppliersForPurchase,
+  getUpcomingProducts,
+  triggerDeliveryProcessing,
 } = require("../controllers/purchaseController");
 const router = express.Router();
 
@@ -15,7 +17,9 @@ const router = express.Router();
 router.use(authenticate);
 
 router.get("/", getAllPurchases);
-router.get("/suppliers", getSuppliersForPurchase); // New route for suppliers
+router.get("/suppliers", getSuppliersForPurchase);
+router.get("/upcoming", getUpcomingProducts); // Upcoming product deliveries
+router.post("/process-deliveries", triggerDeliveryProcessing); // Manual trigger for delivery processing
 router.get("/:id", getPurchaseById);
 router.post("/", createPurchase);
 router.put("/:id", updatePurchase);

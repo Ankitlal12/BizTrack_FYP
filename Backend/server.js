@@ -2,7 +2,7 @@ const express = require("express");
 const cors = require("cors");
 const mongoose = require("mongoose");
 const connectDB = require("./config/db");
-const { processAllScheduledPayments } = require("./services/paymentScheduler");
+const { processAllScheduledPayments, processDeliveries } = require("./services/paymentScheduler");
 require("dotenv").config();
 
 const app = express();
@@ -112,17 +112,28 @@ app.listen(PORT, () => {
       console.error("❌ Error in scheduled payment processor:", error);
     }
   }, 60 * 60 * 1000); // Run every hour (3600000 ms)
+
+  // Run delivery processor every hour
+  setInterval(async () => {
+    try {
+      console.log(`📦 Running delivery processor at ${new Date().toISOString()}`);
+      await processDeliveries();
+    } catch (error) {
+      console.error("❌ Error in delivery processor:", error);
+    }
+  }, 60 * 60 * 1000);
   
-  // Run once immediately on startup (optional)
+  // Run once immediately on startup
   setTimeout(async () => {
     try {
-      console.log("🚀 Running initial payment processor check...");
+      console.log("🚀 Running initial payment & delivery check...");
       await processAllScheduledPayments();
+      await processDeliveries();
     } catch (error) {
-      console.error("❌ Error in initial payment processor:", error);
+      console.error("❌ Error in initial processor:", error);
     }
   }, 10000); // Run after 10 seconds to let server fully initialize
   
-  console.log("✅ Payment scheduler initialized successfully");
+  console.log("✅ Payment scheduler & delivery processor initialized successfully");
 });
 

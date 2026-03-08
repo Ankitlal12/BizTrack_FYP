@@ -202,8 +202,37 @@ exports.getAllInvoices = async (req, res) => {
 
     const total = await Invoice.countDocuments(filter);
 
+    // Fetch payments from related Sales/Purchases for each invoice
+    const invoicesWithPayments = await Promise.all(
+      invoices.map(async (invoice) => {
+        const invoiceObj = invoice.toObject();
+        let payments = [];
+        
+        if (invoice.relatedId) {
+          try {
+            if (invoice.type === 'sale') {
+              const sale = await Sale.findById(invoice.relatedId);
+              if (sale && sale.payments) {
+                payments = sale.payments;
+              }
+            } else if (invoice.type === 'purchase') {
+              const purchase = await Purchase.findById(invoice.relatedId);
+              if (purchase && purchase.payments) {
+                payments = purchase.payments;
+              }
+            }
+          } catch (fetchError) {
+            console.error('⚠️ Failed to fetch payments for invoice:', invoice._id, fetchError);
+          }
+        }
+        
+        invoiceObj.payments = payments;
+        return invoiceObj;
+      })
+    );
+
     res.json({
-      invoices,
+      invoices: invoicesWithPayments,
       pagination: {
         current: parseInt(page),
         pages: Math.ceil(total / limit),
@@ -224,7 +253,32 @@ exports.getInvoiceById = async (req, res) => {
     if (!invoice) {
       return res.status(404).json({ error: "Invoice not found" });
     }
-    res.json(invoice);
+    
+    // Fetch payments from the related Sale or Purchase
+    let payments = [];
+    if (invoice.relatedId) {
+      try {
+        if (invoice.type === 'sale') {
+          const sale = await Sale.findById(invoice.relatedId);
+          if (sale && sale.payments) {
+            payments = sale.payments;
+          }
+        } else if (invoice.type === 'purchase') {
+          const purchase = await Purchase.findById(invoice.relatedId);
+          if (purchase && purchase.payments) {
+            payments = purchase.payments;
+          }
+        }
+      } catch (fetchError) {
+        console.error('⚠️ Failed to fetch payments from related document:', fetchError);
+      }
+    }
+    
+    // Add payments to invoice response
+    const invoiceWithPayments = invoice.toObject();
+    invoiceWithPayments.payments = payments;
+    
+    res.json(invoiceWithPayments);
   } catch (err) {
     res.status(500).json({ error: err.message });
   }

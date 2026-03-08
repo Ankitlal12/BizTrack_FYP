@@ -1,5 +1,6 @@
 const Purchase = require("../models/Purchase");
 const Sale = require("../models/Sale");
+const Inventory = require("../models/Inventory");
 const { createNotification } = require("../utils/notificationHelper");
 
 /**
@@ -17,15 +18,11 @@ const processScheduledPurchasePayments = async () => {
     const today = new Date();
     today.setHours(23, 59, 59, 999); // End of today
     
-    const startOfDay = new Date();
-    startOfDay.setHours(0, 0, 0, 0); // Start of today
-    
-    // Find all purchases with scheduled payments due today or earlier
+    // Find all purchases with scheduled payments that are due today or overdue
     const purchasesWithScheduledPayments = await Purchase.find({
       "payments.status": "scheduled",
       "payments.date": {
-        $gte: startOfDay,
-        $lte: today
+        $lte: today  // Process all past-due and today's scheduled payments
       }
     }).populate("items.inventoryId");
     
@@ -150,15 +147,11 @@ const processScheduledSalePayments = async () => {
     const today = new Date();
     today.setHours(23, 59, 59, 999); // End of today
     
-    const startOfDay = new Date();
-    startOfDay.setHours(0, 0, 0, 0); // Start of today
-    
-    // Find all sales with scheduled payments due today or earlier
+    // Find all sales with scheduled payments that are due today or overdue
     const salesWithScheduledPayments = await Sale.find({
       "payments.status": "scheduled",
       "payments.date": {
-        $gte: startOfDay,
-        $lte: today
+        $lte: today  // Process all past-due and today's scheduled payments
       }
     }).populate("items.inventoryId");
     
@@ -342,9 +335,147 @@ const getUpcomingScheduledPayments = async () => {
   }
 };
 
+/**
+ * Auto-receive pending purchases whose expectedDeliveryDate has arrived.
+ * Updates inventory stock and marks them as received.
+ * This runs automatically every hour to move products from "Upcoming" to "Inventory"
+ */
+const processDeliveries = async () => {
+  try {
+    console.log("📦 Running delivery processor...");
+    console.log(`📅 Current date/time: ${new Date().toISOString()}`);
+
+    const todayEnd = new Date();
+    todayEnd.setHours(23, 59, 59, 999);
+
+    // Pending purchases whose expected delivery date is today or earlier
+    const dueDeliveries = await Purchase.find({
+      status: "pending",
+      expectedDeliveryDate: { $exists: true, $ne: null, $lte: todayEnd },
+    }).populate("items.inventoryId");
+
+    console.log(`📦 Found ${dueDeliveries.length} deliveries due today or overdue`);
+
+    if (dueDeliveries.length > 0) {
+      console.log("📋 Deliveries to process:");
+      dueDeliveries.forEach(p => {
+        console.log(`  - ${p.purchaseNumber}: ${p.supplierName} (Expected: ${p.expectedDeliveryDate.toISOString().split('T')[0]})`);
+      });
+    }
+
+    let receivedCount = 0;
+    let itemsAddedToInventory = 0;
+
+    for (const purchase of dueDeliveries) {
+      try {
+        console.log(`\n🔄 Processing purchase ${purchase.purchaseNumber}...`);
+        
+        // Update inventory for each item
+        for (const item of purchase.items) {
+          let inv = null;
+
+          if (item.inventoryId) {
+            // Already linked to an inventory record — just increment stock
+            inv = await Inventory.findById(item.inventoryId._id || item.inventoryId);
+          }
+
+          if (!inv) {
+            // Try to find by name (item may not have been linked at purchase creation)
+            inv = await Inventory.findOne({ name: item.name });
+          }
+
+          if (inv) {
+            const oldStock = inv.stock;
+            inv.stock += item.quantity;
+            if (item.cost && item.cost > 0) inv.cost = item.cost;
+            if (item.sellingPrice && item.sellingPrice > 0) inv.price = item.sellingPrice;
+            if (!item.inventoryId) {
+              // Back-fill the inventoryId on the purchase item
+              item.inventoryId = inv._id;
+            }
+            await inv.save();
+            console.log(`  ✅ Updated "${item.name}": stock ${oldStock} → ${inv.stock} (+${item.quantity})`);
+            itemsAddedToInventory++;
+          } else {
+            // Create a brand-new inventory record for this item
+            const sku = item.name
+              .toUpperCase()
+              .replace(/[^A-Z0-9]/g, '')
+              .substring(0, 8) + '-' + Date.now().toString().slice(-6);
+
+            const foodKeywords = ['food', 'beverages', 'dairy', 'produce', 'frozen', 'bakery', 'meat', 'poultry', 'seafood', 'snacks', 'fresh'];
+            const isFoodItem = item.category && foodKeywords.some(k =>
+              item.category.toLowerCase().includes(k.toLowerCase())
+            );
+
+            const invData = {
+              name: item.name,
+              sku,
+              category: item.category || 'Other',
+              price: item.sellingPrice || item.cost || 0,
+              cost: item.cost || 0,
+              stock: item.quantity,
+              reorderLevel: 5,
+              supplier: purchase.supplierName || 'Unknown',
+              preferredSupplierId: purchase.supplierId || null,
+              location: 'Warehouse',
+              categoryType: isFoodItem ? 'food' : 'non-food',
+            };
+            if (item.expiryDate) invData.expiryDate = new Date(item.expiryDate);
+            inv = await Inventory.create(invData);
+            item.inventoryId = inv._id;
+            console.log(`  ✅ Created new inventory record for "${item.name}" (${inv._id}) with ${item.quantity} units`);
+            itemsAddedToInventory++;
+          }
+        }
+
+        purchase.status = "received";
+        await purchase.save();
+
+        // Notification
+        try {
+          await createNotification({
+            type: "delivery_received",
+            title: "Delivery Received",
+            message: `Purchase ${purchase.purchaseNumber} from ${purchase.supplierName} has been automatically received — ${purchase.items.length} item(s) added to inventory.`,
+            priority: "medium",
+            relatedId: purchase._id,
+            relatedModel: "Purchase",
+            metadata: {
+              purchaseNumber: purchase.purchaseNumber,
+              supplierName: purchase.supplierName,
+              expectedDeliveryDate: purchase.expectedDeliveryDate,
+              receivedAt: new Date().toISOString(),
+              itemsCount: purchase.items.length,
+            },
+          });
+        } catch (notifErr) {
+          console.error("Failed to create delivery notification:", notifErr);
+        }
+
+        receivedCount++;
+        console.log(`✅ Auto-received purchase ${purchase.purchaseNumber} - moved from Upcoming to Inventory`);
+      } catch (err) {
+        console.error(`❌ Error auto-receiving purchase ${purchase.purchaseNumber}:`, err);
+      }
+    }
+
+    console.log(`\n📊 Delivery Processing Summary:`);
+    console.log(`  - Purchases received: ${receivedCount}`);
+    console.log(`  - Items added to inventory: ${itemsAddedToInventory}`);
+    console.log(`  - These items are now available in Inventory page and removed from Upcoming page\n`);
+    
+    return { receivedCount, itemsAddedToInventory };
+  } catch (error) {
+    console.error("❌ Error in processDeliveries:", error);
+    throw error;
+  }
+};
+
 module.exports = {
   processScheduledPurchasePayments,
   processScheduledSalePayments,
   processAllScheduledPayments,
-  getUpcomingScheduledPayments
+  getUpcomingScheduledPayments,
+  processDeliveries,
 };

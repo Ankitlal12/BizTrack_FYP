@@ -64,6 +64,54 @@ const checkAndCreateStockNotification = async (item) => {
   }
 };
 
+// Get upcoming products (pending purchases with a future expected delivery date)
+exports.getUpcomingProducts = async (req, res) => {
+  try {
+    const now = new Date();
+    now.setHours(0, 0, 0, 0); // start of today
+
+    // Only purchases still in "pending" status with a delivery date set
+    // This will show ALL pending purchases with delivery dates (past, present, and future)
+    // The frontend can filter by date if needed
+    const purchases = await Purchase.find({
+      status: 'pending',
+      expectedDeliveryDate: { $exists: true, $ne: null },
+    })
+      .populate('items.inventoryId')
+      .sort({ expectedDeliveryDate: 1 });
+
+    // Flatten to per-item view with all necessary details
+    const upcomingProducts = [];
+    for (const purchase of purchases) {
+      for (const item of purchase.items) {
+        upcomingProducts.push({
+          purchaseId: purchase._id,
+          purchaseNumber: purchase.purchaseNumber,
+          supplierName: purchase.supplierName,
+          expectedDeliveryDate: purchase.expectedDeliveryDate,
+          itemName: item.name,
+          category: item.category || 'Other',
+          quantity: item.quantity,
+          costPrice: item.cost,
+          sellingPrice: item.sellingPrice || item.inventoryId?.price || 0,
+          total: item.total,
+          inventoryId: item.inventoryId?._id || null,
+          paymentStatus: purchase.paymentStatus,
+        });
+      }
+    }
+
+    res.json({
+      upcomingProducts,
+      totalPurchases: purchases.length,
+      totalItems: upcomingProducts.length,
+    });
+  } catch (err) {
+    console.error('Error fetching upcoming products:', err);
+    res.status(500).json({ error: err.message });
+  }
+};
+
 // Get all purchases
 exports.getAllPurchases = async (req, res) => {
   try {
@@ -186,15 +234,32 @@ exports.createPurchase = async (req, res) => {
       req.body.purchaseNumber = `PO-${String(count + 1).padStart(6, '0')}`;
     }
 
-    // Process items and create/update inventory
+    // Check if this is a future delivery (items should NOT be added to inventory yet)
+    const deliveryDate = req.body.expectedDeliveryDate ? new Date(req.body.expectedDeliveryDate) : null;
+    const todayMidnight = new Date();
+    todayMidnight.setHours(0, 0, 0, 0);
+    const isFutureDelivery = deliveryDate && deliveryDate > todayMidnight;
+
+    // Process items — only touch inventory for immediate deliveries
     const processedItems = [];
     
     for (const item of req.body.items) {
       let inventoryItem;
       
-      // Check if item already exists in inventory by name
+      // Always try to find an existing inventory record to link
       inventoryItem = await Inventory.findOne({ name: item.name });
       
+      if (isFutureDelivery) {
+        // Future delivery: do NOT add stock now — just link to existing item if it exists
+        // Stock will be added by the delivery scheduler when the date arrives
+        processedItems.push({
+          ...item,
+          inventoryId: inventoryItem ? inventoryItem._id : null,
+        });
+        continue;
+      }
+
+      // Immediate delivery — update/create inventory now
       if (inventoryItem) {
         // Item exists, update stock and cost/price if needed
         inventoryItem.stock += item.quantity;
@@ -229,13 +294,11 @@ exports.createPurchase = async (req, res) => {
         await checkAndCreateStockNotification(inventoryItem);
       } else {
         // Create new inventory item
-        // Generate SKU from item name
         const sku = item.name
           .toUpperCase()
           .replace(/[^A-Z0-9]/g, '')
           .substring(0, 8) + '-' + Date.now().toString().slice(-6);
         
-        // Check if this is a food item
         const foodKeywords = ['food', 'beverages', 'dairy', 'produce', 'frozen', 'bakery', 'meat', 'poultry', 'seafood', 'snacks', 'fresh'];
         const isFoodItem = item.category && foodKeywords.some(keyword => 
           item.category.toLowerCase().includes(keyword.toLowerCase())
@@ -255,7 +318,6 @@ exports.createPurchase = async (req, res) => {
           categoryType: isFoodItem ? 'food' : 'non-food',
         };
         
-        // Add expiry date if provided
         if (item.expiryDate) {
           inventoryData.expiryDate = new Date(item.expiryDate);
         }
@@ -263,7 +325,6 @@ exports.createPurchase = async (req, res) => {
         inventoryItem = await Inventory.create(inventoryData);
       }
       
-      // Add inventoryId to the item
       processedItems.push({
         ...item,
         inventoryId: inventoryItem._id,
@@ -282,37 +343,80 @@ exports.createPurchase = async (req, res) => {
       },
     };
 
-    // Calculate payment status based on paid amount
-    const paidAmount = req.body.paidAmount || 0;
+    // Debug: Log items to verify category is included
+    console.log('📝 Creating purchase with items:', JSON.stringify(processedItems.map(item => ({
+      name: item.name,
+      category: item.category,
+      quantity: item.quantity,
+      cost: item.cost
+    })), null, 2));
+
+    // Calculate payment status based on installment plan
+    const paymentInstallments = req.body.paymentInstallments || [];
     const total = req.body.total || 0;
-    
-    // Validate payment amount doesn't exceed total
-    if (paidAmount > total) {
+
+    const todayEnd = new Date();
+    todayEnd.setHours(23, 59, 59, 999);
+
+    let paidAmount = 0;
+    let scheduledAmount = 0;
+    const payments = [];
+
+    for (const inst of paymentInstallments) {
+      if (!inst.amount || inst.amount <= 0) continue;
+      const dueDate = inst.dueDate ? new Date(inst.dueDate) : null;
+      const isScheduled = dueDate && dueDate > todayEnd;
+      payments.push({
+        amount: inst.amount,
+        date: isScheduled ? dueDate : (dueDate || getNepaliCurrentDateTime()),
+        method: inst.method || 'cash',
+        notes: '',
+        status: isScheduled ? 'scheduled' : 'completed',
+      });
+      if (isScheduled) {
+        scheduledAmount += inst.amount;
+      } else {
+        paidAmount += inst.amount;
+      }
+    }
+
+    // Validate totals
+    if (paidAmount + scheduledAmount > total) {
       return res.status(400).json({
-        error: `Payment amount (Rs ${paidAmount.toFixed(2)}) cannot exceed total amount (Rs ${total.toFixed(2)})`
+        error: `Total payment plan (Rs ${(paidAmount + scheduledAmount).toFixed(2)}) cannot exceed purchase total (Rs ${total.toFixed(2)})`
       });
     }
-    
-    if (paidAmount >= total) {
+
+    if (payments.length > 0) {
+      purchaseData.payments = payments;
+    }
+    purchaseData.paidAmount = paidAmount;
+    purchaseData.scheduledAmount = scheduledAmount;
+
+    if (paidAmount >= total && !isFutureDelivery) {
+      // Only auto-receive if there is no future delivery date
       purchaseData.paymentStatus = 'paid';
-      purchaseData.status = 'received'; // Set status to received when fully paid
-    } else if (paidAmount > 0) {
+      purchaseData.status = 'received';
+    } else if (paidAmount >= total) {
+      // Fully paid but delivery is pending
+      purchaseData.paymentStatus = 'paid';
+    } else if (scheduledAmount > 0 && paidAmount + scheduledAmount >= total) {
+      purchaseData.paymentStatus = 'scheduled';
+    } else if (paidAmount > 0 || scheduledAmount > 0) {
       purchaseData.paymentStatus = 'partial';
     } else {
       purchaseData.paymentStatus = 'unpaid';
     }
-
-    // If there's an initial payment, add it to the payments array
-    if (paidAmount > 0) {
-      purchaseData.payments = [{
-        amount: paidAmount,
-        date: getNepaliCurrentDateTime(),
-        method: req.body.paymentMethod || 'cash',
-        notes: req.body.notes || '',
-      }];
-    }
     
     const purchase = await Purchase.create(purchaseData);
+
+    // Debug: Log what was actually saved
+    console.log('✅ Purchase created with items:', JSON.stringify(purchase.items.map(item => ({
+      name: item.name,
+      category: item.category,
+      quantity: item.quantity,
+      cost: item.cost
+    })), null, 2));
 
     // Auto-generate invoice for the purchase
     try {
@@ -513,9 +617,14 @@ exports.recordPayment = async (req, res) => {
 
     const paymentDate = date ? new Date(date) : new Date();
     const currentDate = new Date();
+    currentDate.setHours(0, 0, 0, 0); // Start of today
     
-    // Check if the payment date is in the future (more than 1 day from now)
-    const isScheduledPayment = paymentDate > new Date(currentDate.getTime() + 24 * 60 * 60 * 1000);
+    const paymentDateOnly = new Date(paymentDate);
+    paymentDateOnly.setHours(0, 0, 0, 0); // Start of payment date
+    
+    // Check if the payment date is in the future (any date after today)
+    // Even 1 day in the future should be scheduled
+    const isScheduledPayment = paymentDateOnly > currentDate;
     
     const oldPaymentStatus = purchase.paymentStatus;
     
@@ -666,6 +775,27 @@ exports.getSuppliersForPurchase = async (req, res) => {
     res.status(500).json({ 
       error: 'Failed to fetch suppliers',
       details: error.message 
+    });
+  }
+};
+
+// Manual trigger for delivery processing (for testing/admin use)
+exports.triggerDeliveryProcessing = async (req, res) => {
+  try {
+    const { processDeliveries } = require("../services/paymentScheduler");
+    console.log("🔧 Manual delivery processing triggered by user");
+    const result = await processDeliveries();
+    res.json({
+      success: true,
+      message: `Delivery processing completed. ${result.receivedCount} purchase(s) received and ${result.itemsAddedToInventory} item(s) added to inventory.`,
+      result
+    });
+  } catch (error) {
+    console.error('Error in manual delivery processing:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to process deliveries',
+      details: error.message
     });
   }
 };
