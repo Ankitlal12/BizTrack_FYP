@@ -13,7 +13,7 @@ import { LuShoppingBag } from "react-icons/lu"
 import { IoBarChartSharp } from "react-icons/io5"
 import { FiMenu } from "react-icons/fi"
 import { RxCross2 } from "react-icons/rx"
-import { AlertTriangle, Users, RotateCcw, ChevronDown, ChevronRight, Calendar } from "lucide-react"
+import { AlertTriangle, Users, RotateCcw, ChevronDown, ChevronRight, Calendar, Truck } from "lucide-react"
 
 import { useAuth } from '../contexts/AuthContext'
 import { reorderAPI } from '../services/api'
@@ -113,6 +113,11 @@ const Sidebar = memo(() => {
             path: '/stock-list',
             icon: <FiFileText size={18} />,
           }] : []),
+          {
+            name: 'Incoming Stock',
+            path: '/upcoming-products',
+            icon: <Truck size={18} />,
+          },
           {
             name: 'Low Stock',
             path: '/low-stock',

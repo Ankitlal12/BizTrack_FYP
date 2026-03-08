@@ -143,6 +143,8 @@ export const purchasesAPI = {
   }),
   // New: Get suppliers for purchase creation
   getSuppliers: () => apiRequest<any>('/purchases/suppliers'),
+  // Upcoming (pending) deliveries
+  getUpcoming: () => apiRequest<any>('/purchases/upcoming'),
 };
 
 // Invoices API

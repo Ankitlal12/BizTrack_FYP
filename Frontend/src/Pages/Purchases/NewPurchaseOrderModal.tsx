@@ -19,8 +19,8 @@ const NewPurchaseOrderModal: React.FC<NewPurchaseOrderModalProps> = ({
   const [selectedSupplier, setSelectedSupplier] = useState<any>(null)
   const [loadingSuppliers, setLoadingSuppliers] = useState(false)
   const [expectedDeliveryDate, setExpectedDeliveryDate] = useState('')
-  const [paymentMethod, setPaymentMethod] = useState('cash')
-  const [paidAmount, setPaidAmount] = useState(0)
+  // Installment payment plan
+  const [paymentInstallments, setPaymentInstallments] = useState<Array<{id: number; amount: number; dueDate: string; method: string}>>([{id: 1, amount: 0, dueDate: '', method: 'cash'}])
   const [items, setItems] = useState([
     {
       id: 1,
@@ -164,9 +164,43 @@ const NewPurchaseOrderModal: React.FC<NewPurchaseOrderModalProps> = ({
     return items.reduce((sum, item) => sum + item.total, 0)
   }
 
-  const calculatePaymentStatus = (paidAmount: number, total: number) => {
-    if (paidAmount >= total) return 'paid'
-    if (paidAmount > 0) return 'partial'
+  // Installment helpers
+  const isFutureDate = (dateStr: string) => {
+    if (!dateStr) return false
+    const todayStart = new Date()
+    todayStart.setHours(0, 0, 0, 0)
+    const d = new Date(dateStr)
+    d.setHours(0, 0, 0, 0)
+    return d > todayStart
+  }
+
+  const addInstallment = () => {
+    const newId = paymentInstallments.length > 0 ? Math.max(...paymentInstallments.map(i => i.id)) + 1 : 1
+    setPaymentInstallments(prev => [...prev, {id: newId, amount: 0, dueDate: '', method: 'cash'}])
+  }
+
+  const removeInstallment = (id: number) => {
+    if (paymentInstallments.length === 1) {
+      setPaymentInstallments([{id: 1, amount: 0, dueDate: '', method: 'cash'}])
+      return
+    }
+    setPaymentInstallments(prev => prev.filter(i => i.id !== id))
+  }
+
+  const updateInstallment = (id: number, field: string, value: any) => {
+    setPaymentInstallments(prev => prev.map(i => i.id === id ? {...i, [field]: value} : i))
+  }
+
+  const immediateTotal = () => paymentInstallments.filter(i => !isFutureDate(i.dueDate)).reduce((s, i) => s + (i.amount || 0), 0)
+  const scheduledTotal = () => paymentInstallments.filter(i => isFutureDate(i.dueDate)).reduce((s, i) => s + (i.amount || 0), 0)
+  const allocatedTotal = () => paymentInstallments.reduce((s, i) => s + (i.amount || 0), 0)
+
+  const calculatePaymentStatus = (_paid: number, total: number) => {
+    const imm = immediateTotal()
+    const sched = scheduledTotal()
+    if (imm >= total) return 'paid'
+    if (imm + sched >= total) return 'scheduled'
+    if (imm > 0 || sched > 0) return 'partial'
     return 'unpaid'
   }
   const handleSubmit = (e: React.FormEvent) => {
@@ -191,20 +225,38 @@ const NewPurchaseOrderModal: React.FC<NewPurchaseOrderModalProps> = ({
     
     const subtotal = calculateSubtotal()
     
-    // Validate payment amount
-    if (paidAmount > subtotal) {
-      validationErrors.paidAmount = `Payment amount (Rs ${paidAmount.toFixed(2)}) cannot exceed total amount (Rs ${subtotal.toFixed(2)})`
+    // Validate installment amounts
+    const totalAllocated = allocatedTotal()
+    if (totalAllocated > subtotal) {
+      validationErrors.installments = `Total installment amounts (Rs ${totalAllocated.toFixed(2)}) cannot exceed the purchase total (Rs ${subtotal.toFixed(2)})`
       hasErrors = true
     }
-    
+    const activeInstallments = paymentInstallments.filter(i => i.amount > 0)
+    activeInstallments.forEach((inst, idx) => {
+      if (inst.amount <= 0) {
+        validationErrors[`inst_${inst.id}`] = `Installment ${idx + 1} must have a valid amount`
+        hasErrors = true
+      }
+    })
+
     if (hasErrors) {
       setErrors(validationErrors)
       toast.error('Please fix the validation errors before submitting')
       return
     }
-    
-    const paymentStatus = calculatePaymentStatus(paidAmount, subtotal)
-    
+
+    const paymentStatus = calculatePaymentStatus(0, subtotal)
+    const imm = immediateTotal()
+    const sched = scheduledTotal()
+
+    // Build installment records for backend
+    const installmentRecords = activeInstallments.map(inst => ({
+      amount: inst.amount,
+      dueDate: inst.dueDate || null,
+      method: inst.method,
+      status: isFutureDate(inst.dueDate) ? 'scheduled' : 'completed',
+    }))
+
     const newPurchaseOrder = {
       purchaseNumber: `PO-${new Date().getFullYear()}-${Math.floor(
         Math.random() * 1000,
@@ -228,8 +280,10 @@ const NewPurchaseOrderModal: React.FC<NewPurchaseOrderModalProps> = ({
       tax: 0,
       shipping: 0,
       total: subtotal,
-      paymentMethod,
-      paidAmount,
+      paymentMethod: activeInstallments[0]?.method || 'cash',
+      paidAmount: imm,
+      scheduledAmount: sched,
+      paymentInstallments: installmentRecords,
       paymentStatus,
       status: 'pending',
       expectedDeliveryDate:
@@ -319,120 +373,141 @@ const NewPurchaseOrderModal: React.FC<NewPurchaseOrderModalProps> = ({
             </div>
           </div>
           
-          {/* Payment Section */}
+          {/* Payment Plan */}
           <div className="bg-gray-50 rounded-lg p-4 space-y-4">
-            <h3 className="text-md font-medium text-gray-700">Payment Information</h3>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="flex justify-between items-center">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Payment Method
-                </label>
-                <select
-                  className="w-full border border-gray-300 rounded-lg py-2 px-4 focus:outline-none focus:ring-2 focus:ring-teal-500"
-                  value={paymentMethod}
-                  onChange={(e) => setPaymentMethod(e.target.value)}
-                >
-                  <option value="cash">Cash</option>
-                  <option value="card">Card</option>
-                  <option value="bank_transfer">Bank Transfer</option>
-                  <option value="credit">Credit</option>
-                  <option value="other">Other</option>
-                </select>
+                <h3 className="text-md font-medium text-gray-700">Payment Plan</h3>
+                <p className="text-xs text-gray-400 mt-0.5">Add installments — leave date empty or set today for immediate payment</p>
               </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Payment Amount
-                </label>
-                <div className="relative">
-                  <span className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-500">
-                    Rs
-                  </span>
-                  <input
-                    type="number"
-                    min="0"
-                    max={calculateSubtotal()}
-                    step="0.01"
-                    className={`w-full border ${errors.paidAmount ? 'border-red-500' : 'border-gray-300'} rounded-lg py-2 pl-10 pr-4 focus:outline-none focus:ring-2 focus:ring-teal-500`}
-                    value={paidAmount || ''}
-                    onChange={(e) => {
-                      const amount = parseFloat(e.target.value) || 0
-                      if (amount > calculateSubtotal()) {
-                        setErrors(prev => ({
-                          ...prev,
-                          paidAmount: `Payment amount cannot exceed total amount of Rs ${calculateSubtotal().toFixed(2)}`
-                        }))
-                      } else {
-                        setErrors(prev => {
-                          const newErrors = { ...prev }
-                          delete newErrors.paidAmount
-                          return newErrors
-                        })
-                        setPaidAmount(amount)
-                      }
-                    }}
-                    placeholder="0.00"
-                  />
-                </div>
-                
-                {errors.paidAmount && (
-                  <div className="text-red-500 text-sm mt-1">
-                    {errors.paidAmount}
-                  </div>
+              <div className="flex gap-2">
+                {calculateSubtotal() > 0 && (
+                  <button
+                    type="button"
+                    onClick={() => setPaymentInstallments([{id: 1, amount: calculateSubtotal(), dueDate: '', method: 'cash'}])}
+                    className="text-xs bg-teal-100 hover:bg-teal-200 text-teal-700 px-3 py-1.5 rounded"
+                  >
+                    Pay Full Now
+                  </button>
                 )}
-                
-                {/* Quick payment buttons */}
-                <div className="flex gap-2 mt-2">
-                  <button
-                    type="button"
-                    onClick={() => setPaidAmount(calculateSubtotal())}
-                    className="text-xs bg-teal-100 hover:bg-teal-200 text-teal-700 px-2 py-1 rounded"
-                  >
-                    Full Amount
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setPaidAmount(0)}
-                    className="text-xs bg-gray-100 hover:bg-gray-200 text-gray-700 px-2 py-1 rounded"
-                  >
-                    Clear
-                  </button>
-                </div>
+                <button
+                  type="button"
+                  onClick={addInstallment}
+                  className="flex items-center gap-1 text-sm bg-teal-500 hover:bg-teal-600 text-white px-3 py-1.5 rounded"
+                >
+                  <PlusIcon size={14} /> Add Installment
+                </button>
               </div>
             </div>
-            
-            {/* Payment Status Display */}
+
+            {/* Installment rows */}
+            <div className="space-y-2">
+              {paymentInstallments.map((inst, idx) => (
+                <div key={inst.id} className="grid grid-cols-12 gap-2 items-end bg-white rounded-lg border border-gray-200 p-3">
+                  <div className="col-span-1 text-center">
+                    <span className="text-xs text-gray-400 font-medium">#{idx + 1}</span>
+                  </div>
+                  {/* Amount */}
+                  <div className="col-span-3">
+                    <label className="block text-xs text-gray-500 mb-1">Amount (Rs)</label>
+                    <div className="relative">
+                      <span className="absolute left-2 top-1/2 -translate-y-1/2 text-gray-400 text-xs">Rs</span>
+                      <input
+                        type="number"
+                        min="0"
+                        step="0.01"
+                        title={`Installment ${idx + 1} amount`}
+                        placeholder="0.00"
+                        className="w-full border border-gray-300 rounded py-1.5 pl-7 pr-2 text-sm focus:outline-none focus:ring-1 focus:ring-teal-500"
+                        value={inst.amount || ''}
+                        onChange={(e) => updateInstallment(inst.id, 'amount', parseFloat(e.target.value) || 0)}
+                      />
+                    </div>
+                  </div>
+                  {/* Due Date */}
+                  <div className="col-span-3">
+                    <label className="block text-xs text-gray-500 mb-1">
+                      Due Date
+                      {isFutureDate(inst.dueDate) && <span className="ml-1 text-blue-500">(scheduled)</span>}
+                      {!isFutureDate(inst.dueDate) && inst.dueDate && <span className="ml-1 text-green-500">(today)</span>}
+                      {!inst.dueDate && <span className="ml-1 text-green-500">(immediate)</span>}
+                    </label>
+                    <input
+                      type="date"
+                      title={`Installment ${idx + 1} due date`}
+                      className="w-full border border-gray-300 rounded py-1.5 px-2 text-sm focus:outline-none focus:ring-1 focus:ring-teal-500"
+                      value={inst.dueDate}
+                      onChange={(e) => updateInstallment(inst.id, 'dueDate', e.target.value)}
+                    />
+                  </div>
+                  {/* Method */}
+                  <div className="col-span-3">
+                    <label className="block text-xs text-gray-500 mb-1">Method</label>
+                    <select
+                      title={`Installment ${idx + 1} payment method`}
+                      className="w-full border border-gray-300 rounded py-1.5 px-2 text-sm focus:outline-none focus:ring-1 focus:ring-teal-500"
+                      value={inst.method}
+                      onChange={(e) => updateInstallment(inst.id, 'method', e.target.value)}
+                    >
+                      <option value="cash">Cash</option>
+                      <option value="card">Card</option>
+                      <option value="bank_transfer">Bank Transfer</option>
+                      <option value="credit">Credit</option>
+                      <option value="other">Other</option>
+                    </select>
+                  </div>
+                  {/* Remove */}
+                  <div className="col-span-2 flex justify-end">
+                    <button
+                      type="button"
+                      title="Remove installment"
+                      onClick={() => removeInstallment(inst.id)}
+                      className="text-red-400 hover:text-red-600 p-1"
+                    >
+                      <TrashIcon size={16} />
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            {errors.installments && (
+              <div className="text-red-500 text-sm">{errors.installments}</div>
+            )}
+
+            {/* Payment Summary */}
             {calculateSubtotal() > 0 && (
-              <div className="bg-white rounded-lg p-3 space-y-2">
+              <div className="bg-white rounded-lg border border-gray-200 p-3 space-y-2">
                 <div className="flex justify-between text-sm">
-                  <span className="text-gray-600">Total Amount:</span>
-                  <span className="font-medium">Rs {calculateSubtotal().toFixed(2)}</span>
+                  <span className="text-gray-600">Purchase Total:</span>
+                  <span className="font-semibold">Rs {calculateSubtotal().toFixed(2)}</span>
                 </div>
-                <div className="flex justify-between text-sm">
-                  <span className="text-gray-600">Paid Amount:</span>
-                  <span className="font-medium">Rs {paidAmount.toFixed(2)}</span>
-                </div>
-                {paidAmount < calculateSubtotal() && (
+                {immediateTotal() > 0 && (
                   <div className="flex justify-between text-sm">
-                    <span className="text-gray-600">Remaining:</span>
-                    <span className="font-medium text-orange-600">Rs {(calculateSubtotal() - paidAmount).toFixed(2)}</span>
+                    <span className="text-gray-600">Paying Now:</span>
+                    <span className="font-medium text-green-600">Rs {immediateTotal().toFixed(2)}</span>
                   </div>
                 )}
-                
-                {/* Payment Status Badge */}
-                <div className="flex justify-end mt-2">
-                  {paidAmount >= calculateSubtotal() ? (
-                    <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
-                      Fully Paid
-                    </span>
-                  ) : paidAmount > 0 ? (
-                    <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-orange-100 text-orange-800">
-                      Partial Payment
-                    </span>
-                  ) : (
-                    <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-800">
-                      Unpaid
-                    </span>
-                  )}
+                {scheduledTotal() > 0 && (
+                  <div className="flex justify-between text-sm">
+                    <span className="text-gray-600">Scheduled:</span>
+                    <span className="font-medium text-blue-600">Rs {scheduledTotal().toFixed(2)}</span>
+                  </div>
+                )}
+                {allocatedTotal() < calculateSubtotal() && (
+                  <div className="flex justify-between text-sm">
+                    <span className="text-gray-600">Unallocated:</span>
+                    <span className="font-medium text-orange-600">Rs {(calculateSubtotal() - allocatedTotal()).toFixed(2)}</span>
+                  </div>
+                )}
+                <div className="flex justify-end pt-1 border-t border-gray-100">
+                  {(() => {
+                    const status = calculatePaymentStatus(0, calculateSubtotal())
+                    if (status === 'paid') return <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">Fully Paid</span>
+                    if (status === 'scheduled') return <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">Fully Scheduled</span>
+                    if (status === 'partial') return <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-orange-100 text-orange-800">Partial</span>
+                    return <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-800">Unpaid</span>
+                  })()}
                 </div>
               </div>
             )}

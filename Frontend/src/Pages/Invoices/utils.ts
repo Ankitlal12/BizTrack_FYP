@@ -143,6 +143,10 @@ const generateInvoiceHTML = (invoice: Invoice): string => {
         .items-table { width: 100%; border-collapse: collapse; margin-bottom: 30px; }
         .items-table th, .items-table td { border: 1px solid #ddd; padding: 8px; text-align: left; }
         .items-table th { background-color: #f2f2f2; }
+        .payment-table { width: 100%; border-collapse: collapse; margin-bottom: 30px; }
+        .payment-table th, .payment-table td { border: 1px solid #ddd; padding: 8px; text-align: left; }
+        .payment-table th { background-color: #f2f2f2; }
+        .scheduled-row { background-color: #e3f2fd; }
         .totals { text-align: right; }
         .total-row { font-weight: bold; }
       </style>
@@ -197,6 +201,34 @@ const generateInvoiceHTML = (invoice: Invoice): string => {
         <p>Paid: ${formatCurrency(invoice.paidAmount)}</p>
         <p class="total-row">Balance: ${formatCurrency(calculateRemainingAmount(invoice))}</p>
       </div>
+      
+      ${invoice.payments && invoice.payments.length > 0 ? `
+        <div>
+          <h3>Payment Schedule</h3>
+          <table class="payment-table">
+            <thead>
+              <tr>
+                <th>Date</th>
+                <th>Amount</th>
+                <th>Method</th>
+                <th>Status</th>
+                <th>Notes</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${invoice.payments.map(payment => `
+                <tr class="${payment.status === 'scheduled' ? 'scheduled-row' : ''}">
+                  <td>${formatDate(payment.date)}</td>
+                  <td>${formatCurrency(payment.amount)}</td>
+                  <td>${payment.method.replace('_', ' ').toUpperCase()}</td>
+                  <td>${payment.status === 'completed' ? 'Completed' : 'Scheduled'}</td>
+                  <td>${payment.notes || '-'}</td>
+                </tr>
+              `).join('')}
+            </tbody>
+          </table>
+        </div>
+      ` : ''}
       
       ${invoice.notes ? `<div><h3>Notes:</h3><p>${invoice.notes}</p></div>` : ''}
     </body>
