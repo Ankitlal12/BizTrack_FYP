@@ -1,6 +1,7 @@
 const User = require("../models/User");
 const LoginHistory = require("../models/LoginHistory");
 const Notification = require("../models/Notification");
+const Sale = require("../models/Sale");
 const bcrypt = require("bcryptjs");
 const { OAuth2Client } = require("google-auth-library");
 const { generateToken } = require("../utils/jwt");
@@ -851,6 +852,170 @@ exports.toggle2FA = async (req, res) => {
     res.json({
       message: `Two-factor authentication ${enabled ? 'enabled' : 'disabled'} successfully`,
       user,
+    });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+};
+
+// Staff Analytics - comprehensive performance metrics for all staff
+exports.getStaffAnalytics = async (req, res) => {
+  try {
+    const { days = 30 } = req.query;
+    const daysAgo = new Date();
+    daysAgo.setDate(daysAgo.getDate() - parseInt(days));
+
+    // 1. All users
+    const allUsers = await User.find({}).select('-password -otp').sort({ dateAdded: -1 });
+
+    // 2. Sales aggregated per staff member — filtered by selected period
+    const salesByStaff = await Sale.aggregate([
+      {
+        $match: {
+          'createdBy.userId': { $exists: true, $ne: null },
+          createdAt: { $gte: daysAgo },
+        }
+      },
+      {
+        $group: {
+          _id: '$createdBy.userId',
+          staffName: { $first: '$createdBy.name' },
+          staffRole: { $first: '$createdBy.role' },
+          totalSales: { $sum: 1 },
+          totalRevenue: { $sum: '$total' },
+          avgOrderValue: { $avg: '$total' },
+          lastSaleDate: { $max: '$createdAt' },
+        }
+      },
+      { $sort: { totalRevenue: -1 } }
+    ]);
+
+    // 3. Session analytics per staff — filtered by selected period
+    const sessionByStaff = await LoginHistory.aggregate([
+      {
+        $match: {
+          success: true,
+          loginTime: { $gte: daysAgo },
+        }
+      },
+      {
+        $group: {
+          _id: '$userId',
+          totalSessions: { $sum: 1 },
+          totalSessionDuration: { $sum: '$sessionDuration' },
+          avgSessionDuration: { $avg: '$sessionDuration' },
+          lastLogin: { $max: '$loginTime' },
+        }
+      }
+    ]);
+
+    // 4. Login activity over time (last N days) for chart
+    const loginActivity = await LoginHistory.aggregate([
+      {
+        $match: {
+          success: true,
+          loginTime: { $gte: daysAgo }
+        }
+      },
+      {
+        $group: {
+          _id: {
+            date: { $dateToString: { format: '%Y-%m-%d', date: '$loginTime' } },
+            userId: '$userId'
+          },
+          sessions: { $sum: 1 }
+        }
+      },
+      { $sort: { '_id.date': 1 } }
+    ]);
+
+    // 5. Daily sales trend over selected period
+    const dailySalesByStaff = await Sale.aggregate([
+      {
+        $match: {
+          'createdBy.userId': { $exists: true, $ne: null },
+          createdAt: { $gte: daysAgo }
+        }
+      },
+      {
+        $group: {
+          _id: {
+            date: { $dateToString: { format: '%Y-%m-%d', date: '$createdAt' } },
+          },
+          totalRevenue: { $sum: '$total' },
+          orderCount: { $sum: 1 }
+        }
+      },
+      { $sort: { '_id.date': 1 } }
+    ]);
+
+    // Build maps for quick lookup
+    const salesMap = new Map(salesByStaff.map(s => [s._id.toString(), s]));
+    const sessionMap = new Map(sessionByStaff.map(s => [s._id.toString(), s]));
+
+    // Build combined staff performance data
+    const staffPerformance = allUsers.map(user => {
+      const uid = user._id.toString();
+      const sales = salesMap.get(uid) || {};
+      const session = sessionMap.get(uid) || {};
+
+      return {
+        _id: user._id,
+        name: user.name,
+        email: user.email,
+        username: user.username,
+        role: user.role,
+        active: user.active,
+        avatar: user.avatar,
+        dateAdded: user.dateAdded,
+        // Period-filtered sales
+        totalSales: sales.totalSales || 0,
+        totalRevenue: sales.totalRevenue || 0,
+        avgOrderValue: sales.avgOrderValue || 0,
+        lastSaleDate: sales.lastSaleDate || null,
+        // Period-filtered sessions
+        totalSessions: session.totalSessions || 0,
+        totalSessionDuration: session.totalSessionDuration || 0,
+        avgSessionDuration: session.avgSessionDuration || 0,
+        lastLogin: session.lastLogin || null,
+      };
+    });
+
+    // Overview stats
+    const totalStaff = allUsers.length;
+    const activeStaff = allUsers.filter(u => u.active).length;
+    const byRole = {
+      owner: allUsers.filter(u => u.role === 'owner').length,
+      manager: allUsers.filter(u => u.role === 'manager').length,
+      staff: allUsers.filter(u => u.role === 'staff').length,
+    };
+
+    const topSeller = staffPerformance
+      .filter(s => s.totalRevenue > 0)
+      .sort((a, b) => b.totalRevenue - a.totalRevenue)[0] || null;
+
+    const mostTimeSpent = staffPerformance
+      .filter(s => s.totalSessionDuration > 0)
+      .sort((a, b) => b.totalSessionDuration - a.totalSessionDuration)[0] || null;
+
+    const mostSessions = staffPerformance
+      .filter(s => s.totalSessions > 0)
+      .sort((a, b) => b.totalSessions - a.totalSessions)[0] || null;
+
+    res.json({
+      overview: {
+        totalStaff,
+        activeStaff,
+        inactiveStaff: totalStaff - activeStaff,
+        byRole,
+        topSeller: topSeller ? { name: topSeller.name, revenue: topSeller.totalRevenue, sales: topSeller.totalSales } : null,
+        mostTimeSpent: mostTimeSpent ? { name: mostTimeSpent.name, duration: mostTimeSpent.totalSessionDuration, sessions: mostTimeSpent.totalSessions } : null,
+        mostSessions: mostSessions ? { name: mostSessions.name, sessions: mostSessions.totalSessions } : null,
+      },
+      staffPerformance,
+      loginActivity,
+      dailySalesByStaff,
+      period: parseInt(days),
     });
   } catch (err) {
     res.status(500).json({ error: err.message });

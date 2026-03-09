@@ -201,6 +201,11 @@ const Sidebar = memo(() => {
               path: '/stock-report',
               icon: <FiPackage size={18} />,
             },
+            {
+              name: 'Staff Analytics',
+              path: '/staff-analytics',
+              icon: <Users size={18} />,
+            },
           ],
         },
         {

@@ -25,6 +25,7 @@ const ReorderHistory = lazy(() => import('./Pages/ReorderHistory'));
 const StockList = lazy(() => import('./Pages/StockList'));
 const StockReport = lazy(() => import('./Pages/StockReport'));
 const UpcomingProducts = lazy(() => import('./Pages/UpcomingProducts'));
+const StaffAnalytics = lazy(() => import('./Pages/StaffAnalytics'));
 
 const PageLoader = () => (
   <div className="flex h-screen items-center justify-center bg-gray-50">
@@ -261,6 +262,17 @@ export const App = () => {
             element={
               isAuthenticated && user?.role === 'owner' ? (
                 <StockReport />
+              ) : (
+                <Navigate to="/inventory" replace />
+              )
+            }
+          />
+
+          <Route
+            path="/staff-analytics"
+            element={
+              isAuthenticated && user?.role === 'owner' ? (
+                <StaffAnalytics />
               ) : (
                 <Navigate to="/inventory" replace />
               )

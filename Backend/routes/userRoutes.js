@@ -11,7 +11,8 @@ const {
   resendOTP,
   toggle2FA,
   updateUser,
-  deleteUser
+  deleteUser,
+  getStaffAnalytics
 } = require("../controllers/userController");
 const router = express.Router();
 
@@ -32,6 +33,9 @@ router.post("/verify-otp", verifyOTPAndLogin);
 
 // Resend OTP
 router.post("/resend-otp", resendOTP);
+
+// Staff analytics (must be before /:id routes)
+router.get("/staff-analytics", getStaffAnalytics);
 
 // Toggle 2FA for user
 router.put("/:id/toggle-2fa", toggle2FA);

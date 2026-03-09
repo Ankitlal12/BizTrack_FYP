@@ -553,3 +553,11 @@ export const reorderAPI = {
   }),
   getStats: () => apiRequest<any>('/reorders/stats'),
 };
+
+// Staff Analytics API
+export const staffAnalyticsAPI = {
+  getAnalytics: (days?: number) => {
+    const query = days ? `?days=${days}` : '';
+    return apiRequest<any>(`/users/staff-analytics${query}`);
+  },
+};
