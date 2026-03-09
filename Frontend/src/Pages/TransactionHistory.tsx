@@ -1,7 +1,9 @@
 import React from 'react'
+import { PrinterIcon } from 'lucide-react'
 import TransactionFilters from './TransactionHistory/TransactionFilters'
 import TransactionTable from './TransactionHistory/TransactionTable'
 import { useTransactions } from './TransactionHistory/useTransaction'
+import { printTransactionStatement } from './TransactionHistory/utils'
 import Layout from '../layout/Layout'
 
 const TransactionHistory = () => {
@@ -40,8 +42,19 @@ const TransactionHistory = () => {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-bold text-gray-800">Transaction History</h1>
-        <div className="text-sm text-gray-500">
-          Combined sales and purchases with date and weekday.
+        <div className="flex items-center gap-3">
+          <div className="text-sm text-gray-500">
+            Combined sales and purchases with date and weekday.
+          </div>
+          <button
+            onClick={() =>
+              printTransactionStatement(transactions, { dateFrom, dateTo, filterType })
+            }
+            className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-blue-700 rounded-lg hover:bg-blue-800 transition-colors shadow-sm"
+          >
+            <PrinterIcon size={15} />
+            Print Statement
+          </button>
         </div>
       </div>
 
