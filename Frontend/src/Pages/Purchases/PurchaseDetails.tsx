@@ -24,7 +24,8 @@ const PurchaseDetails: React.FC<PurchaseDetailsProps> = ({
   const purchaseKey = getPurchaseKey(purchase)
   const paymentStatusValue = purchase.paymentStatus || 'unpaid'
   const paidAmount = purchase.paidAmount || 0
-  const remainingBalance = purchase.total - paidAmount
+  const scheduledAmount = purchase.scheduledAmount || 0
+  const remainingBalance = purchase.total - paidAmount - scheduledAmount
 
   return (
     <tr>
@@ -69,6 +70,12 @@ const PurchaseDetails: React.FC<PurchaseDetailsProps> = ({
                   <p className="text-gray-500">Paid Amount:</p>
                   <p className="text-gray-900 font-medium">Rs {paidAmount.toFixed(2)}</p>
                 </div>
+                {scheduledAmount > 0 && (
+                  <div className="grid grid-cols-2 text-sm">
+                    <p className="text-gray-500">Scheduled:</p>
+                    <p className="text-blue-600 font-medium">Rs {scheduledAmount.toFixed(2)}</p>
+                  </div>
+                )}
                 <div className="grid grid-cols-2 text-sm">
                   <p className="text-gray-500">Remaining:</p>
                   <p className={`font-medium ${remainingBalance > 0 ? 'text-red-600' : 'text-green-600'}`}>
@@ -180,12 +187,13 @@ const PurchaseDetails: React.FC<PurchaseDetailsProps> = ({
                       </th>
                       <th className="py-2 px-3 text-right text-xs font-medium text-gray-500 uppercase">Amount</th>
                       <th className="py-2 px-3 text-left text-xs font-medium text-gray-500 uppercase">Method</th>
+                      <th className="py-2 px-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
                       <th className="py-2 px-3 text-left text-xs font-medium text-gray-500 uppercase">Notes</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-gray-200">
                     {purchase.payments.map((payment, index) => (
-                      <tr key={index} className="hover:bg-gray-50">
+                      <tr key={index} className={`hover:bg-gray-50 ${payment.status === 'scheduled' ? 'bg-blue-50' : ''}`}>
                         <td className="py-2 px-3 text-xs text-gray-900">
                           {formatNepaliDateTime(payment.date, {
                             timeZone: 'Asia/Kathmandu',
@@ -205,6 +213,15 @@ const PurchaseDetails: React.FC<PurchaseDetailsProps> = ({
                             .split('_')
                             .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
                             .join(' ')}
+                        </td>
+                        <td className="py-2 px-3 text-xs">
+                          <span className={`inline-flex px-2 py-0.5 rounded-full font-medium ${
+                            payment.status === 'scheduled'
+                              ? 'bg-blue-100 text-blue-800'
+                              : 'bg-green-100 text-green-800'
+                          }`}>
+                            {payment.status === 'scheduled' ? 'Scheduled' : 'Completed'}
+                          </span>
                         </td>
                         <td className="py-2 px-3 text-xs text-gray-500">
                           {payment.notes || '-'}

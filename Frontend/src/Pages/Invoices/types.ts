@@ -61,6 +61,7 @@ export interface Invoice {
   status: 'draft' | 'sent' | 'paid' | 'partial' | 'overdue' | 'cancelled';
   paymentStatus: 'unpaid' | 'partial' | 'paid';
   paidAmount: number;
+  scheduledAmount?: number;
   paymentMethod?: 'cash' | 'card' | 'bank_transfer' | 'credit' | 'other';
   paymentTerms: string;
   payments?: PaymentRecord[];

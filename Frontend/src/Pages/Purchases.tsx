@@ -162,13 +162,12 @@ const Purchases: React.FC = () => {
     try {
       const updatedPurchase = await purchasesAPI.recordPayment(selectedPurchase._id, paymentData)
       
-      // Update the purchase in the list
+      // Immediately update this purchase in state so the expanded row reflects the new payment
       setPurchases((prevPurchases) =>
         prevPurchases.map((purchase) => (purchase._id === selectedPurchase._id ? updatedPurchase : purchase))
       )
-      
-      // Reload to ensure consistency
-      await loadPurchases()
+      // Also update selectedPurchase so the modal balance is correct if still open
+      setSelectedPurchase(updatedPurchase)
     } catch (error: any) {
       throw error // Let the modal handle the error display
     }

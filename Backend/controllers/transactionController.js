@@ -74,49 +74,75 @@ exports.getTransactions = async (req, res) => {
       purchaseQuery._id === null ? [] : Purchase.find(purchaseQuery).sort(sortObj),
     ]);
 
-    const saleTransactions = sales.map((sale) => ({
-      id: sale.invoiceNumber,
-      dbId: sale._id,
-      type: "sale",
-      counterpartName: sale.customerName,
-      total: sale.total,
-      date: sale.createdAt,
-      day: formatDay(sale.createdAt),
-      reference: sale.invoiceNumber,
-      items: sale.items?.map((item) => ({
-        name: item.name,
-        quantity: item.quantity,
-        price: item.price,
-        total: item.total,
-      })) || [],
-      itemSummary:
-        sale.items?.[0]?.name &&
-        `${sale.items[0].name}${
-          sale.items.length > 1 ? ` (+${sale.items.length - 1} more)` : ""
-        }`,
-    }));
+    const saleTransactions = sales.map((sale) => {
+      const saleObj = sale.toObject();
+      return {
+        id: saleObj.invoiceNumber,
+        dbId: saleObj._id,
+        type: "sale",
+        counterpartName: saleObj.customerName,
+        total: saleObj.total,
+        paidAmount: saleObj.paidAmount || 0,
+        scheduledAmount: saleObj.scheduledAmount || 0,
+        paymentStatus: saleObj.paymentStatus || 'unpaid',
+        payments: (saleObj.payments || []).map(p => ({
+          amount: p.amount,
+          date: p.date,
+          method: p.method,
+          notes: p.notes || '',
+          status: p.status || 'completed',
+        })),
+        date: saleObj.createdAt,
+        day: formatDay(saleObj.createdAt),
+        reference: saleObj.invoiceNumber,
+        items: (saleObj.items || []).map((item) => ({
+          name: item.name,
+          quantity: item.quantity,
+          price: item.price,
+          total: item.total,
+        })),
+        itemSummary:
+          saleObj.items?.[0]?.name &&
+          `${saleObj.items[0].name}${
+            saleObj.items.length > 1 ? ` (+${saleObj.items.length - 1} more)` : ""
+          }`,
+      };
+    });
 
-    const purchaseTransactions = purchases.map((purchase) => ({
-      id: purchase.purchaseNumber,
-      dbId: purchase._id,
-      type: "purchase",
-      counterpartName: purchase.supplierName,
-      total: purchase.total,
-      date: purchase.createdAt,
-      day: formatDay(purchase.createdAt),
-      reference: purchase.purchaseNumber,
-      items: purchase.items?.map((item) => ({
-        name: item.name,
-        quantity: item.quantity,
-        price: item.cost,
-        total: item.total,
-      })) || [],
-      itemSummary:
-        purchase.items?.[0]?.name &&
-        `${purchase.items[0].name}${
-          purchase.items.length > 1 ? ` (+${purchase.items.length - 1} more)` : ""
-        }`,
-    }));
+    const purchaseTransactions = purchases.map((purchase) => {
+      const purchaseObj = purchase.toObject();
+      return {
+        id: purchaseObj.purchaseNumber,
+        dbId: purchaseObj._id,
+        type: "purchase",
+        counterpartName: purchaseObj.supplierName,
+        total: purchaseObj.total,
+        paidAmount: purchaseObj.paidAmount || 0,
+        scheduledAmount: purchaseObj.scheduledAmount || 0,
+        paymentStatus: purchaseObj.paymentStatus || 'unpaid',
+        payments: (purchaseObj.payments || []).map(p => ({
+          amount: p.amount,
+          date: p.date,
+          method: p.method,
+          notes: p.notes || '',
+          status: p.status || 'completed',
+        })),
+        date: purchaseObj.createdAt,
+        day: formatDay(purchaseObj.createdAt),
+        reference: purchaseObj.purchaseNumber,
+        items: (purchaseObj.items || []).map((item) => ({
+          name: item.name,
+          quantity: item.quantity,
+          price: item.cost,
+          total: item.total,
+        })),
+        itemSummary:
+          purchaseObj.items?.[0]?.name &&
+          `${purchaseObj.items[0].name}${
+            purchaseObj.items.length > 1 ? ` (+${purchaseObj.items.length - 1} more)` : ""
+          }`,
+      };
+    });
 
     // Combine and sort all transactions
     const allTransactions = [...saleTransactions, ...purchaseTransactions];

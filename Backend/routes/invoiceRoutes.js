@@ -8,24 +8,26 @@ const {
   generateFromSale,
   generateFromPurchase,
   updatePaymentStatus,
+  recordInvoicePayment,
   getInvoiceStats,
 } = require("../controllers/invoiceController");
 const router = express.Router();
 
-// Basic CRUD routes
+// Static / named routes MUST come before dynamic /:id routes
 router.get("/", getAllInvoices);
 router.get("/stats", getInvoiceStats);
-router.get("/:id", getInvoiceById);
 router.post("/", createInvoice);
-router.put("/:id", updateInvoice);
-router.delete("/:id", deleteInvoice);
 
-// Invoice generation routes
+// Invoice generation routes (before /:id to avoid route conflicts)
 router.post("/generate/sale/:saleId", generateFromSale);
 router.post("/generate/purchase/:purchaseId", generateFromPurchase);
 
-// Payment status update
+// Dynamic /:id routes
+router.get("/:id", getInvoiceById);
+router.put("/:id", updateInvoice);
+router.delete("/:id", deleteInvoice);
 router.patch("/:id/payment", updatePaymentStatus);
+router.post("/:id/payments", recordInvoicePayment);
 
 module.exports = router;
 

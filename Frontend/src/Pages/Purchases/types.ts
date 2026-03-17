@@ -14,6 +14,7 @@ export type PaymentRecord = {
   date: string | Date
   method: string
   notes?: string
+  status?: 'completed' | 'scheduled'
 }
 
 export type Purchase = {
@@ -28,8 +29,9 @@ export type Purchase = {
   shipping?: number
   total: number
   paymentMethod?: string
-  paymentStatus?: 'unpaid' | 'partial' | 'paid'
+  paymentStatus?: 'unpaid' | 'partial' | 'paid' | 'scheduled'
   paidAmount?: number
+  scheduledAmount?: number
   payments?: PaymentRecord[]
   status: 'pending' | 'received' | 'cancelled'
   expectedDeliveryDate?: string

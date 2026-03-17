@@ -207,18 +207,21 @@ exports.getAllInvoices = async (req, res) => {
       invoices.map(async (invoice) => {
         const invoiceObj = invoice.toObject();
         let payments = [];
+        let scheduledAmount = 0;
         
         if (invoice.relatedId) {
           try {
             if (invoice.type === 'sale') {
               const sale = await Sale.findById(invoice.relatedId);
-              if (sale && sale.payments) {
-                payments = sale.payments;
+              if (sale) {
+                payments = sale.payments || [];
+                scheduledAmount = sale.scheduledAmount || 0;
               }
             } else if (invoice.type === 'purchase') {
               const purchase = await Purchase.findById(invoice.relatedId);
-              if (purchase && purchase.payments) {
-                payments = purchase.payments;
+              if (purchase) {
+                payments = purchase.payments || [];
+                scheduledAmount = purchase.scheduledAmount || 0;
               }
             }
           } catch (fetchError) {
@@ -227,6 +230,7 @@ exports.getAllInvoices = async (req, res) => {
         }
         
         invoiceObj.payments = payments;
+        invoiceObj.scheduledAmount = scheduledAmount;
         return invoiceObj;
       })
     );
@@ -256,17 +260,20 @@ exports.getInvoiceById = async (req, res) => {
     
     // Fetch payments from the related Sale or Purchase
     let payments = [];
+    let scheduledAmount = 0;
     if (invoice.relatedId) {
       try {
         if (invoice.type === 'sale') {
           const sale = await Sale.findById(invoice.relatedId);
-          if (sale && sale.payments) {
-            payments = sale.payments;
+          if (sale) {
+            payments = sale.payments || [];
+            scheduledAmount = sale.scheduledAmount || 0;
           }
         } else if (invoice.type === 'purchase') {
           const purchase = await Purchase.findById(invoice.relatedId);
-          if (purchase && purchase.payments) {
-            payments = purchase.payments;
+          if (purchase) {
+            payments = purchase.payments || [];
+            scheduledAmount = purchase.scheduledAmount || 0;
           }
         }
       } catch (fetchError) {
@@ -274,9 +281,10 @@ exports.getInvoiceById = async (req, res) => {
       }
     }
     
-    // Add payments to invoice response
+    // Add payments and scheduledAmount to invoice response
     const invoiceWithPayments = invoice.toObject();
     invoiceWithPayments.payments = payments;
+    invoiceWithPayments.scheduledAmount = scheduledAmount;
     
     res.json(invoiceWithPayments);
   } catch (err) {
@@ -422,6 +430,178 @@ exports.generateFromPurchase = async (req, res) => {
 
     res.status(201).json(populatedInvoice);
   } catch (err) {
+    res.status(400).json({ error: err.message });
+  }
+};
+
+// Record one or more payments for an invoice — proxies to the related Sale or Purchase
+// Accepts either a single payment object or { payments: [...] } for batch/installment
+exports.recordInvoicePayment = async (req, res) => {
+  try {
+    const invoice = await Invoice.findById(req.params.id);
+    if (!invoice) {
+      return res.status(404).json({ error: `Invoice not found (id: ${req.params.id})` });
+    }
+
+    if (!invoice.relatedId) {
+      return res.status(400).json({ error: "Invoice has no linked purchase or sale" });
+    }
+
+    // Normalise: support both single { amount, date, method, notes }
+    // and batch { payments: [{ amount, date, method, notes }, ...] }
+    let paymentsToRecord;
+    if (Array.isArray(req.body.payments)) {
+      paymentsToRecord = req.body.payments;
+    } else {
+      paymentsToRecord = [req.body];
+    }
+
+    // Validate all amounts upfront
+    for (const p of paymentsToRecord) {
+      const amt = parseFloat(p.amount);
+      if (!amt || amt <= 0) {
+        return res.status(400).json({ error: "Each payment amount must be greater than 0" });
+      }
+    }
+
+    const currentDate = new Date();
+    currentDate.setHours(0, 0, 0, 0);
+
+    const buildRecord = (p) => {
+      const paymentDate = p.date ? new Date(p.date) : new Date();
+      const paymentDateOnly = new Date(paymentDate);
+      paymentDateOnly.setHours(0, 0, 0, 0);
+      const isScheduled = paymentDateOnly > currentDate;
+      return {
+        amount: parseFloat(p.amount),
+        date: paymentDate,
+        method: p.method || "cash",
+        notes: p.notes || "",
+        status: isScheduled ? "scheduled" : "completed",
+        isScheduled,
+      };
+    };
+
+    const records = paymentsToRecord.map(buildRecord);
+    const totalNewPaid = records.filter(r => !r.isScheduled).reduce((s, r) => s + r.amount, 0);
+    const totalNewScheduled = records.filter(r => r.isScheduled).reduce((s, r) => s + r.amount, 0);
+    const totalNew = totalNewPaid + totalNewScheduled;
+
+    let lastMethod = records[records.length - 1].method;
+
+    if (invoice.type === "purchase") {
+      const purchase = await Purchase.findById(invoice.relatedId);
+      if (!purchase) return res.status(404).json({ error: `Related purchase not found (relatedId: ${invoice.relatedId})` });
+
+      const currentPaid = purchase.paidAmount || 0;
+      const currentScheduled = purchase.scheduledAmount || 0;
+      const remaining = purchase.total - currentPaid - currentScheduled;
+
+      if (totalNew > remaining + 0.001) {
+        return res.status(400).json({
+          error: `Total payment (Rs ${totalNew.toFixed(2)}) exceeds remaining balance (Rs ${remaining.toFixed(2)})`
+        });
+      }
+
+      purchase.payments = purchase.payments || [];
+      records.forEach(r => {
+        const { isScheduled, ...record } = r;
+        purchase.payments.push(record);
+      });
+
+      purchase.paidAmount = currentPaid + totalNewPaid;
+      purchase.scheduledAmount = currentScheduled + totalNewScheduled;
+
+      const totalPlanned = purchase.paidAmount + purchase.scheduledAmount;
+      if (purchase.paidAmount >= purchase.total) {
+        purchase.paymentStatus = "paid";
+        if (purchase.status === "pending") purchase.status = "received";
+      } else if (totalPlanned >= purchase.total) {
+        purchase.paymentStatus = "scheduled";
+      } else if (purchase.paidAmount > 0 || purchase.scheduledAmount > 0) {
+        purchase.paymentStatus = "partial";
+      } else {
+        purchase.paymentStatus = "unpaid";
+      }
+
+      await purchase.save();
+
+      invoice.paymentStatus = purchase.paymentStatus;
+      invoice.paidAmount = purchase.paidAmount;
+      invoice.paymentMethod = lastMethod;
+      invoice.status = purchase.paymentStatus === "paid" ? "paid" : "sent";
+      await invoice.save();
+
+    } else if (invoice.type === "sale") {
+      const sale = await Sale.findById(invoice.relatedId);
+      if (!sale) return res.status(404).json({ error: `Related sale not found (relatedId: ${invoice.relatedId})` });
+
+      const currentPaid = sale.paidAmount || 0;
+      const currentScheduled = sale.scheduledAmount || 0;
+      const remaining = sale.total - currentPaid - currentScheduled;
+
+      if (totalNew > remaining + 0.001) {
+        return res.status(400).json({
+          error: `Total payment (Rs ${totalNew.toFixed(2)}) exceeds remaining balance (Rs ${remaining.toFixed(2)})`
+        });
+      }
+
+      sale.payments = sale.payments || [];
+      records.forEach(r => {
+        const { isScheduled, ...record } = r;
+        sale.payments.push(record);
+      });
+
+      sale.paidAmount = currentPaid + totalNewPaid;
+      sale.scheduledAmount = currentScheduled + totalNewScheduled;
+
+      const totalPlanned = sale.paidAmount + sale.scheduledAmount;
+      if (sale.paidAmount >= sale.total) {
+        sale.paymentStatus = "paid";
+      } else if (totalPlanned >= sale.total) {
+        sale.paymentStatus = "scheduled";
+      } else if (sale.paidAmount > 0 || sale.scheduledAmount > 0) {
+        sale.paymentStatus = "partial";
+      } else {
+        sale.paymentStatus = "unpaid";
+      }
+
+      await sale.save();
+
+      invoice.paymentStatus = sale.paymentStatus;
+      invoice.paidAmount = sale.paidAmount;
+      invoice.paymentMethod = lastMethod;
+      invoice.status = sale.paymentStatus === "paid" ? "paid" : "sent";
+      await invoice.save();
+
+    } else {
+      return res.status(400).json({ error: `Unknown invoice type: ${invoice.type}` });
+    }
+
+    // Return the updated invoice with fresh payments from the related doc
+    const updatedInvoice = await Invoice.findById(invoice._id)
+      .populate("items.inventoryId")
+      .populate("relatedId");
+
+    let payments = [];
+    let scheduledAmount = 0;
+    const relatedDocId = updatedInvoice.relatedId?._id || updatedInvoice.relatedId;
+    if (relatedDocId) {
+      if (invoice.type === "purchase") {
+        const purchase = await Purchase.findById(relatedDocId);
+        if (purchase) { payments = purchase.payments || []; scheduledAmount = purchase.scheduledAmount || 0; }
+      } else if (invoice.type === "sale") {
+        const sale = await Sale.findById(relatedDocId);
+        if (sale) { payments = sale.payments || []; scheduledAmount = sale.scheduledAmount || 0; }
+      }
+    }
+
+    const result = updatedInvoice.toObject();
+    result.payments = payments;
+    result.scheduledAmount = scheduledAmount;
+    res.json(result);
+  } catch (err) {
+    console.error("❌ recordInvoicePayment error:", err);
     res.status(400).json({ error: err.message });
   }
 };

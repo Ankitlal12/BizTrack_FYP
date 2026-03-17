@@ -42,15 +42,15 @@ const InvoiceDetail: React.FC = () => {
 
   const handlePaymentUpdate = async (invoiceId: string, paymentData: any) => {
     try {
-      await invoicesAPI.updatePayment(invoiceId, paymentData);
-      // Refresh the invoice data
-      if (id) {
-        await fetchInvoice(id);
-      }
-      setShowPaymentModal(false);
-      toast.success('Payment updated successfully');
-    } catch (err) {
-      throw new Error('Failed to update payment');
+      const updated = await invoicesAPI.recordPayment(invoiceId, paymentData);
+      setInvoice(updated);
+      toast.success(
+        Array.isArray((paymentData as any).payments)
+          ? `${(paymentData as any).payments.length} installments recorded`
+          : 'Payment recorded successfully'
+      );
+    } catch (err: any) {
+      throw err;
     }
   };
 
@@ -113,7 +113,7 @@ const InvoiceDetail: React.FC = () => {
           invoice={invoice}
           isOpen={showPaymentModal}
           onClose={() => setShowPaymentModal(false)}
-          onUpdate={handlePaymentUpdate}
+          onSave={handlePaymentUpdate}
         />
       </div>
     </Layout>

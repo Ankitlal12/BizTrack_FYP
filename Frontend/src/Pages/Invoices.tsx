@@ -206,13 +206,13 @@ const Invoices: React.FC = () => {
   // Handle payment update submission
   const handlePaymentUpdate = async (invoiceId: string, paymentData: any) => {
     try {
-      await invoicesAPI.updatePayment(invoiceId, paymentData);
+      const updated = await invoicesAPI.recordPayment(invoiceId, paymentData);
+      // Update the selected invoice in state so the modal reflects fresh data
+      setSelectedInvoice(updated);
       await fetchInvoices();
       await fetchStats();
-      setShowPaymentModal(false);
-      setSelectedInvoice(null);
-    } catch (err) {
-      throw new Error('Failed to update payment');
+    } catch (err: any) {
+      throw err;
     }
   };
 
@@ -365,7 +365,7 @@ const Invoices: React.FC = () => {
           invoice={selectedInvoice}
           isOpen={showPaymentModal}
           onClose={handleCloseModals}
-          onUpdate={handlePaymentUpdate}
+          onSave={handlePaymentUpdate}
         />
       </div>
     </Layout>

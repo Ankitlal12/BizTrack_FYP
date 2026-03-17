@@ -170,6 +170,10 @@ export const invoicesAPI = {
     method: 'PATCH',
     body: JSON.stringify(paymentData),
   }),
+  recordPayment: (id: string, paymentData: { amount: number; date?: string; method: string; notes?: string } | { payments: { amount: number; date?: string; method: string; notes?: string }[] }) => apiRequest<any>(`/invoices/${id}/payments`, {
+    method: 'POST',
+    body: JSON.stringify(paymentData),
+  }),
   generateFromSale: (saleId: string) => apiRequest<any>(`/invoices/generate/sale/${saleId}`, {
     method: 'POST',
   }),

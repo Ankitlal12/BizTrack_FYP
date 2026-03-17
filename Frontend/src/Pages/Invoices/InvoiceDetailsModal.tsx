@@ -12,6 +12,7 @@ import {
   calculateRemainingAmount,
   generateInvoicePDF,
 } from './utils';
+import { formatNepaliDateTime } from '../../utils/dateUtils';
 
 interface InvoiceDetailsModalProps {
   invoice: Invoice | null;
@@ -263,7 +264,12 @@ const InvoiceDetailsModal: React.FC<InvoiceDetailsModalProps> = ({
                     {invoice.payments.map((payment, index) => (
                       <tr key={index} className={payment.status === 'scheduled' ? 'bg-blue-50' : ''}>
                         <td className="px-4 py-3 text-sm text-gray-900">
-                          {formatDate(payment.date)}
+                          {formatNepaliDateTime(payment.date, {
+                            timeZone: 'Asia/Kathmandu',
+                            year: 'numeric', month: 'short', day: 'numeric',
+                            hour: '2-digit', minute: '2-digit', hour12: true,
+                          })}
+                          <div className="text-xs text-gray-400 mt-0.5">NPT</div>
                         </td>
                         <td className="px-4 py-3 text-sm text-right font-medium text-gray-900">
                           {formatCurrency(payment.amount)}
@@ -325,7 +331,7 @@ const InvoiceDetailsModal: React.FC<InvoiceDetailsModalProps> = ({
                 onClick={() => onUpdatePayment(invoice)}
                 className="px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 transition-colors"
               >
-                Update Payment
+                Record Payment
               </button>
             )}
             <button
