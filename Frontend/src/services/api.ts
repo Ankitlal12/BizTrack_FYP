@@ -560,8 +560,15 @@ export const reorderAPI = {
 
 // Staff Analytics API
 export const staffAnalyticsAPI = {
-  getAnalytics: (days?: number) => {
-    const query = days ? `?days=${days}` : '';
+  getAnalytics: (params?: { days?: number; dateFrom?: string; dateTo?: string }) => {
+    const q = new URLSearchParams();
+    if (params?.dateFrom && params?.dateTo) {
+      q.append('dateFrom', params.dateFrom);
+      q.append('dateTo', params.dateTo);
+    } else if (params?.days) {
+      q.append('days', String(params.days));
+    }
+    const query = q.toString() ? `?${q.toString()}` : '';
     return apiRequest<any>(`/users/staff-analytics${query}`);
   },
 };

@@ -8,10 +8,13 @@ import {
 } from 'recharts';
 import {
   Warehouse, Package, TrendingDown, AlertTriangle,
-  RefreshCw, Download, DollarSign, BarChart2
+  RefreshCw, Download, DollarSign, BarChart2, Calendar
 } from 'lucide-react';
+import DatePresets from '../components/DatePresets';
 
 const COLORS = ['#0d9488', '#3b82f6', '#8b5cf6', '#f59e0b', '#ef4444', '#10b981'];
+
+const toLocalDate = (d: Date) => d.toLocaleDateString('en-CA');
 
 interface StockItem {
   _id: string;
@@ -54,6 +57,12 @@ const StockReport: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [inventory, setInventory] = useState<StockItem[]>([]);
 
+  // Date range (default: last 30 days)
+  const defaultTo = toLocalDate(new Date());
+  const defaultFrom = (() => { const d = new Date(); d.setDate(d.getDate() - 29); return toLocalDate(d); })();
+  const [dateFrom, setDateFrom] = useState(defaultFrom);
+  const [dateTo, setDateTo] = useState(defaultTo);
+
   // Summary metrics
   const [totalStockCostValue, setTotalStockCostValue] = useState(0);
   const [totalStockSellValue, setTotalStockSellValue] = useState(0);
@@ -69,16 +78,14 @@ const StockReport: React.FC = () => {
 
   useEffect(() => {
     loadData();
-  }, []);
+  }, [dateFrom, dateTo]);
 
   const loadData = async () => {
     try {
       setLoading(true);
 
-      // Fetch inventory and last 30 days of sales
-      const endDate = new Date();
-      const startDate = new Date();
-      startDate.setDate(startDate.getDate() - 30);
+      const startDate = new Date(dateFrom + 'T00:00:00');
+      const endDate = new Date(dateTo + 'T23:59:59');
       const params = new URLSearchParams();
       params.append('dateFrom', startDate.toISOString());
       params.append('dateTo', endDate.toISOString());
@@ -245,6 +252,35 @@ const StockReport: React.FC = () => {
           </div>
         </div>
 
+        {/* Date Range Filter */}
+        <div className="bg-white p-4 rounded-lg shadow-sm border">
+          <div className="flex flex-col gap-3">
+            <div className="flex items-center gap-2">
+              <Calendar className="w-5 h-5 text-gray-600" />
+              <span className="text-sm font-medium text-gray-700">Sales Period:</span>
+              <div className="flex items-center gap-2 ml-2">
+                <input
+                  type="date"
+                  value={dateFrom}
+                  max={dateTo}
+                  onChange={e => setDateFrom(e.target.value)}
+                  className="border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-teal-500"
+                />
+                <span className="text-gray-400 text-sm">to</span>
+                <input
+                  type="date"
+                  value={dateTo}
+                  min={dateFrom}
+                  max={toLocalDate(new Date())}
+                  onChange={e => setDateTo(e.target.value)}
+                  className="border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-teal-500"
+                />
+              </div>
+            </div>
+            <DatePresets onSelect={(from, to) => { setDateFrom(from); setDateTo(to); }} />
+          </div>
+        </div>
+
         {/* Summary Cards */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
           <div className="bg-white p-5 rounded-lg shadow-sm border">
@@ -376,7 +412,7 @@ const StockReport: React.FC = () => {
         {/* Stock Turnover Rate */}
         <div className="bg-white p-6 rounded-lg shadow-sm border">
           <div className="flex items-center justify-between mb-4">
-            <h3 className="text-lg font-semibold text-gray-900">Stock Turnover Rate (Last 30 Days)</h3>
+            <h3 className="text-lg font-semibold text-gray-900">Stock Turnover Rate ({dateFrom === dateTo ? dateFrom : `${dateFrom} – ${dateTo}`})</h3>
             <span className="text-xs text-gray-500 bg-gray-100 px-2 py-1 rounded">Higher = faster moving</span>
           </div>
           <ResponsiveContainer width="100%" height={260}>
@@ -402,7 +438,7 @@ const StockReport: React.FC = () => {
           <div className="flex items-center justify-between mb-4">
             <h3 className="text-lg font-semibold text-gray-900 flex items-center gap-2">
               <TrendingDown className="w-5 h-5 text-red-500" />
-              Dead Stock (Zero Sales in Last 30 Days)
+              Dead Stock (Zero Sales: {dateFrom === dateTo ? dateFrom : `${dateFrom} – ${dateTo}`})
             </h3>
             <span className="text-sm text-gray-500 bg-red-50 text-red-600 px-3 py-1 rounded-full border border-red-200">
               {deadStock.length} item{deadStock.length !== 1 ? 's' : ''}
@@ -412,7 +448,7 @@ const StockReport: React.FC = () => {
           {deadStock.length === 0 ? (
             <div className="text-center py-10 text-gray-500">
               <Package className="w-10 h-10 mx-auto mb-2 text-gray-300" />
-              <p>No dead stock — all items had at least one sale in the last 30 days</p>
+              <p>No dead stock — all items had at least one sale in the selected period</p>
             </div>
           ) : (
             <>

@@ -38,7 +38,7 @@ const Sales: React.FC = () => {
 
   useEffect(() => {
     loadSales()
-  }, [searchTerm, sortField, sortDirection, filterStatus, paymentStatusFilter, paymentMethodFilter, customerFilter, dateFrom, dateTo, totalMin, totalMax, quantityMin, quantityMax, pagination.current])
+  }, [searchTerm, sortField, sortDirection, filterStatus, paymentStatusFilter, paymentMethodFilter, customerFilter, dateFrom, dateTo, totalMin, totalMax, quantityMin, quantityMax, pagination.current, pagination.limit])
 
   const loadSales = async () => {
     setIsLoading(true)

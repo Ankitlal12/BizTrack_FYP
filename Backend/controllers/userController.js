@@ -861,9 +861,18 @@ exports.toggle2FA = async (req, res) => {
 // Staff Analytics - comprehensive performance metrics for all staff
 exports.getStaffAnalytics = async (req, res) => {
   try {
-    const { days = 30 } = req.query;
-    const daysAgo = new Date();
-    daysAgo.setDate(daysAgo.getDate() - parseInt(days));
+    const { days = 30, dateFrom, dateTo } = req.query;
+    let startDate, endDate;
+    if (dateFrom && dateTo) {
+      startDate = new Date(dateFrom);
+      endDate = new Date(dateTo);
+      endDate.setHours(23, 59, 59, 999);
+    } else {
+      endDate = new Date();
+      startDate = new Date();
+      startDate.setDate(startDate.getDate() - parseInt(days));
+    }
+    const daysAgo = startDate; // alias for existing code
 
     // 1. All users
     const allUsers = await User.find({}).select('-password -otp').sort({ dateAdded: -1 });
@@ -873,7 +882,7 @@ exports.getStaffAnalytics = async (req, res) => {
       {
         $match: {
           'createdBy.userId': { $exists: true, $ne: null },
-          createdAt: { $gte: daysAgo },
+          createdAt: { $gte: startDate, $lte: endDate },
         }
       },
       {
@@ -895,7 +904,7 @@ exports.getStaffAnalytics = async (req, res) => {
       {
         $match: {
           success: true,
-          loginTime: { $gte: daysAgo },
+          loginTime: { $gte: startDate, $lte: endDate },
         }
       },
       {
@@ -914,7 +923,7 @@ exports.getStaffAnalytics = async (req, res) => {
       {
         $match: {
           success: true,
-          loginTime: { $gte: daysAgo }
+          loginTime: { $gte: startDate, $lte: endDate }
         }
       },
       {
@@ -934,7 +943,7 @@ exports.getStaffAnalytics = async (req, res) => {
       {
         $match: {
           'createdBy.userId': { $exists: true, $ne: null },
-          createdAt: { $gte: daysAgo }
+          createdAt: { $gte: startDate, $lte: endDate }
         }
       },
       {
@@ -1016,6 +1025,8 @@ exports.getStaffAnalytics = async (req, res) => {
       loginActivity,
       dailySalesByStaff,
       period: parseInt(days),
+      dateFrom: startDate.toISOString(),
+      dateTo: endDate.toISOString(),
     });
   } catch (err) {
     res.status(500).json({ error: err.message });

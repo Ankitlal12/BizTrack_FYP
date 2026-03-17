@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { SearchIcon, FilterIcon, XIcon, ArrowUpIcon, ArrowDownIcon } from 'lucide-react';
 import { InvoiceFilters as IInvoiceFilters } from './types';
+import DatePresets from '../../components/DatePresets';
 
 interface InvoiceFiltersProps {
   filters: IInvoiceFilters;
@@ -310,6 +311,16 @@ const InvoiceFilters: React.FC<InvoiceFiltersProps> = ({
                 />
               </div>
             </div>
+          </div>
+
+          {/* Date Presets */}
+          <div className="mt-4">
+            <label className="text-xs font-medium text-gray-600 block mb-2">Quick Date Ranges</label>
+            <DatePresets
+              onSelect={(from, to) => {
+                onFiltersChange({ ...filters, dateFrom: from, dateTo: to, page: 1 });
+              }}
+            />
           </div>
         </div>
       )}

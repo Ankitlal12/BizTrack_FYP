@@ -8,8 +8,9 @@ import {
 } from 'recharts';
 import {
   Users, TrendingUp, Clock, Award, ShieldCheck, UserCheck, UserX,
-  RefreshCw, Crown, Timer, BarChart2, Activity, Star, CheckCircle, XCircle
+  RefreshCw, Crown, Timer, BarChart2, Activity, Star, CheckCircle, XCircle, Calendar
 } from 'lucide-react';
+import DatePresets from '../components/DatePresets';
 
 const ROLE_COLORS: Record<string, string> = {
   owner: '#6366f1',
@@ -43,9 +44,16 @@ const getRoleBadge = (role: string) => {
   );
 };
 
+const toLocalDate = (d: Date) => d.toLocaleDateString('en-CA');
+
 const StaffAnalytics: React.FC = () => {
   const [loading, setLoading] = useState(true);
-  const [days, setDays] = useState<number>(30);
+
+  const defaultTo = toLocalDate(new Date());
+  const defaultFrom = (() => { const d = new Date(); d.setDate(d.getDate() - 29); return toLocalDate(d); })();
+  const [dateFrom, setDateFrom] = useState(defaultFrom);
+  const [dateTo, setDateTo] = useState(defaultTo);
+
   const [data, setData] = useState<any>(null);
   const [sortBy, setSortBy] = useState<'revenue' | 'sales' | 'sessions' | 'duration'>('revenue');
   const [filterRole, setFilterRole] = useState<'all' | 'owner' | 'manager' | 'staff'>('all');
@@ -53,7 +61,7 @@ const StaffAnalytics: React.FC = () => {
   const loadData = async () => {
     setLoading(true);
     try {
-      const res = await staffAnalyticsAPI.getAnalytics(days);
+      const res = await staffAnalyticsAPI.getAnalytics({ dateFrom, dateTo });
       setData(res);
     } catch (err: any) {
       toast.error('Failed to load staff analytics');
@@ -64,7 +72,7 @@ const StaffAnalytics: React.FC = () => {
 
   useEffect(() => {
     loadData();
-  }, [days]);
+  }, [dateFrom, dateTo]);
 
   if (loading) {
     return (
@@ -144,26 +152,34 @@ const StaffAnalytics: React.FC = () => {
             <h2 className="text-2xl font-bold text-gray-800">Staff Analytics</h2>
             <p className="text-gray-500 text-sm mt-0.5">Performance overview for all team members</p>
           </div>
-          <div className="flex items-center gap-2">
-            <select
-              value={days}
-              aria-label="Time range"
-              onChange={e => setDays(Number(e.target.value))}
-              className="text-sm border border-gray-200 rounded-lg px-3 py-2 bg-white focus:outline-none focus:ring-2 focus:ring-teal-500"
-            >
-              <option value={7}>Last 7 days</option>
-              <option value={30}>Last 30 days</option>
-              <option value={60}>Last 60 days</option>
-              <option value={90}>Last 90 days</option>
-              <option value={365}>Last 1 year</option>
-            </select>
-            <button
-              onClick={loadData}
-              className="flex items-center gap-1.5 px-3 py-2 text-sm bg-teal-500 text-white rounded-lg hover:bg-teal-600 transition-colors"
-            >
-              <RefreshCw size={14} />
-              Refresh
-            </button>
+          <div className="flex flex-col gap-2">
+            <div className="flex items-center gap-2">
+              <Calendar size={16} className="text-gray-500" />
+              <input
+                type="date"
+                value={dateFrom}
+                max={dateTo}
+                onChange={e => setDateFrom(e.target.value)}
+                className="text-sm border border-gray-200 rounded-lg px-3 py-2 bg-white focus:outline-none focus:ring-2 focus:ring-teal-500"
+              />
+              <span className="text-gray-400 text-sm">to</span>
+              <input
+                type="date"
+                value={dateTo}
+                min={dateFrom}
+                max={toLocalDate(new Date())}
+                onChange={e => setDateTo(e.target.value)}
+                className="text-sm border border-gray-200 rounded-lg px-3 py-2 bg-white focus:outline-none focus:ring-2 focus:ring-teal-500"
+              />
+              <button
+                onClick={loadData}
+                className="flex items-center gap-1.5 px-3 py-2 text-sm bg-teal-500 text-white rounded-lg hover:bg-teal-600 transition-colors"
+              >
+                <RefreshCw size={14} />
+                Refresh
+              </button>
+            </div>
+            <DatePresets onSelect={(from, to) => { setDateFrom(from); setDateTo(to); }} />
           </div>
         </div>
 
@@ -379,7 +395,7 @@ const StaffAnalytics: React.FC = () => {
         {trendData.length > 0 && (
           <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-4">
             <h3 className="font-semibold text-gray-700 mb-4 flex items-center gap-2">
-              <BarChart2 size={16} className="text-teal-500" /> Team Sales Trend (Last {days} days)
+              <BarChart2 size={16} className="text-teal-500" /> Team Sales Trend ({dateFrom} – {dateTo})
             </h3>
             <ResponsiveContainer width="100%" height={200}>
               <LineChart data={trendData} margin={{ top: 5, right: 10, bottom: 5, left: -10 }}>
@@ -401,7 +417,7 @@ const StaffAnalytics: React.FC = () => {
           <div className="p-4 border-b border-gray-100 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
             <h3 className="font-semibold text-gray-700 flex items-center gap-2">
               <Star size={16} className="text-amber-500" /> Staff Performance —{' '}
-              <span className="text-teal-600">Last {days} Days</span>
+              <span className="text-teal-600">{dateFrom} – {dateTo}</span>
             </h3>
             <div className="flex items-center gap-2">
               <select

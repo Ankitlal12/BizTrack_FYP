@@ -66,7 +66,7 @@ export const useTransactions = () => {
 
   useEffect(() => {
     loadTransactions()
-  }, [searchTerm, filterType, dateFrom, dateTo, totalMin, totalMax, sortField, sortDirection, pagination.current])
+  }, [searchTerm, filterType, dateFrom, dateTo, totalMin, totalMax, sortField, sortDirection, pagination.current, pagination.limit])
 
   const handlePageChange = (page: number) => {
     setPagination(prev => ({ ...prev, current: page }))

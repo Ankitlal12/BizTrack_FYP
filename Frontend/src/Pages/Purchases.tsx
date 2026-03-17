@@ -42,7 +42,7 @@ const Purchases: React.FC = () => {
 
   useEffect(() => {
     loadPurchases()
-  }, [searchTerm, sortField, sortDirection, filterStatus, paymentStatusFilter, paymentMethodFilter, supplierFilter, dateFrom, dateTo, totalMin, totalMax, quantityMin, quantityMax, pagination.current])
+  }, [searchTerm, sortField, sortDirection, filterStatus, paymentStatusFilter, paymentMethodFilter, supplierFilter, dateFrom, dateTo, totalMin, totalMax, quantityMin, quantityMax, pagination.current, pagination.limit])
 
   const loadPurchases = async () => {
     setIsLoading(true)

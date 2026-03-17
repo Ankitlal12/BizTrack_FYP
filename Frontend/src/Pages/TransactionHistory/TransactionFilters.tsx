@@ -1,6 +1,7 @@
 import React, { useState } from 'react'
 import { SearchIcon, FilterIcon, RefreshCwIcon, XIcon, ArrowUpIcon, ArrowDownIcon } from 'lucide-react'
 import { TransactionType } from './types'
+import DatePresets from '../../components/DatePresets'
 
 interface Props {
   searchTerm: string
@@ -203,6 +204,12 @@ const TransactionFilters: React.FC<Props> = ({
                 />
               </div>
             </div>
+          </div>
+
+          {/* Date Presets */}
+          <div className="mt-4">
+            <label className="text-xs font-medium text-gray-600 block mb-2">Quick Date Ranges</label>
+            <DatePresets onSelect={(from, to) => { onDateFromChange(from); onDateToChange(to) }} />
           </div>
         </div>
       )}

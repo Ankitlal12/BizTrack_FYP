@@ -12,6 +12,7 @@ import {
   AlertCircle, CreditCard, Clock, Warehouse
 } from 'lucide-react';
 import ReportChatbot from './Reports/ReportChatbot';
+import DatePresets from '../components/DatePresets';
 
 interface SaleItem {
   _id: string;
@@ -55,9 +56,19 @@ interface PurchaseVsSales {
   sales: number;
 }
 
+const toLocalDate = (d: Date) => d.toLocaleDateString('en-CA');
+
 const Reports: React.FC = () => {
   const [loading, setLoading] = useState(true);
-  const [timeRange, setTimeRange] = useState<'day' | 'week' | 'month'>('week');
+
+  // Date range filter (default: last 7 days)
+  const defaultTo = toLocalDate(new Date());
+  const defaultFrom = (() => { const d = new Date(); d.setDate(d.getDate() - 6); return toLocalDate(d); })();
+  const [dateFrom, setDateFrom] = useState(defaultFrom);
+  const [dateTo, setDateTo] = useState(defaultTo);
+
+  // keep timeRange for chatbot prop (derived label)
+  const timeRange = 'week' as const;
   const [salesData, setSalesData] = useState<SaleItem[]>([]);
   const [inventoryData, setInventoryData] = useState<any[]>([]);
   
@@ -93,31 +104,21 @@ const Reports: React.FC = () => {
 
   useEffect(() => {
     loadReportsData();
-  }, [timeRange]);
+  }, [dateFrom, dateTo]);
 
   const loadReportsData = async () => {
     try {
       setLoading(true);
 
-      // Calculate current date range
-      const endDate = new Date();
-      const startDate = new Date();
-      const days = timeRange === 'day' ? 1 : timeRange === 'week' ? 7 : 30;
-
-      if (timeRange === 'day') {
-        startDate.setHours(0, 0, 0, 0);
-      } else if (timeRange === 'week') {
-        startDate.setDate(startDate.getDate() - 7);
-      } else {
-        startDate.setDate(startDate.getDate() - 30);
-      }
+      const startDate = new Date(dateFrom + 'T00:00:00');
+      const endDate = new Date(dateTo + 'T23:59:59');
+      const days = Math.max(1, Math.round((endDate.getTime() - startDate.getTime()) / 86400000));
 
       // Previous period (same length, shifted back)
       const prevEndDate = new Date(startDate);
       prevEndDate.setMilliseconds(prevEndDate.getMilliseconds() - 1);
       const prevStartDate = new Date(prevEndDate);
       prevStartDate.setDate(prevStartDate.getDate() - days + 1);
-      if (timeRange === 'day') prevStartDate.setHours(0, 0, 0, 0);
 
       const params = new URLSearchParams();
       params.append('dateFrom', startDate.toISOString());
@@ -128,7 +129,7 @@ const Reports: React.FC = () => {
       prevParams.append('dateTo', prevEndDate.toISOString());
 
       const retentionParams = new URLSearchParams();
-      retentionParams.append('timeRange', timeRange);
+      retentionParams.append('timeRange', 'week');
 
       const [salesResponse, inventoryResponse, retentionResponse, purchasesResponse, prevSalesResponse] = await Promise.all([
         salesAPI.getAll(params.toString()),
@@ -453,26 +454,32 @@ const Reports: React.FC = () => {
           </div>
         </div>
 
-        {/* Time Range Selector */}
+        {/* Date Range Filter */}
         <div className="bg-white p-4 rounded-lg shadow-sm border">
-          <div className="flex items-center gap-2">
-            <Calendar className="w-5 h-5 text-gray-600" />
-            <span className="text-sm font-medium text-gray-700">Time Range:</span>
-            <div className="flex gap-2">
-              {(['day', 'week', 'month'] as const).map((range) => (
-                <button
-                  key={range}
-                  onClick={() => setTimeRange(range)}
-                  className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
-                    timeRange === range
-                      ? 'bg-teal-600 text-white'
-                      : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                  }`}
-                >
-                  {range === 'day' ? 'Today' : range === 'week' ? 'Last 7 Days' : 'Last 30 Days'}
-                </button>
-              ))}
+          <div className="flex flex-col gap-3">
+            <div className="flex items-center gap-2">
+              <Calendar className="w-5 h-5 text-gray-600" />
+              <span className="text-sm font-medium text-gray-700">Date Range:</span>
+              <div className="flex items-center gap-2 ml-2">
+                <input
+                  type="date"
+                  value={dateFrom}
+                  max={dateTo}
+                  onChange={e => setDateFrom(e.target.value)}
+                  className="border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-teal-500"
+                />
+                <span className="text-gray-400 text-sm">to</span>
+                <input
+                  type="date"
+                  value={dateTo}
+                  min={dateFrom}
+                  max={toLocalDate(new Date())}
+                  onChange={e => setDateTo(e.target.value)}
+                  className="border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-teal-500"
+                />
+              </div>
             </div>
+            <DatePresets onSelect={(from, to) => { setDateFrom(from); setDateTo(to); }} />
           </div>
         </div>
 
