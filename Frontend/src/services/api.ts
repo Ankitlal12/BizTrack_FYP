@@ -338,6 +338,20 @@ export const billingAPI = {
     method: 'POST',
     body: JSON.stringify({ pidx }),
   }),
+
+  // eSewa payment endpoints
+  initiateEsewaPayment: (data: any) => apiRequest<any>('/billing/esewa/initiate', {
+    method: 'POST',
+    body: JSON.stringify(data),
+  }),
+  verifyEsewaPayment: (encodedResponse: string) => apiRequest<any>('/billing/esewa/verify', {
+    method: 'POST',
+    body: JSON.stringify({ encodedResponse }),
+  }),
+  verifyEsewaPaymentStatus: (transactionUuid: string, totalAmount: number | string) => apiRequest<any>('/billing/esewa/verify-status', {
+    method: 'POST',
+    body: JSON.stringify({ transactionUuid, totalAmount }),
+  }),
 };
 
 // Export token management functions

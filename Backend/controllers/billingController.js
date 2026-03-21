@@ -269,7 +269,24 @@ exports.createBill = async (req, res) => {
       paidAmount,
       notes,
       khaltiPayment, // New field for Khalti payment
+      esewaPayment,
     } = req.body;
+
+    if (khaltiPayment?.pidx) {
+      const existingKhaltiSale = await Sale.findOne({ "khaltiPayment.pidx": khaltiPayment.pidx })
+        .populate("items.inventoryId");
+      if (existingKhaltiSale) {
+        return res.status(200).json(existingKhaltiSale);
+      }
+    }
+
+    if (esewaPayment?.transactionUuid) {
+      const existingEsewaSale = await Sale.findOne({ "esewaPayment.transactionUuid": esewaPayment.transactionUuid })
+        .populate("items.inventoryId");
+      if (existingEsewaSale) {
+        return res.status(200).json(existingEsewaSale);
+      }
+    }
 
     // Validate required fields
     if (!items || items.length === 0) {
@@ -392,6 +409,15 @@ exports.createBill = async (req, res) => {
       };
     }
 
+    if (esewaPayment) {
+      saleData.esewaPayment = {
+        transactionUuid: esewaPayment.transactionUuid,
+        refId: esewaPayment.refId,
+        status: esewaPayment.status,
+        totalAmount: esewaPayment.totalAmount,
+      };
+    }
+
     // If there's a payment, add it to the payments array
     if (actualPaidAmount > 0) {
       saleData.payments = [{
@@ -474,6 +500,20 @@ exports.createBill = async (req, res) => {
 
     res.status(201).json(populatedSale);
   } catch (err) {
+    if (err?.code === 11000) {
+      const existingSale =
+        (req.body?.esewaPayment?.transactionUuid
+          ? await Sale.findOne({ "esewaPayment.transactionUuid": req.body.esewaPayment.transactionUuid }).populate("items.inventoryId")
+          : null) ||
+        (req.body?.khaltiPayment?.pidx
+          ? await Sale.findOne({ "khaltiPayment.pidx": req.body.khaltiPayment.pidx }).populate("items.inventoryId")
+          : null);
+
+      if (existingSale) {
+        return res.status(200).json(existingSale);
+      }
+    }
+
     if (err.name === "ValidationError") {
       return res.status(400).json({ error: err.message });
     }
@@ -517,6 +557,11 @@ exports.getBillById = async (req, res) => {
 // ==================== KHALTI PAYMENT ENDPOINTS ====================
 
 const { initiateKhaltiPayment, verifyKhaltiPayment } = require("../utils/khaltiService");
+const {
+  buildEsewaPaymentParams,
+  verifyEsewaPayment: verifyEsewaPaymentStatus,
+  verifyResponseSignature,
+} = require("../utils/esewaService");
 
 // Initiate Khalti payment for a bill
 exports.initiateKhaltiPayment = async (req, res) => {
@@ -637,6 +682,136 @@ exports.verifyKhaltiPayment = async (req, res) => {
     console.error("Khalti payment verification error:", err);
     res.status(500).json({ 
       error: err.message || "Failed to verify Khalti payment" 
+    });
+  }
+};
+
+// ==================== ESEWA PAYMENT ENDPOINTS ====================
+
+// Initiate eSewa payment — returns form fields for frontend to POST
+exports.initiateEsewaPayment = async (req, res) => {
+  try {
+    const { customerId, customer, items, total } = req.body;
+
+    if (!items || items.length === 0)
+      return res.status(400).json({ error: "Items are required" });
+    if (!total || total <= 0)
+      return res.status(400).json({ error: "Total must be greater than 0" });
+
+    // Validate customer exists
+    if (customerId) {
+      const customerDoc = await Customer.findById(customerId);
+      if (!customerDoc) return res.status(404).json({ error: "Customer not found" });
+    } else if (!customer) {
+      return res.status(400).json({ error: "Customer information is required" });
+    }
+
+    const merchantCode = process.env.ESEWA_MERCHANT_CODE || 'EPAYTEST';
+    const gatewayUrl = process.env.ESEWA_GATEWAY_URL || 'https://rc-epay.esewa.com.np/api/epay/main/v2/form';
+    const isSandboxMode = merchantCode === 'EPAYTEST' || gatewayUrl.includes('rc-epay.esewa.com.np');
+    const sandboxMaxAmount = parseFloat(process.env.ESEWA_SANDBOX_MAX_AMOUNT || '100000');
+
+    if (isSandboxMode && Number(total) > sandboxMaxAmount) {
+      return res.status(400).json({
+        error: `eSewa test wallet often has low balance. For sandbox, try amount <= Rs ${sandboxMaxAmount.toFixed(2)} or use another test ID (9806800001/2/3/4/5).`,
+      });
+    }
+
+    const transactionUuid = `BT-${Date.now()}-${Math.random().toString(36).slice(2, 7).toUpperCase()}`;
+    const params = buildEsewaPaymentParams({ amount: total, transactionUuid, productName: "BizTrack Sale" });
+
+    res.json({
+      success: true,
+      gatewayUrl: params.gatewayUrl,
+      fields: params.fields,
+      transactionUuid,
+    });
+  } catch (err) {
+    console.error("eSewa initiation error:", err);
+    res.status(500).json({ error: err.message || "Failed to initiate eSewa payment" });
+  }
+};
+
+// Verify eSewa payment and complete the sale
+exports.verifyEsewaPayment = async (req, res) => {
+  try {
+    const { encodedResponse } = req.body;
+
+    if (!encodedResponse)
+      return res.status(400).json({ error: "Encoded response from eSewa is required" });
+
+    // eSewa callback data can contain spaces where '+' was present in base64
+    const normalizedResponse = String(encodedResponse).replace(/ /g, '+');
+
+    // Decode base64 response from eSewa redirect
+    const decoded = JSON.parse(Buffer.from(normalizedResponse, 'base64').toString('utf-8'));
+    const { total_amount, transaction_uuid, status } = decoded;
+
+    const isSignatureValid = verifyResponseSignature(decoded);
+    if (!isSignatureValid) {
+      return res.status(400).json({ error: "Invalid eSewa callback signature" });
+    }
+
+    if (status !== 'COMPLETE') {
+      return res.status(400).json({ error: `Payment not completed. Status: ${status}` });
+    }
+
+    // Verify with eSewa status API
+    const verification = await verifyEsewaPaymentStatus({ totalAmount: total_amount, transactionUuid: transaction_uuid });
+
+    if (!verification.success) {
+      return res.status(400).json({ error: verification.message, status: verification.status });
+    }
+
+    res.json({
+      success: true,
+      message: "eSewa payment verified successfully",
+      transactionUuid: verification.transactionUuid,
+      totalAmount: verification.totalAmount,
+      refId: verification.refId,
+      status: verification.status,
+    });
+  } catch (err) {
+    console.error("eSewa verification error:", err);
+    res.status(500).json({ error: err.message || "Failed to verify eSewa payment" });
+  }
+};
+
+// Verify eSewa payment status using transaction UUID + amount (fallback for failure redirects)
+exports.verifyEsewaPaymentStatus = async (req, res) => {
+  try {
+    const { transactionUuid, totalAmount } = req.body;
+
+    if (!transactionUuid || !totalAmount) {
+      return res.status(400).json({
+        error: "transactionUuid and totalAmount are required",
+      });
+    }
+
+    const verification = await verifyEsewaPaymentStatus({
+      totalAmount,
+      transactionUuid,
+    });
+
+    if (!verification.success) {
+      return res.status(400).json({
+        error: verification.message,
+        status: verification.status,
+      });
+    }
+
+    res.json({
+      success: true,
+      message: "eSewa payment verified successfully",
+      transactionUuid: verification.transactionUuid,
+      totalAmount: verification.totalAmount,
+      refId: verification.refId,
+      status: verification.status,
+    });
+  } catch (err) {
+    console.error("eSewa status verification error:", err);
+    res.status(500).json({
+      error: err.message || "Failed to verify eSewa payment status",
     });
   }
 };

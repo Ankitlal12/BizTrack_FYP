@@ -17,6 +17,10 @@ const {
   // Khalti payment endpoints
   initiateKhaltiPayment,
   verifyKhaltiPayment,
+  // eSewa payment endpoints
+  initiateEsewaPayment,
+  verifyEsewaPayment,
+  verifyEsewaPaymentStatus,
 } = require("../controllers/billingController");
 const router = express.Router();
 
@@ -42,6 +46,11 @@ router.get("/bills/:id", getBillById);
 // Khalti payment routes
 router.post("/khalti/initiate", initiateKhaltiPayment);
 router.post("/khalti/verify", verifyKhaltiPayment);
+
+// eSewa payment routes
+router.post("/esewa/initiate", initiateEsewaPayment);
+router.post("/esewa/verify", verifyEsewaPayment);
+router.post("/esewa/verify-status", verifyEsewaPaymentStatus);
 
 module.exports = router;
 

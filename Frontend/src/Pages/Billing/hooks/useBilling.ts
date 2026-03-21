@@ -256,12 +256,17 @@ export const useBilling = () => {
     
     // Check if Khalti payment is selected
     if (paymentMethod === 'khalti') {
-      // Initiate Khalti payment
       await handleKhaltiPayment();
       return;
     }
-    
-    // Start processing for non-Khalti payments
+
+    // Check if eSewa payment is selected
+    if (paymentMethod === 'esewa') {
+      await handleEsewaPayment();
+      return;
+    }
+
+    // Start processing for non-wallet payments
     setIsProcessing(true)
     try {
       // Prepare bill data for API
@@ -413,6 +418,77 @@ export const useBilling = () => {
         description: errorMessage,
       });
       setIsProcessing(false);
+    }
+  }
+
+  const handleEsewaPayment = async () => {
+    setIsProcessing(true)
+    try {
+      const esewaData = {
+        customerId:
+          typeof selectedCustomer?.id === 'string'
+            ? selectedCustomer.id
+            : undefined,
+        customer: selectedCustomer
+          ? {
+              name: selectedCustomer.name,
+              email: selectedCustomer.email,
+              phone: selectedCustomer.phone,
+            }
+          : undefined,
+        items: cartItems.map((item) => ({
+          id: item.id,
+          name: item.name,
+          quantity: item.quantity,
+          price: item.price,
+          total: item.total,
+        })),
+        total,
+      }
+
+      const esewaResponse = await billingAPI.initiateEsewaPayment(esewaData)
+
+      const tempSaleData = {
+        customerId: esewaData.customerId,
+        customer: esewaData.customer,
+        items: esewaData.items,
+        subtotal,
+        tax,
+        discount: 0,
+        total,
+        paymentMethod: 'esewa',
+        paidAmount: total,
+        notes,
+        esewaTransactionUuid: esewaResponse.transactionUuid,
+        esewaTotalAmount: esewaResponse.fields?.total_amount,
+      }
+
+      localStorage.setItem('biztrack_pending_sale', JSON.stringify(tempSaleData))
+
+      const form = document.createElement('form')
+      form.method = 'POST'
+      form.action = esewaResponse.gatewayUrl
+
+      Object.entries(esewaResponse.fields || {}).forEach(([key, value]) => {
+        const input = document.createElement('input')
+        input.type = 'hidden'
+        input.name = key
+        input.value = String(value ?? '')
+        form.appendChild(input)
+      })
+
+      document.body.appendChild(form)
+      form.submit()
+    } catch (error: any) {
+      console.error('Error initiating eSewa payment:', error)
+      const errorMessage = error.message || 'Failed to initiate eSewa payment'
+      setValidationErrors({
+        general: errorMessage,
+      })
+      toast.error('eSewa Payment Failed', {
+        description: errorMessage,
+      })
+      setIsProcessing(false)
     }
   }
 

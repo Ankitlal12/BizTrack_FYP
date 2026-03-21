@@ -46,10 +46,11 @@ const PaymentSection: React.FC<PaymentSectionProps> = ({
   return (
     <div className="space-y-4">
       <div>
-        <label className="block text-sm font-medium text-gray-700 mb-1">
+        <label htmlFor="payment-method" className="block text-sm font-medium text-gray-700 mb-1">
           Payment Method
         </label>
         <select
+          id="payment-method"
           className={`w-full border ${
             validationErrors.payment ? 'border-red-500' : 'border-gray-300'
           } rounded-lg py-2 px-4 focus:outline-none focus:ring-2 focus:ring-teal-500`}
@@ -60,6 +61,7 @@ const PaymentSection: React.FC<PaymentSectionProps> = ({
           <option value="card">Credit/Debit Card</option>
           <option value="bank_transfer">Bank Transfer</option>
           <option value="khalti">Khalti (Digital Wallet)</option>
+          <option value="esewa">eSewa (Digital Wallet)</option>
           <option value="other">Other</option>
         </select>
         {validationErrors.payment && (
@@ -68,6 +70,23 @@ const PaymentSection: React.FC<PaymentSectionProps> = ({
           </p>
         )}
       </div>
+
+      {paymentMethod === 'esewa' && (
+        <div className="p-3 rounded-lg border border-teal-200 bg-teal-50 text-sm text-teal-800">
+          <p className="font-medium">eSewa Gateway Payment</p>
+          <p className="mt-1">
+            You will be redirected to <span className="font-semibold">eSewa</span> to complete payment securely.
+          </p>
+          <p className="mt-1">After successful payment, BizTrack will create the invoice automatically.</p>
+        </div>
+      )}
+
+      {paymentMethod === 'khalti' && (
+        <div className="p-3 rounded-lg border border-purple-200 bg-purple-50 text-sm text-purple-800">
+          <p className="font-medium">Khalti Gateway Payment</p>
+          <p className="mt-1">You will be redirected to Khalti to complete payment securely.</p>
+        </div>
+      )}
 
       <div>
         <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -183,7 +202,11 @@ const PaymentSection: React.FC<PaymentSectionProps> = ({
             Processing Sale...
           </>
         ) : (
-          'Complete Sale'
+          paymentMethod === 'esewa'
+            ? 'Proceed to eSewa'
+            : paymentMethod === 'khalti'
+              ? 'Proceed to Khalti'
+              : 'Complete Sale'
         )}
       </button>
     </div>
