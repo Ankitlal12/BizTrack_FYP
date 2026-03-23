@@ -10,6 +10,9 @@ const {
   getSuppliersForPurchase,
   getUpcomingProducts,
   triggerDeliveryProcessing,
+  initiateKhaltiPurchasePayment,
+  verifyKhaltiPurchasePayment,
+  getKhaltiBalance,
 } = require("../controllers/purchaseController");
 const router = express.Router();
 
@@ -18,8 +21,14 @@ router.use(authenticate);
 
 router.get("/", getAllPurchases);
 router.get("/suppliers", getSuppliersForPurchase);
-router.get("/upcoming", getUpcomingProducts); // Upcoming product deliveries
-router.post("/process-deliveries", triggerDeliveryProcessing); // Manual trigger for delivery processing
+router.get("/upcoming", getUpcomingProducts);
+router.post("/process-deliveries", triggerDeliveryProcessing);
+
+// Khalti payment routes for purchases (must be before /:id)
+router.post("/khalti/initiate", initiateKhaltiPurchasePayment);
+router.post("/khalti/verify", verifyKhaltiPurchasePayment);
+router.get("/khalti/balance", getKhaltiBalance);
+
 router.get("/:id", getPurchaseById);
 router.post("/", createPurchase);
 router.put("/:id", updatePurchase);

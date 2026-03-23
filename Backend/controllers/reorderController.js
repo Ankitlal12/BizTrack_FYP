@@ -168,14 +168,17 @@ exports.getAllReorders = async (req, res) => {
       .populate('inventoryId', 'name sku category')
       .populate('supplierId', 'name contactPerson')
       .populate('purchaseOrderId', 'purchaseNumber status')
-      .sort({ createdAt: 1 })
+      .sort({ createdAt: -1 })
       .skip(skip)
       .limit(parseInt(limit));
+
+    // Filter out orphaned reorders where the inventory item was deleted
+    const validReorders = reorders.filter(r => r.inventoryId != null);
 
     const total = await Reorder.countDocuments(query);
 
     res.json({
-      data: reorders,
+      data: validReorders,
       pagination: {
         page: parseInt(page),
         limit: parseInt(limit),
@@ -407,6 +410,20 @@ exports.createQuickReorder = async (req, res) => {
       createdAt: new Date(),
       updatedAt: new Date()
     });
+
+    // Auto-generate invoice for the purchase
+    try {
+      const { generateInvoiceFromPurchase } = require('./invoiceController');
+      const userInfo = {
+        userId: req.user._id,
+        name: req.user.name,
+        role: req.user.role,
+      };
+      await generateInvoiceFromPurchase(purchase, userInfo);
+    } catch (invoiceError) {
+      console.error("Failed to generate invoice for quick reorder purchase:", invoiceError);
+      // Don't fail the reorder if invoice generation fails
+    }
 
     // Update reorder with purchase order info
     reorder.status = 'received';

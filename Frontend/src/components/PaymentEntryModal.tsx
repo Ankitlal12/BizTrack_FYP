@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react'
-import { XIcon, IndianRupeeIcon, AlertCircleIcon, PlusIcon, TrashIcon } from 'lucide-react'
+import { XIcon, IndianRupeeIcon, AlertCircleIcon, PlusIcon, TrashIcon, LoaderIcon } from 'lucide-react'
 import { toast } from 'sonner'
 import { formatNepaliDate } from '../utils/dateUtils'
 
@@ -18,6 +18,7 @@ interface PaymentEntryModalProps {
   paidAmount: number
   title?: string
   paymentMethods?: string[]
+  onKhaltiPay?: (amount: number) => Promise<void>
 }
 
 const PaymentEntryModal: React.FC<PaymentEntryModalProps> = ({
@@ -28,6 +29,7 @@ const PaymentEntryModal: React.FC<PaymentEntryModalProps> = ({
   paidAmount,
   title = 'Record Payment',
   paymentMethods = ['cash', 'card', 'bank_transfer', 'other'],
+  onKhaltiPay,
 }) => {
   const [paymentMode, setPaymentMode] = useState<'single' | 'installment'>('single')
   
@@ -361,6 +363,13 @@ const PaymentEntryModal: React.FC<PaymentEntryModalProps> = ({
                 </select>
               </div>
 
+              {method === 'khalti' && onKhaltiPay && (
+                <div className="p-3 rounded-lg border border-purple-200 bg-purple-50 text-sm text-purple-800">
+                  <p className="font-medium mb-1">Khalti Digital Wallet</p>
+                  <p>You will be redirected to Khalti to complete the payment. Enter the amount above then click "Pay with Khalti".</p>
+                </div>
+              )}
+
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
                   Payment Date <span className="text-red-500">*</span>
@@ -536,13 +545,45 @@ const PaymentEntryModal: React.FC<PaymentEntryModalProps> = ({
             >
               Cancel
             </button>
-            <button
-              type="submit"
-              disabled={isSubmitting || remainingBalance <= 0}
-              className="flex-1 px-4 py-2 bg-teal-500 text-white rounded-lg hover:bg-teal-600 disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              {isSubmitting ? 'Recording...' : paymentMode === 'installment' ? 'Record Installments' : 'Record Payment'}
-            </button>
+            {paymentMode === 'single' && method === 'khalti' && onKhaltiPay ? (
+              <button
+                type="button"
+                disabled={isSubmitting || remainingBalance <= 0 || !!amountError || !amount}
+                onClick={async () => {
+                  const paymentAmount = parseFloat(amount)
+                  if (!paymentAmount || paymentAmount <= 0) {
+                    toast.error('Please enter a valid payment amount')
+                    return
+                  }
+                  if (paymentAmount > remainingBalance) {
+                    toast.error(`Amount cannot exceed remaining balance of Rs ${remainingBalance.toFixed(2)}`)
+                    return
+                  }
+                  setIsSubmitting(true)
+                  try {
+                    await onKhaltiPay(paymentAmount)
+                  } catch (err: any) {
+                    toast.error(err?.message || 'Failed to initiate Khalti payment')
+                    setIsSubmitting(false)
+                  }
+                }}
+                className="flex-1 px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+              >
+                {isSubmitting ? (
+                  <><LoaderIcon size={16} className="animate-spin" /> Redirecting...</>
+                ) : (
+                  'Pay with Khalti'
+                )}
+              </button>
+            ) : (
+              <button
+                type="submit"
+                disabled={isSubmitting || remainingBalance <= 0}
+                className="flex-1 px-4 py-2 bg-teal-500 text-white rounded-lg hover:bg-teal-600 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {isSubmitting ? 'Recording...' : paymentMode === 'installment' ? 'Record Installments' : 'Record Payment'}
+              </button>
+            )}
           </div>
         </form>
       </div>

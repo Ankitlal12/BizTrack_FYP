@@ -43,7 +43,7 @@ const initiateKhaltiPayment = async (paymentData) => {
 
     // Prepare request payload
     const payload = {
-      return_url: KHALTI_RETURN_URL,
+      return_url: paymentData.returnUrl || KHALTI_RETURN_URL,
       website_url: KHALTI_WEBSITE_URL,
       amount: amountInPaisa,
       purchase_order_id: purchaseOrderId,

@@ -17,7 +17,7 @@ const Settings=lazy(()=>import('./Pages/Settings.tsx'));
 const TransactionHistory = lazy(() => import('./Pages/TransactionHistory.tsx'));
 const Billing=lazy(()=>import('./Pages/Billing.tsx') )
 const KhaltiPaymentSuccess = lazy(() => import('./Pages/KhaltiPaymentSuccess'));
-const EsewaPaymentSuccess = lazy(() => import('./Pages/EsewaPaymentSuccess'));
+const KhaltiPurchaseSuccess = lazy(() => import('./Pages/KhaltiPurchaseSuccess'));
 const LowStock = lazy(() => import('./Pages/LowStock'));
 const ExpiryManagement = lazy(() => import('./Pages/ExpiryManagement.tsx'));
 const Suppliers = lazy(() => import('./Pages/Suppliers'));
@@ -258,21 +258,10 @@ export const App = () => {
           />
 
           <Route
-            path="/billing/esewa-success"
+            path="/purchases/payment-success"
             element={
               isAuthenticated ? (
-                <EsewaPaymentSuccess />
-              ) : (
-                <Navigate to="/login" replace />
-              )
-            }
-          />
-
-          <Route
-            path="/billing/esewa-failure"
-            element={
-              isAuthenticated ? (
-                <EsewaPaymentSuccess />
+                <KhaltiPurchaseSuccess />
               ) : (
                 <Navigate to="/login" replace />
               )

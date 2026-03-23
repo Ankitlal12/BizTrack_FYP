@@ -11,6 +11,7 @@ interface PurchaseDetailsProps {
   onEditPaymentStatus?: (purchaseKey: string | null) => void
   onRecordPayment?: () => void
   onViewInvoice?: (purchaseId: string) => void
+  onMarkReceived?: (purchaseId: string) => void
 }
 
 const PurchaseDetails: React.FC<PurchaseDetailsProps> = ({
@@ -20,6 +21,7 @@ const PurchaseDetails: React.FC<PurchaseDetailsProps> = ({
   onEditPaymentStatus,
   onRecordPayment,
   onViewInvoice,
+  onMarkReceived,
 }) => {
   const purchaseKey = getPurchaseKey(purchase)
   const paymentStatusValue = purchase.paymentStatus || 'unpaid'
@@ -282,7 +284,10 @@ const PurchaseDetails: React.FC<PurchaseDetailsProps> = ({
             </button>
             {purchase.status !== 'received' &&
               purchase.status !== 'cancelled' && (
-                <button className="bg-teal-500 hover:bg-teal-600 text-white py-1 px-3 rounded text-sm">
+                <button
+                  onClick={() => onMarkReceived && onMarkReceived(purchase._id || purchase.purchaseNumber)}
+                  className="bg-teal-500 hover:bg-teal-600 text-white py-1 px-3 rounded text-sm"
+                >
                   Mark as Received
                 </button>
               )}

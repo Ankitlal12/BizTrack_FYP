@@ -15,6 +15,7 @@ interface PurchaseTableProps {
   onEditPaymentStatus: (purchaseKey: string | null) => void
   onRecordPayment?: (purchase: Purchase) => void
   onViewInvoice?: (purchaseId: string) => void
+  onMarkReceived?: (purchaseId: string) => void
 }
 
 const PurchaseTable: React.FC<PurchaseTableProps> = ({
@@ -29,6 +30,7 @@ const PurchaseTable: React.FC<PurchaseTableProps> = ({
   onEditPaymentStatus,
   onRecordPayment,
   onViewInvoice,
+  onMarkReceived,
 }) => {
   return (
     <div className="overflow-x-auto">
@@ -50,6 +52,7 @@ const PurchaseTable: React.FC<PurchaseTableProps> = ({
               onEditPaymentStatus={onEditPaymentStatus}
               onRecordPayment={onRecordPayment}
               onViewInvoice={onViewInvoice}
+              onMarkReceived={onMarkReceived}
             />
           ))}
         </tbody>

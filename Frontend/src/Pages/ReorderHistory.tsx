@@ -4,6 +4,7 @@ import { toast } from 'sonner';
 import Layout from '../layout/Layout';
 import { reorderAPI } from '../services/api';
 import { Reorder, ReorderFilters } from './LowStock/types';
+import { formatNepaliDateTime } from '../utils/dateUtils';
 import { 
   RotateCcw, 
   Filter, 
@@ -94,20 +95,33 @@ const ReorderHistory: React.FC = () => {
 
   const handleViewInvoice = async (purchaseId: string) => {
     try {
-      // Import the invoices API
       const { invoicesAPI } = await import('../services/api');
       
       // Find the invoice for this purchase
-      const response = await invoicesAPI.getAll(`relatedId=${purchaseId}&type=purchase`);
+      const response = await invoicesAPI.getAll(`relatedId=${purchaseId}&type=purchase&limit=1`);
       
       if (response.invoices && response.invoices.length > 0) {
-        const invoice = response.invoices[0];
-        // Navigate to the specific invoice detail page
-        navigate(`/invoices/${invoice._id}`);
+        navigate(`/invoices/${response.invoices[0]._id}`);
       } else {
-        toast.info('Invoice not found', {
-          description: 'No invoice found for this purchase order.'
-        });
+        // Invoice doesn't exist yet — generate it on the fly
+        try {
+          const generated = await invoicesAPI.generateFromPurchase(purchaseId);
+          if (generated && generated._id) {
+            navigate(`/invoices/${generated._id}`);
+          } else {
+            toast.info('No invoice found for this purchase order.');
+          }
+        } catch (genError: any) {
+          // If it already exists (race condition), try fetching again
+          if (genError?.message?.includes('already exists')) {
+            const retry = await invoicesAPI.getAll(`relatedId=${purchaseId}&type=purchase&limit=1`);
+            if (retry.invoices && retry.invoices.length > 0) {
+              navigate(`/invoices/${retry.invoices[0]._id}`);
+            }
+          } else {
+            toast.info('No invoice found for this purchase order.');
+          }
+        }
       }
     } catch (error) {
       console.error('Error finding invoice:', error);
@@ -156,21 +170,19 @@ const ReorderHistory: React.FC = () => {
     }
   };
 
-  const formatDate = (dateString: string) => {
-    return new Date(dateString).toLocaleDateString('en-US', {
-      year: 'numeric',
-      month: 'short',
-      day: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit'
-    });
-  };
-
   if (loading && reorders.length === 0) {
     return (
       <Layout>
-        <div className="flex h-screen items-center justify-center">
-          <div className="w-8 h-8 border-4 border-teal-500 border-t-transparent rounded-full animate-spin"></div>
+        <div className="p-6 space-y-6">
+          <div className="flex justify-between items-center">
+            <div>
+              <h1 className="text-2xl font-bold text-gray-900">Reorder History</h1>
+              <p className="text-gray-600">Track and manage all reorder requests and their status</p>
+            </div>
+          </div>
+          <div className="bg-white rounded-lg shadow-sm border p-12 flex items-center justify-center">
+            <div className="w-8 h-8 border-4 border-teal-500 border-t-transparent rounded-full animate-spin"></div>
+          </div>
         </div>
       </Layout>
     );
@@ -260,14 +272,17 @@ const ReorderHistory: React.FC = () => {
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-200">
-                {reorders.map((reorder) => (
+                {reorders.map((reorder) => {
+                  // Guard: skip records with missing required populated fields
+                  if (!reorder.inventoryId || typeof reorder.inventoryId !== 'object') return null;
+                  return (
                   <React.Fragment key={reorder._id}>
                     <tr className="hover:bg-gray-50">
                       <td className="px-4 py-3">
                         <div>
-                          <p className="font-medium text-gray-900">{reorder.inventoryId.name}</p>
-                          <p className="text-sm text-gray-500">SKU: {reorder.inventoryId.sku}</p>
-                          <p className="text-sm text-gray-500">{reorder.inventoryId.category}</p>
+                          <p className="font-medium text-gray-900">{reorder.inventoryId.name || 'Unknown Product'}</p>
+                          <p className="text-sm text-gray-500">SKU: {reorder.inventoryId.sku || '-'}</p>
+                          <p className="text-sm text-gray-500">{reorder.inventoryId.category || '-'}</p>
                         </div>
                       </td>
                       <td className="px-4 py-3">
@@ -278,7 +293,7 @@ const ReorderHistory: React.FC = () => {
                         </div>
                       </td>
                       <td className="px-4 py-3">
-                        {reorder.supplierId ? (
+                        {reorder.supplierId && typeof reorder.supplierId === 'object' ? (
                           <div>
                             <p className="text-sm text-gray-900">{reorder.supplierId.name}</p>
                             {reorder.supplierId.contactPerson && (
@@ -299,13 +314,13 @@ const ReorderHistory: React.FC = () => {
                       </td>
                       <td className="px-4 py-3">
                         <span className={`inline-flex px-2 py-1 text-xs font-medium rounded-full ${getTriggerTypeColor(reorder.triggerType)}`}>
-                          {reorder.triggerType.replace('_', ' ')}
+                          {reorder.triggerType?.replace('_', ' ') || '-'}
                         </span>
                       </td>
                       <td className="px-4 py-3">
                         <div>
-                          <p className="text-sm text-gray-900">{formatDate(reorder.triggeredAt)}</p>
-                          <p className="text-sm text-gray-500">by {reorder.triggeredBy.name}</p>
+                          <p className="text-sm text-gray-900">{formatNepaliDateTime(reorder.triggeredAt || reorder.createdAt)}</p>
+                          <p className="text-sm text-gray-500">by {reorder.triggeredBy?.name || 'System'}</p>
                         </div>
                       </td>
                       <td className="px-4 py-3">
@@ -366,7 +381,7 @@ const ReorderHistory: React.FC = () => {
                               </div>
                             </div>
                             
-                            {reorder.purchaseOrderId && (
+                            {reorder.purchaseOrderId && typeof reorder.purchaseOrderId === 'object' && (
                               <div>
                                 <h4 className="font-medium text-gray-900 mb-2">Purchase Order</h4>
                                 <div className="space-y-1">
@@ -394,10 +409,10 @@ const ReorderHistory: React.FC = () => {
                                 <h4 className="font-medium text-gray-900 mb-2">Additional Info</h4>
                                 <div className="space-y-1">
                                   {reorder.resolvedAt && (
-                                    <p><span className="text-gray-600">Resolved:</span> {formatDate(reorder.resolvedAt)}</p>
+                                    <p><span className="text-gray-600">Resolved:</span> {formatNepaliDateTime(reorder.resolvedAt)}</p>
                                   )}
                                   {reorder.resolvedBy && (
-                                    <p><span className="text-gray-600">Resolved By:</span> {reorder.resolvedBy.name}</p>
+                                    <p><span className="text-gray-600">Resolved By:</span> {reorder.resolvedBy.name || '-'}</p>
                                   )}
                                   {reorder.notes && (
                                     <p><span className="text-gray-600">Notes:</span> {reorder.notes}</p>
@@ -410,7 +425,8 @@ const ReorderHistory: React.FC = () => {
                       </tr>
                     )}
                   </React.Fragment>
-                ))}
+                  );
+                })}
               </tbody>
             </table>
           </div>

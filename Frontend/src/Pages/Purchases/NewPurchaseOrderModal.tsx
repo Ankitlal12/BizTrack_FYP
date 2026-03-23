@@ -290,6 +290,23 @@ const NewPurchaseOrderModal: React.FC<NewPurchaseOrderModalProps> = ({
         expectedDeliveryDate || new Date().toISOString().split('T')[0],
       notes: notes + (selectedSupplier ? `\n\nSupplier Info:\nContact: ${selectedSupplier.contactPerson || 'N/A'}\nPayment Terms: ${selectedSupplier.paymentTerms}\nLead Time: ${selectedSupplier.averageLeadTimeDays} days` : ''),
     }
+
+    // Check if any immediate installment uses Khalti
+    const khaltiInstallment = activeInstallments.find(
+      (i) => i.method === 'khalti' && !isFutureDate(i.dueDate)
+    )
+
+    if (khaltiInstallment) {
+      // Khalti is a collection gateway — it cannot send money out to suppliers.
+      // Selecting Khalti here means you are recording that you manually paid
+      // the supplier via your Khalti merchant dashboard/app.
+      // The system records this as a Khalti outflow to track your wallet balance.
+      toast.info('Khalti payment recorded', {
+        description: `Rs ${khaltiInstallment.amount} marked as paid via Khalti. Please ensure you have manually transferred this amount to the supplier through your Khalti merchant dashboard.`,
+        duration: 6000,
+      })
+    }
+
     onSave(newPurchaseOrder)
     onClose()
   }
@@ -453,8 +470,14 @@ const NewPurchaseOrderModal: React.FC<NewPurchaseOrderModalProps> = ({
                       <option value="card">Card</option>
                       <option value="bank_transfer">Bank Transfer</option>
                       <option value="credit">Credit</option>
+                      <option value="khalti">Khalti</option>
                       <option value="other">Other</option>
                     </select>
+                    {inst.method === 'khalti' && !isFutureDate(inst.dueDate) && (
+                      <p className="text-xs text-purple-600 mt-1">
+                        ⚠️ Manual transfer via Khalti dashboard required
+                      </p>
+                    )}
                   </div>
                   {/* Remove */}
                   <div className="col-span-2 flex justify-end">

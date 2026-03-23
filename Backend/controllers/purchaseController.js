@@ -236,9 +236,15 @@ exports.createPurchase = async (req, res) => {
 
     // Check if this is a future delivery (items should NOT be added to inventory yet)
     const deliveryDate = req.body.expectedDeliveryDate ? new Date(req.body.expectedDeliveryDate) : null;
-    const todayMidnight = new Date();
-    todayMidnight.setHours(0, 0, 0, 0);
-    const isFutureDelivery = deliveryDate && deliveryDate > todayMidnight;
+    // Compare dates in Nepal timezone (UTC+5:45) to avoid UTC midnight mismatches
+    const nowNPT = new Date(new Date().toLocaleString('en-US', { timeZone: 'Asia/Kathmandu' }));
+    const todayNPT = new Date(nowNPT.getFullYear(), nowNPT.getMonth(), nowNPT.getDate());
+    let deliveryDateNPT = null;
+    if (deliveryDate) {
+      const d = new Date(deliveryDate.toLocaleString('en-US', { timeZone: 'Asia/Kathmandu' }));
+      deliveryDateNPT = new Date(d.getFullYear(), d.getMonth(), d.getDate());
+    }
+    const isFutureDelivery = deliveryDateNPT && deliveryDateNPT > todayNPT;
 
     // Process items — only touch inventory for immediate deliveries
     const processedItems = [];
@@ -355,7 +361,7 @@ exports.createPurchase = async (req, res) => {
     const paymentInstallments = req.body.paymentInstallments || [];
     const total = req.body.total || 0;
 
-    const todayEnd = new Date();
+    const todayEnd = new Date(new Date().toLocaleString('en-US', { timeZone: 'Asia/Kathmandu' }));
     todayEnd.setHours(23, 59, 59, 999);
 
     let paidAmount = 0;
@@ -616,12 +622,13 @@ exports.recordPayment = async (req, res) => {
     }
 
     const paymentDate = date ? new Date(date) : new Date();
-    const currentDate = new Date();
-    currentDate.setHours(0, 0, 0, 0); // Start of today
-    
-    const paymentDateOnly = new Date(paymentDate);
-    paymentDateOnly.setHours(0, 0, 0, 0); // Start of payment date
-    
+    // Use Nepal timezone for date comparison to avoid UTC midnight mismatches
+    const nowNPT = new Date(new Date().toLocaleString('en-US', { timeZone: 'Asia/Kathmandu' }));
+    const currentDate = new Date(nowNPT.getFullYear(), nowNPT.getMonth(), nowNPT.getDate());
+
+    const pdNPT = new Date(paymentDate.toLocaleString('en-US', { timeZone: 'Asia/Kathmandu' }));
+    const paymentDateOnly = new Date(pdNPT.getFullYear(), pdNPT.getMonth(), pdNPT.getDate());
+
     // Check if the payment date is in the future (any date after today)
     // Even 1 day in the future should be scheduled
     const isScheduledPayment = paymentDateOnly > currentDate;
@@ -797,5 +804,186 @@ exports.triggerDeliveryProcessing = async (req, res) => {
       error: 'Failed to process deliveries',
       details: error.message
     });
+  }
+};
+
+// ==================== KHALTI PAYMENT ENDPOINTS FOR PURCHASES ====================
+
+const { initiateKhaltiPayment, verifyKhaltiPayment } = require("../utils/khaltiService");
+
+// Initiate Khalti payment for a purchase (payment on existing purchase)
+exports.initiateKhaltiPurchasePayment = async (req, res) => {
+  try {
+    const { purchaseId, amount } = req.body;
+
+    if (!purchaseId) {
+      return res.status(400).json({ error: "Purchase ID is required" });
+    }
+
+    const purchase = await Purchase.findById(purchaseId);
+    if (!purchase) {
+      return res.status(404).json({ error: "Purchase not found" });
+    }
+
+    const paidAmount = purchase.paidAmount || 0;
+    const scheduledAmount = purchase.scheduledAmount || 0;
+    const remaining = purchase.total - paidAmount - scheduledAmount;
+
+    const paymentAmount = amount || remaining;
+
+    if (paymentAmount <= 0) {
+      return res.status(400).json({ error: "No remaining balance to pay" });
+    }
+
+    if (paymentAmount > remaining) {
+      return res.status(400).json({
+        error: `Payment amount (Rs ${paymentAmount}) exceeds remaining balance (Rs ${remaining.toFixed(2)})`,
+      });
+    }
+
+    const purchaseOrderId = `${purchase.purchaseNumber}-${Date.now().toString().slice(-6)}`;
+
+    const productDetails = purchase.items.map((item) => ({
+      id: item.inventoryId?.toString() || item.name,
+      name: item.name,
+      total_price: item.total,
+      quantity: item.quantity,
+      unit_price: item.cost,
+    }));
+
+    const returnUrl = `${process.env.KHALTI_WEBSITE_URL || "http://localhost:5173"}/purchases/payment-success`;
+
+    const khaltiResponse = await initiateKhaltiPayment({
+      amount: paymentAmount,
+      purchaseOrderId,
+      purchaseOrderName: `Purchase Payment - ${purchase.purchaseNumber}`,
+      customerInfo: {
+        name: purchase.supplierName,
+        email: purchase.supplierEmail || "",
+        phone: purchase.supplierPhone || "9800000000",
+      },
+      productDetails,
+      returnUrl,
+    });
+
+    res.json({
+      success: true,
+      pidx: khaltiResponse.pidx,
+      payment_url: khaltiResponse.payment_url,
+      expires_at: khaltiResponse.expires_at,
+      purchaseId: purchase._id,
+      amount: paymentAmount,
+    });
+  } catch (err) {
+    console.error("Khalti purchase payment initiation error:", err);
+    res.status(500).json({ error: err.message || "Failed to initiate Khalti payment" });
+  }
+};
+
+// Verify Khalti payment for a purchase and create the purchase record
+exports.verifyKhaltiPurchasePayment = async (req, res) => {
+  try {
+    const { pidx, purchaseId, amount } = req.body;
+
+    if (!pidx) {
+      return res.status(400).json({ error: "Payment identifier (pidx) is required" });
+    }
+
+    const verificationResult = await verifyKhaltiPayment(pidx);
+
+    if (!verificationResult.isCompleted) {
+      return res.status(400).json({
+        error: verificationResult.message,
+        status: verificationResult.status,
+      });
+    }
+
+    // If purchaseId is provided, record the payment on the purchase
+    if (purchaseId) {
+      const purchase = await Purchase.findById(purchaseId);
+      if (purchase) {
+        const paymentAmount = amount || verificationResult.total_amount;
+        const currentPaid = purchase.paidAmount || 0;
+        const currentScheduled = purchase.scheduledAmount || 0;
+        const remaining = purchase.total - currentPaid - currentScheduled;
+
+        if (paymentAmount <= remaining + 0.001) {
+          purchase.payments = purchase.payments || [];
+          purchase.payments.push({
+            amount: paymentAmount,
+            date: new Date(),
+            method: "khalti",
+            notes: `Khalti payment - txn: ${verificationResult.transaction_id}`,
+            status: "completed",
+          });
+          purchase.paidAmount = currentPaid + paymentAmount;
+
+          if (purchase.paidAmount >= purchase.total) {
+            purchase.paymentStatus = "paid";
+            if (purchase.status === "pending") purchase.status = "received";
+          } else if (purchase.paidAmount > 0) {
+            purchase.paymentStatus = "partial";
+          }
+
+          await purchase.save();
+
+          // Sync invoice
+          try {
+            const Invoice = require("../models/Invoice");
+            const invoice = await Invoice.findOne({ relatedId: purchase._id, type: "purchase" });
+            if (invoice) {
+              invoice.paymentStatus = purchase.paymentStatus;
+              invoice.paidAmount = purchase.paidAmount;
+              invoice.paymentMethod = "khalti";
+              if (purchase.paymentStatus === "paid") invoice.status = "paid";
+              await invoice.save();
+            }
+          } catch (syncErr) {
+            console.error("Failed to sync invoice after Khalti payment:", syncErr);
+          }
+        }
+      }
+    }
+
+    res.json({
+      success: true,
+      message: "Payment verified successfully",
+      pidx: verificationResult.pidx,
+      transaction_id: verificationResult.transaction_id,
+      total_amount: verificationResult.total_amount,
+      status: verificationResult.status,
+    });
+  } catch (err) {
+    console.error("Khalti purchase payment verification error:", err);
+    res.status(500).json({ error: err.message || "Failed to verify Khalti payment" });
+  }
+};
+
+// Get Khalti wallet balance (sales collected - purchases paid via Khalti)
+exports.getKhaltiBalance = async (req, res) => {
+  try {
+    const Sale = require("../models/Sale");
+
+    // Sum all completed Khalti payments received from sales
+    const salesResult = await Sale.aggregate([
+      { $unwind: "$payments" },
+      { $match: { "payments.method": "khalti", "payments.status": "completed" } },
+      { $group: { _id: null, total: { $sum: "$payments.amount" } } },
+    ]);
+
+    // Sum all completed Khalti payments made for purchases
+    const purchasesResult = await Purchase.aggregate([
+      { $unwind: "$payments" },
+      { $match: { "payments.method": "khalti", "payments.status": "completed" } },
+      { $group: { _id: null, total: { $sum: "$payments.amount" } } },
+    ]);
+
+    const khaltiIn = salesResult[0]?.total || 0;
+    const khaltiOut = purchasesResult[0]?.total || 0;
+    const balance = khaltiIn - khaltiOut;
+
+    res.json({ khaltiIn, khaltiOut, balance });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
   }
 };

@@ -12,6 +12,7 @@ interface PurchaseTableRowProps {
   onEditPaymentStatus: (purchaseKey: string | null) => void
   onRecordPayment?: (purchase: Purchase) => void
   onViewInvoice?: (purchaseId: string) => void
+  onMarkReceived?: (purchaseId: string) => void
 }
 
 const PurchaseTableRow: React.FC<PurchaseTableRowProps> = ({
@@ -23,6 +24,7 @@ const PurchaseTableRow: React.FC<PurchaseTableRowProps> = ({
   onEditPaymentStatus,
   onRecordPayment,
   onViewInvoice,
+  onMarkReceived,
 }) => {
   const purchaseKey = getPurchaseKey(purchase)
   const paymentStatusValue = purchase.paymentStatus || 'unpaid'
@@ -93,6 +95,7 @@ const PurchaseTableRow: React.FC<PurchaseTableRowProps> = ({
           onEditPaymentStatus={onEditPaymentStatus}
           onRecordPayment={onRecordPayment ? () => onRecordPayment(purchase) : undefined}
           onViewInvoice={onViewInvoice}
+          onMarkReceived={onMarkReceived}
         />
       )}
     </Fragment>

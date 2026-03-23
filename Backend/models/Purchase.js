@@ -65,7 +65,7 @@ const purchaseSchema = new mongoose.Schema({
   },
   paymentMethod: {
     type: String,
-    enum: ["cash", "card", "bank_transfer", "credit", "other"],
+    enum: ["cash", "card", "bank_transfer", "credit", "khalti", "other"],
     default: "cash",
   },
   paymentStatus: {
@@ -92,7 +92,7 @@ const purchaseSchema = new mongoose.Schema({
     },
     method: {
       type: String,
-      enum: ["cash", "card", "bank_transfer", "credit", "other"],
+      enum: ["cash", "card", "bank_transfer", "credit", "khalti", "other"],
       required: true,
     },
     notes: {
@@ -126,6 +126,12 @@ const purchaseSchema = new mongoose.Schema({
       type: String,
       enum: ["owner", "manager", "staff"],
     },
+  },
+  // Khalti payment info
+  khaltiPayment: {
+    pidx: String,
+    transactionId: String,
+    status: String,
   },
 }, {
   timestamps: true,

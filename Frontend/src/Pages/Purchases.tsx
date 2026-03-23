@@ -148,6 +148,32 @@ const Purchases: React.FC = () => {
     }
   }
 
+  const handleKhaltiPay = async (amount: number) => {
+    if (!selectedPurchase?._id) {
+      toast.error('No purchase selected')
+      return
+    }
+    try {
+      const result = await purchasesAPI.initiateKhaltiPayment({
+        purchaseId: selectedPurchase._id,
+        amount,
+      })
+      if (result.payment_url) {
+        // Store context so success page can show purchase info
+        localStorage.setItem('biztrack_khalti_purchase', JSON.stringify({
+          purchaseId: selectedPurchase._id,
+          purchaseNumber: selectedPurchase.purchaseNumber,
+          amount,
+        }))
+        window.location.href = result.payment_url
+      } else {
+        toast.error('Failed to get Khalti payment URL')
+      }
+    } catch (error: any) {
+      throw error
+    }
+  }
+
   const handleRecordPayment = (purchase: Purchase) => {
     setSelectedPurchase(purchase)
     setShowPaymentModal(true)
@@ -170,6 +196,18 @@ const Purchases: React.FC = () => {
       setSelectedPurchase(updatedPurchase)
     } catch (error: any) {
       throw error // Let the modal handle the error display
+    }
+  }
+
+  const handleMarkReceived = async (purchaseId: string) => {
+    try {
+      const updated = await purchasesAPI.update(purchaseId, { status: 'received' })
+      setPurchases((prev) =>
+        prev.map((p) => (p._id === purchaseId || p.purchaseNumber === purchaseId ? { ...p, ...updated } : p))
+      )
+      toast.success('Purchase marked as received')
+    } catch (error: any) {
+      toast.error('Failed to update status', { description: error?.message })
     }
   }
 
@@ -286,6 +324,7 @@ const Purchases: React.FC = () => {
             onEditPaymentStatus={setEditingPaymentStatus}
             onRecordPayment={handleRecordPayment}
             onViewInvoice={handleViewInvoice}
+            onMarkReceived={handleMarkReceived}
           />
           {isLoading && (
             <div className="p-6 text-center text-gray-500">
@@ -381,10 +420,11 @@ const Purchases: React.FC = () => {
               setSelectedPurchase(null)
             }}
             onSave={handleSavePayment}
+            onKhaltiPay={handleKhaltiPay}
             totalAmount={selectedPurchase.total}
             paidAmount={selectedPurchase.paidAmount || 0}
             title={`Record Payment - ${selectedPurchase.purchaseNumber}`}
-            paymentMethods={['cash', 'card', 'bank_transfer', 'credit', 'other']}
+            paymentMethods={['cash', 'card', 'bank_transfer', 'credit', 'khalti', 'other']}
           />
         )}
       </div>

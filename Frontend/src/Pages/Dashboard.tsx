@@ -14,7 +14,6 @@ import {
   Package, 
   ShoppingCart, 
   TrendingUp, 
-  TrendingDown, 
   DollarSign, 
   Users, 
   AlertTriangle,
@@ -40,7 +39,7 @@ interface DashboardStats {
   outOfStockItems: number
   totalSales: number
   totalPurchases: number
-  netBalance: number
+  totalTransactions: number
   pendingInvoices: number
   totalCustomers: number
   totalSuppliers: number
@@ -49,6 +48,9 @@ interface DashboardStats {
   topSellingItems: any[]
   stockItems: any[]
   monthlySalesData: any[]
+  khaltiBalance: number
+  khaltiIn: number
+  khaltiOut: number
 }
 
 const Dashboard = () => {
@@ -60,7 +62,7 @@ const Dashboard = () => {
     outOfStockItems: 0,
     totalSales: 0,
     totalPurchases: 0,
-    netBalance: 0,
+    totalTransactions: 0,
     pendingInvoices: 0,
     totalCustomers: 0,
     totalSuppliers: 0,
@@ -68,7 +70,10 @@ const Dashboard = () => {
     recentPurchases: [],
     topSellingItems: [],
     stockItems: [],
-    monthlySalesData: []
+    monthlySalesData: [],
+    khaltiBalance: 0,
+    khaltiIn: 0,
+    khaltiOut: 0,
   })
   const [isLoading, setIsLoading] = useState(true)
 
@@ -85,14 +90,16 @@ const Dashboard = () => {
         purchases,
         invoices,
         customers,
-        suppliers
+        suppliers,
+        khaltiBalanceData,
       ] = await Promise.all([
         inventoryAPI.getAll(),
         salesAPI.getAll('limit=1000&sortBy=date&sortOrder=desc'),
         purchasesAPI.getAll('limit=1000&sortBy=date&sortOrder=desc'),
         invoicesAPI.getAll('limit=100'),
         customersAPI.getAll(),
-        suppliersAPI.getAll()
+        suppliersAPI.getAll(),
+        purchasesAPI.getKhaltiBalance().catch(() => ({ khaltiIn: 0, khaltiOut: 0, balance: 0 })),
       ])
 
       // Calculate inventory stats
@@ -133,6 +140,7 @@ const Dashboard = () => {
       const totalPurchasesAmount = purchasesData.reduce((sum: number, purchase: any) => 
         sum + (purchase.paidAmount || 0), 0
       )
+      const totalTransactions = salesData.length + purchasesData.length
 
       // Calculate pending invoices
       const invoicesData = invoices.invoices || invoices
@@ -149,9 +157,6 @@ const Dashboard = () => {
         }
       })
 
-      // Net balance = total revenue from sales minus total cash paid out for purchases
-      const netBalance = totalSalesAmount - totalPurchasesAmount
-
       setStats({
         totalInventoryValue,
         totalItems: inventory.length,
@@ -159,7 +164,7 @@ const Dashboard = () => {
         outOfStockItems,
         totalSales: totalSalesAmount,
         totalPurchases: totalPurchasesAmount,
-        netBalance,
+        totalTransactions,
         pendingInvoices: pendingInvoicesCount,
         totalCustomers: customers.pagination?.total ?? customers.data?.length ?? 0,
         totalSuppliers: suppliers.pagination?.total ?? suppliers.data?.length ?? 0,
@@ -169,7 +174,10 @@ const Dashboard = () => {
           (b.stock || 0) - (a.stock || 0)
         ).slice(0, 5),
         stockItems: stockItemsData,
-        monthlySalesData: monthlySales
+        monthlySalesData: monthlySales,
+        khaltiBalance: khaltiBalanceData.balance,
+        khaltiIn: khaltiBalanceData.khaltiIn,
+        khaltiOut: khaltiBalanceData.khaltiOut,
       })
     } catch (error: any) {
       console.error('Failed to load dashboard data:', error)
@@ -330,13 +338,6 @@ const Dashboard = () => {
             subtitle="Actual cash paid out"
           />
           <StatCard
-            title="Net Balance"
-            value={`Rs ${stats.netBalance.toLocaleString()}`}
-            icon={stats.netBalance >= 0 ? TrendingUp : TrendingDown}
-            color={stats.netBalance >= 0 ? 'bg-teal-500' : 'bg-red-500'}
-            subtitle={stats.netBalance >= 0 ? 'Revenue ahead' : 'Purchases exceed sales'}
-          />
-          <StatCard
             title="Pending Invoices"
             value={stats.pendingInvoices}
             icon={FileText}
@@ -344,16 +345,50 @@ const Dashboard = () => {
             onClick={() => navigate('/invoices')}
             subtitle="Requires attention"
           />
+          <StatCard
+            title="Total Transactions"
+            value={stats.totalTransactions}
+            icon={DollarSign}
+            color="bg-teal-500"
+            onClick={() => navigate('/transactions')}
+            subtitle="Sales + purchases records"
+          />
+        </div>
+
+        {/* Khalti Wallet Balance */}
+        <div className="bg-white rounded-lg shadow-sm p-6">
+          <div className="flex items-center gap-3 mb-4">
+            <div className="w-8 h-8 rounded-full bg-purple-600 flex items-center justify-center">
+              <span className="text-white text-xs font-bold">K</span>
+            </div>
+            <h3 className="text-lg font-semibold text-gray-800">Khalti Wallet Balance</h3>
+          </div>
+          <div className="grid grid-cols-3 gap-4">
+            <div className="text-center p-4 bg-green-50 rounded-lg">
+              <p className="text-xs text-gray-500 mb-1">Collected (Sales)</p>
+              <p className="text-xl font-bold text-green-600">Rs {stats.khaltiIn.toLocaleString()}</p>
+            </div>
+            <div className="text-center p-4 bg-red-50 rounded-lg">
+              <p className="text-xs text-gray-500 mb-1">Paid Out (Purchases)</p>
+              <p className="text-xl font-bold text-red-600">Rs {stats.khaltiOut.toLocaleString()}</p>
+            </div>
+            <div className={`text-center p-4 rounded-lg ${stats.khaltiBalance >= 0 ? 'bg-teal-50' : 'bg-orange-50'}`}>
+              <p className="text-xs text-gray-500 mb-1">Net Balance</p>
+              <p className={`text-xl font-bold ${stats.khaltiBalance >= 0 ? 'text-teal-600' : 'text-orange-600'}`}>
+                Rs {stats.khaltiBalance.toLocaleString()}
+              </p>
+            </div>
+          </div>
         </div>
 
         {/* Secondary Metrics */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
           <StatCard
-            title="Low Stock Items"
-            value={stats.lowStockItems}
-            icon={TrendingDown}
-            color="bg-yellow-500"
-            onClick={() => navigate('/low-stock')}
+            title="Total Items in Inventory"
+            value={stats.totalItems}
+            icon={Package}
+            color="bg-blue-500"
+            onClick={() => navigate('/inventory')}
           />
           <StatCard
             title="Out of Stock"
