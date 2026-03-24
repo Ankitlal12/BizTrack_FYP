@@ -1,6 +1,7 @@
 const Purchase = require("../models/Purchase");
 const Sale = require("../models/Sale");
 const Inventory = require("../models/Inventory");
+const Notification = require("../models/Notification");
 const { createNotification } = require("../utils/notificationHelper");
 
 /**
@@ -32,96 +33,43 @@ const processScheduledPurchasePayments = async () => {
     
     for (const purchase of purchasesWithScheduledPayments) {
       try {
-        let hasChanges = false;
-        let totalProcessedAmount = 0;
-        
-        // Process each scheduled payment that's due
-        for (let payment of purchase.payments) {
+        // For each due scheduled payment, create a "Pay Now" notification instead of auto-marking paid
+        for (let i = 0; i < purchase.payments.length; i++) {
+          const payment = purchase.payments[i];
           if (payment.status === "scheduled" && payment.date <= today) {
-            // Mark payment as completed
-            payment.status = "completed";
-            hasChanges = true;
-            totalProcessedAmount += payment.amount;
-            
-            // Update purchase amounts
-            purchase.paidAmount = (purchase.paidAmount || 0) + payment.amount;
-            purchase.scheduledAmount = Math.max(0, (purchase.scheduledAmount || 0) - payment.amount);
-            
-            console.log(`✅ Processed scheduled payment of Rs ${payment.amount} for purchase ${purchase.purchaseNumber}`);
-          }
-        }
-        
-        if (hasChanges) {
-          // Update payment status based on new amounts
-          const currentScheduledAmount = purchase.scheduledAmount || 0;
-          
-          if (purchase.paidAmount >= purchase.total) {
-            purchase.paymentStatus = "paid";
-            // Update main status when payment is completed
-            if (purchase.status === "pending") {
-              purchase.status = "received";
-            }
-          } else if (purchase.paidAmount > 0 || currentScheduledAmount > 0) {
-            purchase.paymentStatus = "partial";
-          } else {
-            purchase.paymentStatus = "unpaid";
-          }
-          
-          await purchase.save();
-          
-          // Sync with Invoice
-          try {
-            const Invoice = require('../models/Invoice');
-            const invoice = await Invoice.findOne({ relatedId: purchase._id, type: 'purchase' });
-            if (invoice) {
-              invoice.paymentStatus = purchase.paymentStatus;
-              invoice.paidAmount = purchase.paidAmount;
-              if (purchase.paymentStatus === "paid") {
-                invoice.status = "paid";
-              }
-              await invoice.save();
-              console.log(`🔄 Synced scheduled payment with Invoice ${invoice._id}`);
-            }
-          } catch (syncError) {
-            console.error('⚠️ Failed to sync scheduled payment to invoice:', syncError);
-          }
-          
-          // Create notification
-          try {
-            let notificationTitle, notificationMessage;
-            
-            if (purchase.paymentStatus === "paid") {
-              notificationTitle = "Scheduled Payment Completed - Fully Paid";
-              notificationMessage = `Scheduled payment of Rs ${totalProcessedAmount.toFixed(2)} has been processed for purchase ${purchase.purchaseNumber}. Purchase is now fully paid.`;
-            } else {
-              const remaining = purchase.total - purchase.paidAmount;
-              notificationTitle = "Scheduled Payment Completed";
-              notificationMessage = `Scheduled payment of Rs ${totalProcessedAmount.toFixed(2)} has been processed for purchase ${purchase.purchaseNumber}. Remaining balance: Rs ${remaining.toFixed(2)}.`;
-            }
-            
-            await createNotification({
-              type: "scheduled_payment_processed",
-              title: notificationTitle,
-              message: notificationMessage,
-              priority: "medium",
-              relatedId: purchase._id,
-              relatedModel: "Purchase",
-              metadata: {
-                purchaseNumber: purchase.purchaseNumber,
-                supplierName: purchase.supplierName,
-                processedAmount: totalProcessedAmount,
-                totalAmount: purchase.total,
-                paidAmount: purchase.paidAmount,
-                remainingAmount: purchase.total - purchase.paidAmount,
-                paymentStatus: purchase.paymentStatus,
-                processedDate: new Date().toISOString(),
-              },
+            // Check if we already sent a due notification for this installment today
+            const existingNotif = await Notification.findOne({
+              type: "installment_due",
+              "metadata.purchaseId": purchase._id.toString(),
+              "metadata.installmentIndex": i,
+              "metadata.notifiedDate": new Date().toISOString().split('T')[0],
             });
-          } catch (notifError) {
-            console.error("Failed to create scheduled payment notification:", notifError);
+
+            if (!existingNotif) {
+              const dueDate = new Date(payment.date).toLocaleDateString('en-NP', {
+                year: 'numeric', month: 'short', day: 'numeric',
+              });
+              await createNotification({
+                type: "installment_due",
+                title: "Installment Payment Due",
+                message: `Rs ${payment.amount.toFixed(2)} installment is due for purchase ${purchase.purchaseNumber} from ${purchase.supplierName} (due: ${dueDate}). Pay now via Khalti.`,
+                priority: "high",
+                relatedId: purchase._id,
+                relatedModel: "Purchase",
+                metadata: {
+                  purchaseId: purchase._id.toString(),
+                  purchaseNumber: purchase.purchaseNumber,
+                  supplierName: purchase.supplierName,
+                  amount: payment.amount,
+                  dueDate: payment.date,
+                  installmentIndex: i,
+                  notifiedDate: new Date().toISOString().split('T')[0],
+                },
+              });
+              console.log(`🔔 Sent installment due notification for purchase ${purchase.purchaseNumber}, installment #${i + 1} (Rs ${payment.amount})`);
+              processedCount++;
+            }
           }
-          
-          processedCount++;
         }
       } catch (error) {
         console.error(`Error processing scheduled payments for purchase ${purchase.purchaseNumber}:`, error);

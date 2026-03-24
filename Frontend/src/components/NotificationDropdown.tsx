@@ -19,7 +19,7 @@ import QuickReorderModal from '../reorder/QuickReorderModal'
 
 interface Notification {
   _id: string
-  type: 'purchase' | 'sale' | 'low_stock' | 'out_of_stock' | 'system' | 'payment_received' | 'payment_made' | 'reorder_needed' | 'reorder_created' | 'reorder_approved' | 'auto_reorder' | 'low_stock_purchase' | 'login_failed' | 'login_success' | 'security_change' | 'expiring_soon' | 'expired'
+  type: 'purchase' | 'sale' | 'low_stock' | 'out_of_stock' | 'system' | 'payment_received' | 'payment_made' | 'reorder_needed' | 'reorder_created' | 'reorder_approved' | 'auto_reorder' | 'low_stock_purchase' | 'login_failed' | 'login_success' | 'security_change' | 'expiring_soon' | 'expired' | 'installment_due'
   title: string
   message: string
   read: boolean
@@ -217,6 +217,31 @@ const NotificationDropdown: React.FC<NotificationDropdownProps> = ({
     }
   };
 
+  const handlePayInstallment = async (notification: Notification) => {
+    const { purchaseId, installmentIndex, amount, purchaseNumber } = notification.metadata || {};
+    if (!purchaseId || installmentIndex === undefined) {
+      toast.error('Missing installment info');
+      return;
+    }
+    try {
+      const { purchasesAPI } = await import('../services/api');
+      const result = await purchasesAPI.initiateKhaltiInstallmentPayment({ purchaseId, installmentIndex });
+      if (result.payment_url) {
+        localStorage.setItem('biztrack_khalti_installment', JSON.stringify({
+          purchaseId,
+          installmentIndex,
+          amount,
+          purchaseNumber,
+        }));
+        window.location.href = result.payment_url;
+      } else {
+        toast.error('Failed to get Khalti payment URL');
+      }
+    } catch (error: any) {
+      toast.error('Failed to initiate payment', { description: error.message });
+    }
+  };
+
   const handleNotificationClick = async (notification: Notification) => {
     // Mark as read when clicked
     if (!notification.read) {
@@ -297,6 +322,11 @@ const NotificationDropdown: React.FC<NotificationDropdownProps> = ({
         } else {
           navigate('/purchases');
         }
+        break;
+
+      case 'installment_due':
+        // Navigate to purchases page — user will pay from there or from notification button
+        navigate('/purchases');
         break;
 
       case 'low_stock':
@@ -380,6 +410,8 @@ const NotificationDropdown: React.FC<NotificationDropdownProps> = ({
         return <FiCreditCard className="h-5 w-5 text-emerald-500" />
       case 'payment_made':
         return <FiCreditCard className="h-5 w-5 text-purple-500" />
+      case 'installment_due':
+        return <FiCreditCard className="h-5 w-5 text-orange-500" />
       case 'low_stock':
         return <FiAlertCircle className="h-5 w-5 text-yellow-500" />
       case 'out_of_stock':
@@ -528,6 +560,20 @@ const NotificationDropdown: React.FC<NotificationDropdownProps> = ({
                           >
                             <FiZap className="h-3 w-3" />
                             Reorder Now
+                          </button>
+                        )}
+
+                        {/* Installment Due — Pay Now with Khalti */}
+                        {notification.type === 'installment_due' && notification.metadata?.purchaseId && (
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handlePayInstallment(notification);
+                            }}
+                            className="mt-2 inline-flex items-center gap-1 px-2 py-1 text-xs bg-purple-600 text-white rounded hover:bg-purple-700 transition-colors"
+                          >
+                            <FiCreditCard className="h-3 w-3" />
+                            Pay Rs {notification.metadata.amount?.toFixed(2)} via Khalti
                           </button>
                         )}
                       </div>

@@ -145,6 +145,20 @@ export const purchasesAPI = {
   getSuppliers: () => apiRequest<any>('/purchases/suppliers'),
   // Upcoming (pending) deliveries
   getUpcoming: () => apiRequest<any>('/purchases/upcoming'),
+  // Khalti payment endpoints for purchases
+  initiateKhaltiPayment: (data: { purchaseId: string; amount?: number }) =>
+    apiRequest<any>('/purchases/khalti/initiate', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
+  verifyKhaltiPayment: (
+    pidx: string,
+    context?: { purchaseId?: string; amount?: number }
+  ) =>
+    apiRequest<any>('/purchases/khalti/verify', {
+      method: 'POST',
+      body: JSON.stringify({ pidx, ...(context || {}) }),
+    }),
 };
 
 // Invoices API
@@ -339,19 +353,6 @@ export const billingAPI = {
     body: JSON.stringify({ pidx }),
   }),
 
-  // eSewa payment endpoints
-  initiateEsewaPayment: (data: any) => apiRequest<any>('/billing/esewa/initiate', {
-    method: 'POST',
-    body: JSON.stringify(data),
-  }),
-  verifyEsewaPayment: (encodedResponse: string) => apiRequest<any>('/billing/esewa/verify', {
-    method: 'POST',
-    body: JSON.stringify({ encodedResponse }),
-  }),
-  verifyEsewaPaymentStatus: (transactionUuid: string, totalAmount: number | string) => apiRequest<any>('/billing/esewa/verify-status', {
-    method: 'POST',
-    body: JSON.stringify({ transactionUuid, totalAmount }),
-  }),
 };
 
 // Export token management functions

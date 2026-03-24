@@ -27,7 +27,6 @@ const BillingSystem = () => {
     filteredCustomers,
     filteredProducts,
     subtotal,
-    tax,
     total,
     // Actions
     setSelectedCustomer,
@@ -147,7 +146,6 @@ const BillingSystem = () => {
                 onUpdateQuantity={updateQuantity}
                 onRemoveItem={removeItem}
                 subtotal={subtotal}
-                tax={tax}
                 total={total}
               />
             </div>

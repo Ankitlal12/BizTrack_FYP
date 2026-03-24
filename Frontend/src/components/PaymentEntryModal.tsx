@@ -35,7 +35,7 @@ const PaymentEntryModal: React.FC<PaymentEntryModalProps> = ({
   
   // Single payment fields
   const [amount, setAmount] = useState('')
-  const [method, setMethod] = useState('cash')
+  const [method, setMethod] = useState(() => paymentMethods[0] || 'cash')
   const [date, setDate] = useState(() => {
     const nepaliDate = new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Kathmandu' })
     return nepaliDate
@@ -62,7 +62,7 @@ const PaymentEntryModal: React.FC<PaymentEntryModalProps> = ({
       // Reset form when modal opens
       setPaymentMode('single')
       setAmount('')
-      setMethod('cash')
+      setMethod(paymentMethods[0] || 'cash')
       const nepaliDate = new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Kathmandu' })
       setDate(nepaliDate)
       setNotes('')
@@ -344,26 +344,33 @@ const PaymentEntryModal: React.FC<PaymentEntryModalProps> = ({
                 )}
               </div>
 
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Payment Method <span className="text-red-500">*</span>
-                </label>
-                <select
-                  value={method}
-                  onChange={(e) => setMethod(e.target.value)}
-                  className="w-full border border-gray-300 rounded-lg py-2 px-4 focus:outline-none focus:ring-2 focus:ring-teal-500"
-                  required
-                  disabled={isSubmitting}
-                >
-                  {paymentMethods.map((pm) => (
-                    <option key={pm} value={pm}>
-                      {formatMethod(pm)}
-                    </option>
-                  ))}
-                </select>
-              </div>
+              {paymentMethods.length > 1 ? (
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Payment Method <span className="text-red-500">*</span>
+                  </label>
+                  <select
+                    value={method}
+                    onChange={(e) => setMethod(e.target.value)}
+                    className="w-full border border-gray-300 rounded-lg py-2 px-4 focus:outline-none focus:ring-2 focus:ring-teal-500"
+                    required
+                    disabled={isSubmitting}
+                  >
+                    {paymentMethods.map((pm) => (
+                      <option key={pm} value={pm}>
+                        {formatMethod(pm)}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              ) : (
+                <div className="p-3 rounded-lg border border-purple-200 bg-purple-50 flex items-center gap-3">
+                  <span className="text-purple-700 font-semibold text-sm">Payment via Khalti</span>
+                  <span className="text-xs text-purple-600">You will be redirected to Khalti to complete the payment.</span>
+                </div>
+              )}
 
-              {method === 'khalti' && onKhaltiPay && (
+              {method === 'khalti' && onKhaltiPay && paymentMethods.length > 1 && (
                 <div className="p-3 rounded-lg border border-purple-200 bg-purple-50 text-sm text-purple-800">
                   <p className="font-medium mb-1">Khalti Digital Wallet</p>
                   <p>You will be redirected to Khalti to complete the payment. Enter the amount above then click "Pay with Khalti".</p>

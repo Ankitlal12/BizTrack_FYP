@@ -113,11 +113,9 @@ const Purchases: React.FC = () => {
   const handleAddPurchase = async (newPurchase: Purchase) => {
     try {
       const created = await purchasesAPI.create(newPurchase)
-      setPurchases((prev) => [created, ...prev])
-      setExpandedPurchase(created._id || created.purchaseNumber)
       toast.success('Purchase order created')
-      // Reload to ensure pagination is correct
       await loadPurchases()
+      setExpandedPurchase(created._id || created.purchaseNumber)
     } catch (error: any) {
       console.error('Failed to create purchase:', error)
       toast.error('Failed to create purchase', {
@@ -424,7 +422,7 @@ const Purchases: React.FC = () => {
             totalAmount={selectedPurchase.total}
             paidAmount={selectedPurchase.paidAmount || 0}
             title={`Record Payment - ${selectedPurchase.purchaseNumber}`}
-            paymentMethods={['cash', 'card', 'bank_transfer', 'credit', 'khalti', 'other']}
+            paymentMethods={['khalti']}
           />
         )}
       </div>

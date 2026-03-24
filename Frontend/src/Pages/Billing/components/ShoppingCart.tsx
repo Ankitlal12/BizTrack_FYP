@@ -7,7 +7,6 @@ interface ShoppingCartProps {
   onUpdateQuantity: (id: number | string, quantity: number) => void
   onRemoveItem: (id: number | string) => void
   subtotal: number
-  tax: number
   total: number
 }
 
@@ -16,7 +15,6 @@ const ShoppingCart: React.FC<ShoppingCartProps> = ({
   onUpdateQuantity,
   onRemoveItem,
   subtotal,
-  tax,
   total,
 }) => {
   if (cartItems.length === 0) {
@@ -87,10 +85,6 @@ const ShoppingCart: React.FC<ShoppingCartProps> = ({
         <div className="flex justify-between text-sm">
           <span className="text-gray-600">Subtotal</span>
           <span className="font-medium">Rs {subtotal.toFixed(2)}</span>
-        </div>
-        <div className="flex justify-between text-sm mt-2">
-          <span className="text-gray-600">Tax (7%)</span>
-          <span className="font-medium">Rs {tax.toFixed(2)}</span>
         </div>
         <div className="flex justify-between text-lg font-bold mt-2 pt-2 border-t">
           <span>Total</span>

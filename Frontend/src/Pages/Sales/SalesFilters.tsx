@@ -214,7 +214,6 @@ const SalesFilters: React.FC<SalesFiltersProps> = ({
                 <option value="card">Card</option>
                 <option value="bank_transfer">Bank Transfer</option>
                 <option value="khalti">Khalti</option>
-                <option value="esewa">eSewa</option>
                 <option value="other">Other</option>
               </select>
             </div>

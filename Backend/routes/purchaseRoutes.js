@@ -13,6 +13,8 @@ const {
   initiateKhaltiPurchasePayment,
   verifyKhaltiPurchasePayment,
   getKhaltiBalance,
+  initiateKhaltiInstallmentPayment,
+  verifyKhaltiInstallmentPayment,
 } = require("../controllers/purchaseController");
 const router = express.Router();
 
@@ -28,6 +30,8 @@ router.post("/process-deliveries", triggerDeliveryProcessing);
 router.post("/khalti/initiate", initiateKhaltiPurchasePayment);
 router.post("/khalti/verify", verifyKhaltiPurchasePayment);
 router.get("/khalti/balance", getKhaltiBalance);
+router.post("/khalti/installment/initiate", initiateKhaltiInstallmentPayment);
+router.post("/khalti/installment/verify", verifyKhaltiInstallmentPayment);
 
 router.get("/:id", getPurchaseById);
 router.post("/", createPurchase);

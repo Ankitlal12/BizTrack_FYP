@@ -61,7 +61,6 @@ const PaymentSection: React.FC<PaymentSectionProps> = ({
           <option value="card">Credit/Debit Card</option>
           <option value="bank_transfer">Bank Transfer</option>
           <option value="khalti">Khalti (Digital Wallet)</option>
-          <option value="esewa">eSewa (Digital Wallet)</option>
           <option value="other">Other</option>
         </select>
         {validationErrors.payment && (
@@ -70,16 +69,6 @@ const PaymentSection: React.FC<PaymentSectionProps> = ({
           </p>
         )}
       </div>
-
-      {paymentMethod === 'esewa' && (
-        <div className="p-3 rounded-lg border border-teal-200 bg-teal-50 text-sm text-teal-800">
-          <p className="font-medium">eSewa Gateway Payment</p>
-          <p className="mt-1">
-            You will be redirected to <span className="font-semibold">eSewa</span> to complete payment securely.
-          </p>
-          <p className="mt-1">After successful payment, BizTrack will create the invoice automatically.</p>
-        </div>
-      )}
 
       {paymentMethod === 'khalti' && (
         <div className="p-3 rounded-lg border border-purple-200 bg-purple-50 text-sm text-purple-800">
@@ -202,11 +191,9 @@ const PaymentSection: React.FC<PaymentSectionProps> = ({
             Processing Sale...
           </>
         ) : (
-          paymentMethod === 'esewa'
-            ? 'Proceed to eSewa'
-            : paymentMethod === 'khalti'
-              ? 'Proceed to Khalti'
-              : 'Complete Sale'
+          paymentMethod === 'khalti'
+            ? 'Proceed to Khalti'
+            : 'Complete Sale'
         )}
       </button>
     </div>

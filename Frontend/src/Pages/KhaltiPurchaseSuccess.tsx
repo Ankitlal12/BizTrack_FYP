@@ -20,11 +20,42 @@ const KhaltiPurchaseSuccess = () => {
     try {
       const pidx = searchParams.get('pidx')
       const storedContext = localStorage.getItem('biztrack_khalti_purchase')
+      const storedInstallment = localStorage.getItem('biztrack_khalti_installment')
       const context = storedContext ? JSON.parse(storedContext) : null
+      const installmentContext = storedInstallment ? JSON.parse(storedInstallment) : null
 
       if (!pidx) {
         setStatus('failed')
         setMessage('Invalid payment link. Missing payment identifier.')
+        return
+      }
+
+      // Installment payment flow
+      if (installmentContext?.purchaseId && installmentContext?.installmentIndex !== undefined) {
+        const verificationResult = await purchasesAPI.verifyKhaltiInstallmentPayment({
+          pidx,
+          purchaseId: installmentContext.purchaseId,
+          installmentIndex: installmentContext.installmentIndex,
+          amount: installmentContext.amount,
+        })
+
+        localStorage.removeItem('biztrack_khalti_installment')
+
+        if (!verificationResult.success) {
+          setStatus('failed')
+          setMessage(verificationResult.message || 'Installment payment verification failed')
+          toast.error('Payment verification failed')
+          return
+        }
+
+        setStatus('success')
+        setMessage(`Installment #${installmentContext.installmentIndex + 1} of Rs ${installmentContext.amount?.toFixed(2)} paid successfully.`)
+        setPurchaseData({
+          purchaseNumber: installmentContext.purchaseNumber || '',
+          total: installmentContext.amount || 0,
+        })
+        toast.success('Installment Payment Successful!')
+        setTimeout(() => navigate('/purchases', { replace: true }), 3000)
         return
       }
 

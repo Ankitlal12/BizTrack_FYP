@@ -3,6 +3,7 @@ import { XIcon, PlusIcon, TrashIcon } from 'lucide-react'
 import { useAuth } from '../../contexts/AuthContext'
 import { purchasesAPI } from '../../services/api'
 import { toast } from 'sonner'
+import { useNavigate } from 'react-router-dom'
 interface NewPurchaseOrderModalProps {
   isOpen: boolean
   onClose: () => void
@@ -14,13 +15,14 @@ const NewPurchaseOrderModal: React.FC<NewPurchaseOrderModalProps> = ({
   onSave,
 }) => {
   const { user } = useAuth()
+  const navigate = useNavigate()
   const [supplier, setSupplier] = useState('')
   const [suppliers, setSuppliers] = useState<any[]>([])
   const [selectedSupplier, setSelectedSupplier] = useState<any>(null)
   const [loadingSuppliers, setLoadingSuppliers] = useState(false)
   const [expectedDeliveryDate, setExpectedDeliveryDate] = useState('')
   // Installment payment plan
-  const [paymentInstallments, setPaymentInstallments] = useState<Array<{id: number; amount: number; dueDate: string; method: string}>>([{id: 1, amount: 0, dueDate: '', method: 'cash'}])
+  const [paymentInstallments, setPaymentInstallments] = useState<Array<{id: number; amount: number; dueDate: string; method: string}>>([{id: 1, amount: 0, dueDate: '', method: 'khalti'}])
   const [items, setItems] = useState([
     {
       id: 1,
@@ -35,7 +37,7 @@ const NewPurchaseOrderModal: React.FC<NewPurchaseOrderModalProps> = ({
   ])
   const [notes, setNotes] = useState('')
   const [errors, setErrors] = useState<{[key: string]: string}>({})
-
+  const [isSubmitting, setIsSubmitting] = useState(false)
   // Load suppliers when modal opens
   useEffect(() => {
     if (isOpen) {
@@ -176,7 +178,7 @@ const NewPurchaseOrderModal: React.FC<NewPurchaseOrderModalProps> = ({
 
   const addInstallment = () => {
     const newId = paymentInstallments.length > 0 ? Math.max(...paymentInstallments.map(i => i.id)) + 1 : 1
-    setPaymentInstallments(prev => [...prev, {id: newId, amount: 0, dueDate: '', method: 'cash'}])
+    setPaymentInstallments(prev => [...prev, {id: newId, amount: 0, dueDate: '', method: 'khalti'}])
   }
 
   const removeInstallment = (id: number) => {
@@ -203,8 +205,10 @@ const NewPurchaseOrderModal: React.FC<NewPurchaseOrderModalProps> = ({
     if (imm > 0 || sched > 0) return 'partial'
     return 'unpaid'
   }
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
+    if (isSubmitting) return
+    setIsSubmitting(true)
     
     // Validate all items for selling price vs cost price
     const validationErrors: {[key: string]: string} = {}
@@ -242,6 +246,7 @@ const NewPurchaseOrderModal: React.FC<NewPurchaseOrderModalProps> = ({
     if (hasErrors) {
       setErrors(validationErrors)
       toast.error('Please fix the validation errors before submitting')
+      setIsSubmitting(false)
       return
     }
 
@@ -258,11 +263,6 @@ const NewPurchaseOrderModal: React.FC<NewPurchaseOrderModalProps> = ({
     }))
 
     const newPurchaseOrder = {
-      purchaseNumber: `PO-${new Date().getFullYear()}-${Math.floor(
-        Math.random() * 1000,
-      )
-        .toString()
-        .padStart(3, '0')}`,
       supplierName: supplier,
       supplierId: selectedSupplier?._id || null,
       supplierEmail: selectedSupplier?.email || '',
@@ -291,24 +291,48 @@ const NewPurchaseOrderModal: React.FC<NewPurchaseOrderModalProps> = ({
       notes: notes + (selectedSupplier ? `\n\nSupplier Info:\nContact: ${selectedSupplier.contactPerson || 'N/A'}\nPayment Terms: ${selectedSupplier.paymentTerms}\nLead Time: ${selectedSupplier.averageLeadTimeDays} days` : ''),
     }
 
-    // Check if any immediate installment uses Khalti
+    // Check if any immediate installment uses Khalti — redirect to Khalti gateway
     const khaltiInstallment = activeInstallments.find(
       (i) => i.method === 'khalti' && !isFutureDate(i.dueDate)
     )
 
     if (khaltiInstallment) {
-      // Khalti is a collection gateway — it cannot send money out to suppliers.
-      // Selecting Khalti here means you are recording that you manually paid
-      // the supplier via your Khalti merchant dashboard/app.
-      // The system records this as a Khalti outflow to track your wallet balance.
-      toast.info('Khalti payment recorded', {
-        description: `Rs ${khaltiInstallment.amount} marked as paid via Khalti. Please ensure you have manually transferred this amount to the supplier through your Khalti merchant dashboard.`,
-        duration: 6000,
-      })
+      if (!khaltiInstallment.amount || khaltiInstallment.amount <= 0) {
+        toast.error('Please enter a valid amount for the Khalti installment')
+        setIsSubmitting(false)
+        return
+      }
+      try {
+        // Save pending purchase data so the success page can create it after payment
+        localStorage.setItem('biztrack_pending_purchase', JSON.stringify(newPurchaseOrder))
+
+        const result = await purchasesAPI.initiateKhaltiPayment({
+          amount: khaltiInstallment.amount,
+          purchaseOrderId: `NEW-${Date.now()}`,
+          supplierName: supplier || 'Supplier',
+          supplierPhone: selectedSupplier?.phone || '9800000000',
+        })
+
+        if (result.payment_url) {
+          window.location.href = result.payment_url
+        } else {
+          toast.error('Failed to get Khalti payment URL')
+          setIsSubmitting(false)
+        }
+      } catch (err: any) {
+        localStorage.removeItem('biztrack_pending_purchase')
+        toast.error(err?.message || 'Failed to initiate Khalti payment')
+        setIsSubmitting(false)
+      }
+      return
     }
 
-    onSave(newPurchaseOrder)
-    onClose()
+    try {
+      onSave(newPurchaseOrder)
+      onClose()
+    } finally {
+      setIsSubmitting(false)
+    }
   }
   return (
     <div className="fixed inset-0 bg-gray-600 bg-opacity-50 flex items-center justify-center z-50">
@@ -401,7 +425,7 @@ const NewPurchaseOrderModal: React.FC<NewPurchaseOrderModalProps> = ({
                 {calculateSubtotal() > 0 && (
                   <button
                     type="button"
-                    onClick={() => setPaymentInstallments([{id: 1, amount: calculateSubtotal(), dueDate: '', method: 'cash'}])}
+                    onClick={() => setPaymentInstallments([{id: 1, amount: calculateSubtotal(), dueDate: '', method: 'khalti'}])}
                     className="text-xs bg-teal-100 hover:bg-teal-200 text-teal-700 px-3 py-1.5 rounded"
                   >
                     Pay Full Now
@@ -425,7 +449,7 @@ const NewPurchaseOrderModal: React.FC<NewPurchaseOrderModalProps> = ({
                     <span className="text-xs text-gray-400 font-medium">#{idx + 1}</span>
                   </div>
                   {/* Amount */}
-                  <div className="col-span-3">
+                  <div className="col-span-4">
                     <label className="block text-xs text-gray-500 mb-1">Amount (Rs)</label>
                     <div className="relative">
                       <span className="absolute left-2 top-1/2 -translate-y-1/2 text-gray-400 text-xs">Rs</span>
@@ -442,7 +466,7 @@ const NewPurchaseOrderModal: React.FC<NewPurchaseOrderModalProps> = ({
                     </div>
                   </div>
                   {/* Due Date */}
-                  <div className="col-span-3">
+                  <div className="col-span-4">
                     <label className="block text-xs text-gray-500 mb-1">
                       Due Date
                       {isFutureDate(inst.dueDate) && <span className="ml-1 text-blue-500">(scheduled)</span>}
@@ -457,27 +481,11 @@ const NewPurchaseOrderModal: React.FC<NewPurchaseOrderModalProps> = ({
                       onChange={(e) => updateInstallment(inst.id, 'dueDate', e.target.value)}
                     />
                   </div>
-                  {/* Method */}
-                  <div className="col-span-3">
-                    <label className="block text-xs text-gray-500 mb-1">Method</label>
-                    <select
-                      title={`Installment ${idx + 1} payment method`}
-                      className="w-full border border-gray-300 rounded py-1.5 px-2 text-sm focus:outline-none focus:ring-1 focus:ring-teal-500"
-                      value={inst.method}
-                      onChange={(e) => updateInstallment(inst.id, 'method', e.target.value)}
-                    >
-                      <option value="cash">Cash</option>
-                      <option value="card">Card</option>
-                      <option value="bank_transfer">Bank Transfer</option>
-                      <option value="credit">Credit</option>
-                      <option value="khalti">Khalti</option>
-                      <option value="other">Other</option>
-                    </select>
-                    {inst.method === 'khalti' && !isFutureDate(inst.dueDate) && (
-                      <p className="text-xs text-purple-600 mt-1">
-                        ⚠️ Manual transfer via Khalti dashboard required
-                      </p>
-                    )}
+                  {/* Method — always Khalti */}
+                  <div className="col-span-1 flex items-end pb-1.5">
+                    <span className="inline-flex items-center gap-1 text-xs font-medium text-purple-700 bg-purple-100 px-2 py-1 rounded-full">
+                      Khalti
+                    </span>
                   </div>
                   {/* Remove */}
                   <div className="col-span-2 flex justify-end">
@@ -843,9 +851,10 @@ const NewPurchaseOrderModal: React.FC<NewPurchaseOrderModalProps> = ({
             </button>
             <button
               type="submit"
-              className="px-4 py-2 bg-teal-500 hover:bg-teal-600 text-white rounded-lg"
+              disabled={isSubmitting}
+              className="px-4 py-2 bg-teal-500 hover:bg-teal-600 text-white rounded-lg disabled:opacity-60 disabled:cursor-not-allowed"
             >
-              Create Purchase Order
+              {isSubmitting ? 'Creating...' : 'Create Purchase Order'}
             </button>
           </div>
         </form>

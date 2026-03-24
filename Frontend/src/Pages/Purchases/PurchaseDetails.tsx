@@ -1,8 +1,11 @@
 import React from 'react'
 import { CalendarIcon, DollarSignIcon, UserIcon, FileTextIcon } from 'lucide-react'
+import { useNavigate } from 'react-router-dom'
+import { toast } from 'sonner'
 import { Purchase } from './types'
 import { getStatusBadgeClass, getPaymentStatusBadgeClass, getPurchaseDate, getPurchaseKey } from './utils'
 import { formatNepaliDateTime } from '../../utils/dateUtils'
+import { purchasesAPI } from '../../services/api'
 
 interface PurchaseDetailsProps {
   purchase: Purchase
@@ -23,11 +26,35 @@ const PurchaseDetails: React.FC<PurchaseDetailsProps> = ({
   onViewInvoice,
   onMarkReceived,
 }) => {
+  const navigate = useNavigate()
   const purchaseKey = getPurchaseKey(purchase)
   const paymentStatusValue = purchase.paymentStatus || 'unpaid'
   const paidAmount = purchase.paidAmount || 0
   const scheduledAmount = purchase.scheduledAmount || 0
   const remainingBalance = purchase.total - paidAmount - scheduledAmount
+
+  const handlePayInstallment = async (installmentIndex: number, amount: number) => {
+    if (!purchase._id) return
+    try {
+      const result = await purchasesAPI.initiateKhaltiInstallmentPayment({
+        purchaseId: purchase._id,
+        installmentIndex,
+      })
+      if (result.payment_url) {
+        localStorage.setItem('biztrack_khalti_installment', JSON.stringify({
+          purchaseId: purchase._id,
+          installmentIndex,
+          amount,
+          purchaseNumber: purchase.purchaseNumber,
+        }))
+        window.location.href = result.payment_url
+      } else {
+        toast.error('Failed to get Khalti payment URL')
+      }
+    } catch (error: any) {
+      toast.error('Failed to initiate payment', { description: error.message })
+    }
+  }
 
   return (
     <tr>
@@ -191,6 +218,7 @@ const PurchaseDetails: React.FC<PurchaseDetailsProps> = ({
                       <th className="py-2 px-3 text-left text-xs font-medium text-gray-500 uppercase">Method</th>
                       <th className="py-2 px-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
                       <th className="py-2 px-3 text-left text-xs font-medium text-gray-500 uppercase">Notes</th>
+                      <th className="py-2 px-3 text-left text-xs font-medium text-gray-500 uppercase">Action</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-gray-200">
@@ -227,6 +255,16 @@ const PurchaseDetails: React.FC<PurchaseDetailsProps> = ({
                         </td>
                         <td className="py-2 px-3 text-xs text-gray-500">
                           {payment.notes || '-'}
+                        </td>
+                        <td className="py-2 px-3 text-xs">
+                          {payment.status === 'scheduled' && (
+                            <button
+                              onClick={() => handlePayInstallment(index, payment.amount)}
+                              className="inline-flex items-center gap-1 px-2 py-1 text-xs bg-purple-600 text-white rounded hover:bg-purple-700 transition-colors whitespace-nowrap"
+                            >
+                              Pay via Khalti
+                            </button>
+                          )}
                         </td>
                       </tr>
                     ))}

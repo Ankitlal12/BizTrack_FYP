@@ -3,12 +3,37 @@ const axios = require('axios');
 /**
  * Khalti Payment Gateway Service
  * Documentation: https://docs.khalti.com/khalti-epayment/
+ *
+ * Two sandbox accounts are used:
+ *  - KHALTI_SECRET_KEY           → billing/sales payments
+ *  - KHALTI_PURCHASE_SECRET_KEY  → purchase/supplier payments
  */
 
 const KHALTI_SECRET_KEY = process.env.KHALTI_SECRET_KEY;
+const KHALTI_PURCHASE_SECRET_KEY =
+  process.env.KHALTI_PURCHASE_SECRET_KEY ||
+  process.env.KHALIT_PURCHASE_SECRET_KEY ||
+  process.env.khalti_purchase_secret_key ||
+  process.env.khalit_purchase_secret_key;
 const KHALTI_GATEWAY_URL = process.env.KHALTI_GATEWAY_URL || 'https://dev.khalti.com/api/v2/epayment';
 const KHALTI_RETURN_URL = process.env.KHALTI_RETURN_URL || 'http://localhost:5173/billing/payment-success';
+const KHALTI_PURCHASE_RETURN_URL = process.env.KHALTI_PURCHASE_RETURN_URL || 'http://localhost:5173/purchases/payment-success';
 const KHALTI_WEBSITE_URL = process.env.KHALTI_WEBSITE_URL || 'http://localhost:5173';
+
+const resolveKhaltiSecretKey = (usePurchaseKey = false) => {
+  if (usePurchaseKey) {
+    if (!KHALTI_PURCHASE_SECRET_KEY) {
+      throw new Error('Khalti purchase secret key is missing. Set KHALTI_PURCHASE_SECRET_KEY or khalit_purchase_secret_key in Backend/.env');
+    }
+    return KHALTI_PURCHASE_SECRET_KEY;
+  }
+
+  if (!KHALTI_SECRET_KEY) {
+    throw new Error('Khalti sales secret key is missing. Set KHALTI_SECRET_KEY in Backend/.env');
+  }
+
+  return KHALTI_SECRET_KEY;
+};
 
 /**
  * Initiate Khalti payment
@@ -23,7 +48,11 @@ const initiateKhaltiPayment = async (paymentData) => {
       purchaseOrderName,
       customerInfo,
       productDetails,
+      // Pass usePurchaseKey: true when paying a supplier/purchase
+      usePurchaseKey,
     } = paymentData;
+
+    const secretKey = resolveKhaltiSecretKey(Boolean(usePurchaseKey));
 
     // Validate required fields
     if (!amount || amount <= 0) {
@@ -43,7 +72,7 @@ const initiateKhaltiPayment = async (paymentData) => {
 
     // Prepare request payload
     const payload = {
-      return_url: paymentData.returnUrl || KHALTI_RETURN_URL,
+      return_url: paymentData.returnUrl || (usePurchaseKey ? KHALTI_PURCHASE_RETURN_URL : KHALTI_RETURN_URL),
       website_url: KHALTI_WEBSITE_URL,
       amount: amountInPaisa,
       purchase_order_id: purchaseOrderId,
@@ -85,7 +114,7 @@ const initiateKhaltiPayment = async (paymentData) => {
       payload,
       {
         headers: {
-          'Authorization': `key ${KHALTI_SECRET_KEY}`,
+          'Authorization': `key ${secretKey}`,
           'Content-Type': 'application/json',
         },
       }
@@ -116,13 +145,16 @@ const initiateKhaltiPayment = async (paymentData) => {
 /**
  * Verify/Lookup Khalti payment status
  * @param {string} pidx - Payment identifier from Khalti
+ * @param {boolean} [usePurchaseKey=false] - Use purchase secret key instead of billing key
  * @returns {Promise<Object>} - Payment verification response
  */
-const verifyKhaltiPayment = async (pidx) => {
+const verifyKhaltiPayment = async (pidx, usePurchaseKey = false) => {
   try {
     if (!pidx) {
       throw new Error('Payment identifier (pidx) is required');
     }
+
+    const secretKey = resolveKhaltiSecretKey(usePurchaseKey);
 
     console.log('🔍 Verifying Khalti payment:', pidx);
 
@@ -132,7 +164,7 @@ const verifyKhaltiPayment = async (pidx) => {
       { pidx },
       {
         headers: {
-          'Authorization': `key ${KHALTI_SECRET_KEY}`,
+          'Authorization': `key ${secretKey}`,
           'Content-Type': 'application/json',
         },
       }

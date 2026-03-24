@@ -45,10 +45,7 @@ const SaleReceipt: React.FC<SaleReceiptProps> = ({
         <div className="flex justify-between mb-2">
           <span className="font-medium">Payment Method:</span>
           <span>
-            {paymentMethod === 'cash' ? 'Cash' : 
-             paymentMethod === 'card' ? 'Credit/Debit Card' :
-             paymentMethod === 'bank_transfer' ? 'Bank Transfer' : 
-             'Other'}
+            {paymentMethod === 'khalti' ? 'Khalti' : paymentMethod}
           </span>
         </div>
         <div className="flex justify-between mb-2">
@@ -110,12 +107,6 @@ const SaleReceipt: React.FC<SaleReceiptProps> = ({
               <td className="text-right py-2">
                 Rs {saleData.subtotal.toFixed(2)}
               </td>
-            </tr>
-            <tr>
-              <td colSpan={3} className="text-right py-2 font-medium">
-                Tax (7%):
-              </td>
-              <td className="text-right py-2">Rs {saleData.tax.toFixed(2)}</td>
             </tr>
             <tr>
               <td colSpan={3} className="text-right py-2 font-bold">

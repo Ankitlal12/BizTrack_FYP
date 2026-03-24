@@ -851,7 +851,9 @@ exports.initiateKhaltiPurchasePayment = async (req, res) => {
       unit_price: item.cost,
     }));
 
-    const returnUrl = `${process.env.KHALTI_WEBSITE_URL || "http://localhost:5173"}/purchases/payment-success`;
+    const returnUrl =
+      process.env.KHALTI_PURCHASE_RETURN_URL ||
+      `${process.env.KHALTI_WEBSITE_URL || "http://localhost:5173"}/purchases/payment-success`;
 
     const khaltiResponse = await initiateKhaltiPayment({
       amount: paymentAmount,
@@ -864,6 +866,7 @@ exports.initiateKhaltiPurchasePayment = async (req, res) => {
       },
       productDetails,
       returnUrl,
+      usePurchaseKey: true,
     });
 
     res.json({
@@ -889,7 +892,7 @@ exports.verifyKhaltiPurchasePayment = async (req, res) => {
       return res.status(400).json({ error: "Payment identifier (pidx) is required" });
     }
 
-    const verificationResult = await verifyKhaltiPayment(pidx);
+    const verificationResult = await verifyKhaltiPayment(pidx, true);
 
     if (!verificationResult.isCompleted) {
       return res.status(400).json({

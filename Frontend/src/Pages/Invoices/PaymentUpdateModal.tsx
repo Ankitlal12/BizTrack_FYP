@@ -27,10 +27,10 @@ interface Installment {
   notes: string;
 }
 
-const PAYMENT_METHODS = ['cash', 'card', 'bank_transfer', 'credit', 'other'];
+const PAYMENT_METHODS = ['khalti'];
 
 const formatMethod = (m: string) =>
-  m.split('_').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
+  m === 'khalti' ? 'Khalti' : m.split('_').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
 
 const todayNPT = () =>
   new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Kathmandu' });
@@ -52,11 +52,11 @@ const PaymentUpdateModal: React.FC<PaymentUpdateModalProps> = ({
 }) => {
   const [mode, setMode] = useState<'single' | 'installment'>('single');
   const [amount, setAmount] = useState('');
-  const [method, setMethod] = useState('cash');
+  const [method, setMethod] = useState('khalti');
   const [date, setDate] = useState(todayNPT());
   const [notes, setNotes] = useState('');
   const [installments, setInstallments] = useState<Installment[]>([
-    { id: 1, amount: 0, date: todayNPT(), method: 'cash', notes: '' },
+    { id: 1, amount: 0, date: todayNPT(), method: 'khalti', notes: '' },
   ]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
@@ -65,10 +65,10 @@ const PaymentUpdateModal: React.FC<PaymentUpdateModalProps> = ({
     if (isOpen && invoice) {
       setMode('single');
       setAmount('');
-      setMethod('cash');
+      setMethod('khalti');
       setDate(todayNPT());
       setNotes('');
-      setInstallments([{ id: 1, amount: 0, date: todayNPT(), method: 'cash', notes: '' }]);
+      setInstallments([{ id: 1, amount: 0, date: todayNPT(), method: 'khalti', notes: '' }]);
       setError('');
     }
   }, [isOpen, invoice]);
@@ -81,7 +81,7 @@ const PaymentUpdateModal: React.FC<PaymentUpdateModalProps> = ({
 
   const addInstallment = () => {
     const newId = Math.max(...installments.map(i => i.id)) + 1;
-    setInstallments(prev => [...prev, { id: newId, amount: 0, date: todayNPT(), method: 'cash', notes: '' }]);
+    setInstallments(prev => [...prev, { id: newId, amount: 0, date: todayNPT(), method: 'khalti', notes: '' }]);
   };
 
   const removeInstallment = (id: number) => {
@@ -289,16 +289,9 @@ const PaymentUpdateModal: React.FC<PaymentUpdateModalProps> = ({
                     </div>
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-1">Method</label>
-                      <select
-                        value={method}
-                        onChange={e => setMethod(e.target.value)}
-                        className="w-full border border-gray-300 rounded-lg py-2 px-3 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                        disabled={loading}
-                      >
-                        {PAYMENT_METHODS.map(m => (
-                          <option key={m} value={m}>{formatMethod(m)}</option>
-                        ))}
-                      </select>
+                      <span className="inline-flex items-center px-3 py-2 text-sm font-medium text-purple-700 bg-purple-100 rounded-lg">
+                        Khalti
+                      </span>
                     </div>
                   </div>
                   <div>
@@ -411,16 +404,9 @@ const PaymentUpdateModal: React.FC<PaymentUpdateModalProps> = ({
                         <div className="grid grid-cols-2 gap-3">
                           <div>
                             <label className="block text-xs text-gray-500 mb-1">Method</label>
-                            <select
-                              value={inst.method}
-                              onChange={e => updateInstallment(inst.id, 'method', e.target.value)}
-                              className="w-full border border-gray-300 rounded py-1.5 px-2 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500"
-                              disabled={loading}
-                            >
-                              {PAYMENT_METHODS.map(m => (
-                                <option key={m} value={m}>{formatMethod(m)}</option>
-                              ))}
-                            </select>
+                            <span className="inline-flex items-center px-2 py-1.5 text-xs font-medium text-purple-700 bg-purple-100 rounded">
+                              Khalti
+                            </span>
                           </div>
                           <div>
                             <label className="block text-xs text-gray-500 mb-1">Notes</label>

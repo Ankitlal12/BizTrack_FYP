@@ -22,9 +22,8 @@ export const loadInventoryProducts = (): Product[] => {
 
 export const calculateTotals = (cartItems: CartItem[]) => {
   const subtotal = cartItems.reduce((sum, item) => sum + item.total, 0)
-  const tax = subtotal * 0.07 // 7% tax
-  const total = subtotal + tax
-  return { subtotal, tax, total }
+  const total = subtotal
+  return { subtotal, tax: 0, total }
 }
 
 export const formatDate = (dateString: string): string => {
