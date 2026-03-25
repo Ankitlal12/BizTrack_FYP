@@ -65,8 +65,10 @@ export const App = () => {
               <Navigate to="/login" replace />
             ) : user?.role === "owner" ? (
               <Dashboard />
-            ) : (
+            ) : user?.role === "manager" ? (
               <Navigate to="/inventory" replace />
+            ) : (
+              <Navigate to="/billing" replace />
             )
           }
         />
@@ -75,8 +77,10 @@ export const App = () => {
           <Route
             path="/inventory"
             element={
-              isAuthenticated ? (
+              isAuthenticated && (user?.role === 'owner' || user?.role === 'manager') ? (
                 <Inventory />
+              ) : isAuthenticated ? (
+                <Navigate to="/billing" replace />
               ) : (
                 <Navigate to="/login" replace />
               )

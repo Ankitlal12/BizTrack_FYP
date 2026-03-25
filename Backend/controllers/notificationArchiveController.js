@@ -2,55 +2,25 @@ const NotificationArchive = require("../models/NotificationArchive");
 const Notification = require("../models/Notification");
 const { permanentlyDeleteNotification } = require("../utils/notificationHelper");
 
-// Sync notifications from temp storage to archive if archive is empty or missing data
-const syncNotificationsToArchive = async () => {
-  try {
-    // Get all notifications from temp storage
-    const tempNotifications = await Notification.find({});
-    
-    for (const tempNotif of tempNotifications) {
-      // Check if this notification exists in archive
-      const existsInArchive = await NotificationArchive.findById(tempNotif._id);
-      
-      if (!existsInArchive) {
-        // Copy to archive with the same ID
-        await NotificationArchive.create({
-          _id: tempNotif._id,
-          type: tempNotif.type,
-          title: tempNotif.title,
-          message: tempNotif.message,
-          read: tempNotif.read,
-          relatedId: tempNotif.relatedId,
-          relatedModel: tempNotif.relatedModel,
-          metadata: tempNotif.metadata,
-          createdAt: tempNotif.createdAt,
-          updatedAt: tempNotif.updatedAt,
-        });
-      }
-    }
-  } catch (error) {
-    console.error("Error syncing notifications to archive:", error);
-  }
-};
-
 // Get all archived notifications (for Settings page)
 exports.getAllArchivedNotifications = async (req, res) => {
   try {
-    const { read, limit = 100 } = req.query;
+    const { read, limit = 25, skip = 0 } = req.query;
     const query = {};
     
     if (read !== undefined) {
       query.read = read === 'true';
     }
     
-    // Sync any missing notifications from temp storage on first load
-    await syncNotificationsToArchive();
+    const [notifications, total] = await Promise.all([
+      NotificationArchive.find(query)
+        .sort({ createdAt: -1 })
+        .skip(parseInt(skip))
+        .limit(parseInt(limit)),
+      NotificationArchive.countDocuments(query),
+    ]);
     
-    const notifications = await NotificationArchive.find(query)
-      .sort({ createdAt: -1 })
-      .limit(parseInt(limit));
-    
-    res.json(notifications);
+    res.json({ notifications, total });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }

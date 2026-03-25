@@ -990,3 +990,132 @@ exports.getKhaltiBalance = async (req, res) => {
     res.status(500).json({ error: err.message });
   }
 };
+
+// Initiate Khalti payment for a specific scheduled installment
+exports.initiateKhaltiInstallmentPayment = async (req, res) => {
+  try {
+    const { purchaseId, installmentIndex } = req.body;
+    if (!purchaseId || installmentIndex === undefined) {
+      return res.status(400).json({ error: "purchaseId and installmentIndex are required" });
+    }
+    const purchase = await Purchase.findById(purchaseId);
+    if (!purchase) return res.status(404).json({ error: "Purchase not found" });
+
+    const payment = purchase.payments[installmentIndex];
+    if (!payment) return res.status(404).json({ error: "Installment not found" });
+    if (payment.status !== "scheduled") return res.status(400).json({ error: "Installment is not scheduled" });
+
+    const orderId = `${purchase.purchaseNumber}-INST${installmentIndex}-${Date.now().toString().slice(-6)}`;
+    const khaltiResponse = await initiateKhaltiPayment({
+      amount: payment.amount,
+      purchaseOrderId: orderId,
+      purchaseOrderName: `Installment #${installmentIndex + 1} - ${purchase.purchaseNumber}`,
+      customerInfo: {
+        name: purchase.supplierName,
+        email: purchase.supplierEmail || "",
+        phone: purchase.supplierPhone || "9800000000",
+      },
+      productDetails: purchase.items.map((item) => ({
+        id: item.inventoryId?.toString() || item.name,
+        name: item.name,
+        total_price: item.total,
+        quantity: item.quantity,
+        unit_price: item.cost,
+      })),
+      usePurchaseKey: true,
+    });
+
+    return res.json({
+      success: true,
+      pidx: khaltiResponse.pidx,
+      payment_url: khaltiResponse.payment_url,
+      expires_at: khaltiResponse.expires_at,
+      purchaseId: purchase._id,
+      installmentIndex,
+      amount: payment.amount,
+    });
+  } catch (err) {
+    console.error("Khalti installment initiation error:", err);
+    res.status(500).json({ error: err.message || "Failed to initiate Khalti installment payment" });
+  }
+};
+
+// Verify Khalti payment for a specific installment and mark it completed
+exports.verifyKhaltiInstallmentPayment = async (req, res) => {
+  try {
+    const { pidx, purchaseId, installmentIndex, amount } = req.body;
+    if (!pidx) return res.status(400).json({ error: "pidx is required" });
+
+    const verificationResult = await verifyKhaltiPayment(pidx, true);
+    if (!verificationResult.isCompleted) {
+      return res.status(400).json({ error: verificationResult.message, status: verificationResult.status });
+    }
+
+    if (purchaseId && installmentIndex !== undefined) {
+      const purchase = await Purchase.findById(purchaseId);
+      if (purchase) {
+        const payment = purchase.payments[installmentIndex];
+        if (payment && payment.status === "scheduled") {
+          const paymentAmount = amount || payment.amount;
+          purchase.payments[installmentIndex].status = "completed";
+          purchase.payments[installmentIndex].notes = `Khalti txn: ${verificationResult.transaction_id}`;
+          purchase.payments[installmentIndex].method = "khalti";
+          purchase.paidAmount = (purchase.paidAmount || 0) + paymentAmount;
+          purchase.scheduledAmount = Math.max(0, (purchase.scheduledAmount || 0) - paymentAmount);
+
+          if (purchase.paidAmount >= purchase.total) {
+            purchase.paymentStatus = "paid";
+            if (purchase.status === "pending") purchase.status = "received";
+          } else if (purchase.paidAmount > 0) {
+            purchase.paymentStatus = "partial";
+          }
+          await purchase.save();
+
+          try {
+            const Invoice = require("../models/Invoice");
+            const invoice = await Invoice.findOne({ relatedId: purchase._id, type: "purchase" });
+            if (invoice) {
+              invoice.paymentStatus = purchase.paymentStatus;
+              invoice.paidAmount = purchase.paidAmount;
+              invoice.paymentMethod = "khalti";
+              if (purchase.paymentStatus === "paid") invoice.status = "paid";
+              await invoice.save();
+            }
+          } catch (syncErr) {
+            console.error("Invoice sync error after installment payment:", syncErr);
+          }
+
+          try {
+            await createNotification({
+              type: "payment_made",
+              title: "Installment Payment Completed",
+              message: `Installment #${installmentIndex + 1} of Rs ${paymentAmount.toFixed(2)} paid via Khalti for purchase ${purchase.purchaseNumber} to ${purchase.supplierName}.`,
+              priority: "medium",
+              relatedId: purchase._id,
+              relatedModel: "Purchase",
+              metadata: {
+                purchaseNumber: purchase.purchaseNumber,
+                supplierName: purchase.supplierName,
+                paymentAmount,
+                installmentIndex,
+                transactionId: verificationResult.transaction_id,
+              },
+            });
+          } catch (notifErr) {
+            console.error("Notification error after installment payment:", notifErr);
+          }
+        }
+      }
+    }
+
+    res.json({
+      success: true,
+      message: "Installment payment verified successfully",
+      transaction_id: verificationResult.transaction_id,
+      status: verificationResult.status,
+    });
+  } catch (err) {
+    console.error("Khalti installment verification error:", err);
+    res.status(500).json({ error: err.message || "Failed to verify installment payment" });
+  }
+};

@@ -17,7 +17,7 @@ import {
 
 interface Notification {
   _id: string
-  type: 'purchase' | 'sale' | 'low_stock' | 'out_of_stock' | 'system' | 'payment_received' | 'payment_made' | 'reorder_needed' | 'reorder_created' | 'reorder_approved' | 'auto_reorder' | 'low_stock_purchase' | 'login_failed' | 'login_success' | 'security_change'
+  type: 'purchase' | 'sale' | 'low_stock' | 'out_of_stock' | 'system' | 'payment_received' | 'payment_made' | 'payment_scheduled' | 'reorder_needed' | 'reorder_created' | 'reorder_approved' | 'auto_reorder' | 'low_stock_purchase' | 'login_failed' | 'login_success' | 'security_change' | 'installment_due' | 'scheduled_payment_processed' | 'delivery_received' | 'expiring_soon' | 'expired'
   title: string
   message: string
   read: boolean
@@ -40,17 +40,19 @@ const NotificationsTab: React.FC = () => {
   const loadNotifications = async () => {
     try {
       setIsLoading(true)
-      const [notifs, count] = await Promise.all([
+      const [response, count] = await Promise.all([
         notificationArchiveAPI.getAll({ 
           limit: itemsPerPage,
-          skip: (currentPage - 1) * itemsPerPage 
+          skip: (currentPage - 1) * itemsPerPage,
         }),
         notificationArchiveAPI.getUnreadCount(),
       ])
+      // Handle both { notifications, total } shape and plain array (fallback)
+      const notifs = Array.isArray(response) ? response : (response as any).notifications ?? []
+      const total = Array.isArray(response) ? notifs.length : (response as any).total ?? notifs.length
       setNotifications(notifs)
       setUnreadCount(count.count)
-      // Assuming the API returns total count - if not, we'll use notifications length
-      setTotalNotifications(notifs.length < itemsPerPage ? (currentPage - 1) * itemsPerPage + notifs.length : currentPage * itemsPerPage + 1)
+      setTotalNotifications(total)
     } catch (error: any) {
       console.error('Failed to load notifications:', error)
       toast.error('Failed to load notifications', {

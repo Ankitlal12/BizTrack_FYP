@@ -11,7 +11,8 @@ const notificationArchiveSchema = new mongoose.Schema({
       "out_of_stock", 
       "system", 
       "payment_received", 
-      "payment_made", 
+      "payment_made",
+      "payment_scheduled",
       "reorder_needed", 
       "reorder_created", 
       "reorder_approved", 
@@ -21,7 +22,10 @@ const notificationArchiveSchema = new mongoose.Schema({
       "login_success",
       "security_change",
       "expiring_soon",
-      "expired"
+      "expired",
+      "installment_due",
+      "scheduled_payment_processed",
+      "delivery_received",
     ],
   },
   title: {

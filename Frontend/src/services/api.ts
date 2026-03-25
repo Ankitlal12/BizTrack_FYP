@@ -146,7 +146,7 @@ export const purchasesAPI = {
   // Upcoming (pending) deliveries
   getUpcoming: () => apiRequest<any>('/purchases/upcoming'),
   // Khalti payment endpoints for purchases
-  initiateKhaltiPayment: (data: { purchaseId: string; amount?: number }) =>
+  initiateKhaltiPayment: (data: { purchaseId?: string; amount?: number; purchaseOrderId?: string; supplierName?: string; supplierPhone?: string }) =>
     apiRequest<any>('/purchases/khalti/initiate', {
       method: 'POST',
       body: JSON.stringify(data),
@@ -158,6 +158,17 @@ export const purchasesAPI = {
     apiRequest<any>('/purchases/khalti/verify', {
       method: 'POST',
       body: JSON.stringify({ pidx, ...(context || {}) }),
+    }),
+  getKhaltiBalance: () => apiRequest<any>('/purchases/khalti/balance'),
+  initiateKhaltiInstallmentPayment: (data: { purchaseId: string; installmentIndex: number }) =>
+    apiRequest<any>('/purchases/khalti/installment/initiate', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
+  verifyKhaltiInstallmentPayment: (data: { pidx: string; purchaseId: string; installmentIndex: number; amount: number }) =>
+    apiRequest<any>('/purchases/khalti/installment/verify', {
+      method: 'POST',
+      body: JSON.stringify(data),
     }),
 };
 
@@ -279,10 +290,11 @@ export const notificationsAPI = {
 
 // Notification Archive API (Settings Page - Permanent, all notifications)
 export const notificationArchiveAPI = {
-  getAll: (params?: { read?: boolean; limit?: number }) => {
+  getAll: (params?: { read?: boolean; limit?: number; skip?: number }) => {
     const queryParams = new URLSearchParams();
     if (params?.read !== undefined) queryParams.append('read', params.read.toString());
     if (params?.limit !== undefined) queryParams.append('limit', params.limit.toString());
+    if (params?.skip !== undefined) queryParams.append('skip', params.skip.toString());
     const query = queryParams.toString();
     return apiRequest<any[]>(`/notifications/archive${query ? `?${query}` : ''}`);
   },

@@ -95,12 +95,14 @@ const Sidebar = memo(() => {
       })
     }
 
-    // Inventory
-    result.push({
-      name: 'Inventory',
-      path: '/inventory',
-      icon: <FiPackage size={20} />,
-    })
+    // Inventory (owner and manager only)
+    if (user?.role === 'owner' || user?.role === 'manager') {
+      result.push({
+        name: 'Inventory',
+        path: '/inventory',
+        icon: <FiPackage size={20} />,
+      })
+    }
 
     // Stock Control Group (right after Inventory for owner and manager)
     if (user?.role === 'owner' || user?.role === 'manager') {
@@ -128,11 +130,6 @@ const Sidebar = memo(() => {
             path: '/expiry-management',
             icon: <Calendar size={18} />,
           },
-          ...(user?.role === 'owner' ? [{
-            name: 'Reorder History',
-            path: '/reorder-history',
-            icon: <RotateCcw size={18} />,
-          }] : [])
         ]
       })
     }

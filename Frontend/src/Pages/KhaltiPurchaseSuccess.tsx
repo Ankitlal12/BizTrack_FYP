@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react'
+import React, { useEffect, useState, useRef } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { CheckCircle, XCircle, Loader2 } from 'lucide-react'
 import { toast } from 'sonner'
@@ -11,8 +11,11 @@ const KhaltiPurchaseSuccess = () => {
   const [status, setStatus] = useState<'verifying' | 'success' | 'failed'>('verifying')
   const [message, setMessage] = useState('Verifying your payment...')
   const [purchaseData, setPurchaseData] = useState<any>(null)
+  const hasVerified = useRef(false)
 
   useEffect(() => {
+    if (hasVerified.current) return
+    hasVerified.current = true
     verifyPayment()
   }, [])
 
