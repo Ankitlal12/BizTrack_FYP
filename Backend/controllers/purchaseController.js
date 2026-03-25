@@ -814,68 +814,89 @@ const { initiateKhaltiPayment, verifyKhaltiPayment } = require("../utils/khaltiS
 // Initiate Khalti payment for a purchase (payment on existing purchase)
 exports.initiateKhaltiPurchasePayment = async (req, res) => {
   try {
-    const { purchaseId, amount } = req.body;
-
-    if (!purchaseId) {
-      return res.status(400).json({ error: "Purchase ID is required" });
-    }
-
-    const purchase = await Purchase.findById(purchaseId);
-    if (!purchase) {
-      return res.status(404).json({ error: "Purchase not found" });
-    }
-
-    const paidAmount = purchase.paidAmount || 0;
-    const scheduledAmount = purchase.scheduledAmount || 0;
-    const remaining = purchase.total - paidAmount - scheduledAmount;
-
-    const paymentAmount = amount || remaining;
-
-    if (paymentAmount <= 0) {
-      return res.status(400).json({ error: "No remaining balance to pay" });
-    }
-
-    if (paymentAmount > remaining) {
-      return res.status(400).json({
-        error: `Payment amount (Rs ${paymentAmount}) exceeds remaining balance (Rs ${remaining.toFixed(2)})`,
-      });
-    }
-
-    const purchaseOrderId = `${purchase.purchaseNumber}-${Date.now().toString().slice(-6)}`;
-
-    const productDetails = purchase.items.map((item) => ({
-      id: item.inventoryId?.toString() || item.name,
-      name: item.name,
-      total_price: item.total,
-      quantity: item.quantity,
-      unit_price: item.cost,
-    }));
+    const { purchaseId, amount, purchaseOrderId, supplierName, supplierPhone } = req.body;
 
     const returnUrl =
       process.env.KHALTI_PURCHASE_RETURN_URL ||
       `${process.env.KHALTI_WEBSITE_URL || "http://localhost:5173"}/purchases/payment-success`;
 
+    // Case 1: Payment on an existing purchase
+    if (purchaseId) {
+      const purchase = await Purchase.findById(purchaseId);
+      if (!purchase) {
+        return res.status(404).json({ error: "Purchase not found" });
+      }
+
+      const paidAmount = purchase.paidAmount || 0;
+      const scheduledAmount = purchase.scheduledAmount || 0;
+      const remaining = purchase.total - paidAmount - scheduledAmount;
+      const paymentAmount = amount || remaining;
+
+      if (paymentAmount <= 0) {
+        return res.status(400).json({ error: "No remaining balance to pay" });
+      }
+      if (paymentAmount > remaining) {
+        return res.status(400).json({
+          error: `Payment amount (Rs ${paymentAmount}) exceeds remaining balance (Rs ${remaining.toFixed(2)})`,
+        });
+      }
+
+      const orderId = `${purchase.purchaseNumber}-${Date.now().toString().slice(-6)}`;
+      const khaltiResponse = await initiateKhaltiPayment({
+        amount: paymentAmount,
+        purchaseOrderId: orderId,
+        purchaseOrderName: `Purchase Payment - ${purchase.purchaseNumber}`,
+        customerInfo: {
+          name: purchase.supplierName,
+          email: purchase.supplierEmail || "",
+          phone: purchase.supplierPhone || "9800000000",
+        },
+        productDetails: purchase.items.map((item) => ({
+          id: item.inventoryId?.toString() || item.name,
+          name: item.name,
+          total_price: item.total,
+          quantity: item.quantity,
+          unit_price: item.cost,
+        })),
+        returnUrl,
+        usePurchaseKey: true,
+      });
+
+      return res.json({
+        success: true,
+        pidx: khaltiResponse.pidx,
+        payment_url: khaltiResponse.payment_url,
+        expires_at: khaltiResponse.expires_at,
+        purchaseId: purchase._id,
+        amount: paymentAmount,
+      });
+    }
+
+    // Case 2: New purchase — no purchaseId yet, initiate payment before creating purchase
+    if (!amount || amount <= 0) {
+      return res.status(400).json({ error: "Amount is required for new purchase payment" });
+    }
+
+    const orderId = purchaseOrderId || `NEW-${Date.now()}`;
     const khaltiResponse = await initiateKhaltiPayment({
-      amount: paymentAmount,
-      purchaseOrderId,
-      purchaseOrderName: `Purchase Payment - ${purchase.purchaseNumber}`,
+      amount,
+      purchaseOrderId: orderId,
+      purchaseOrderName: `New Purchase Order`,
       customerInfo: {
-        name: purchase.supplierName,
-        email: purchase.supplierEmail || "",
-        phone: purchase.supplierPhone || "9800000000",
+        name: supplierName || "Supplier",
+        email: "",
+        phone: supplierPhone || "9800000000",
       },
-      productDetails,
       returnUrl,
       usePurchaseKey: true,
     });
 
-    res.json({
+    return res.json({
       success: true,
       pidx: khaltiResponse.pidx,
       payment_url: khaltiResponse.payment_url,
       expires_at: khaltiResponse.expires_at,
-      purchaseId: purchase._id,
-      amount: paymentAmount,
+      amount,
     });
   } catch (err) {
     console.error("Khalti purchase payment initiation error:", err);

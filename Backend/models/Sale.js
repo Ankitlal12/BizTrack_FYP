@@ -85,21 +85,6 @@ const saleSchema = new mongoose.Schema({
       type: String,
     },
   },
-  // eSewa payment information
-  esewaPayment: {
-    transactionUuid: {
-      type: String,
-    },
-    refId: {
-      type: String,
-    },
-    status: {
-      type: String,
-    },
-    totalAmount: {
-      type: Number,
-    },
-  },
   payments: [{
     amount: {
       type: Number,
@@ -146,9 +131,6 @@ const saleSchema = new mongoose.Schema({
 }, {
   timestamps: true,
 });
-
-saleSchema.index({ "khaltiPayment.pidx": 1 }, { unique: true, sparse: true });
-saleSchema.index({ "esewaPayment.transactionUuid": 1 }, { unique: true, sparse: true });
 
 // Generate invoice number automatically for sales
 saleSchema.pre('save', async function(next) {

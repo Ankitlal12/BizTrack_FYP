@@ -151,10 +151,7 @@ export const purchasesAPI = {
       method: 'POST',
       body: JSON.stringify(data),
     }),
-  verifyKhaltiPayment: (
-    pidx: string,
-    context?: { purchaseId?: string; amount?: number }
-  ) =>
+  verifyKhaltiPayment: (pidx: string, context?: { purchaseId?: string; amount?: number }) =>
     apiRequest<any>('/purchases/khalti/verify', {
       method: 'POST',
       body: JSON.stringify({ pidx, ...(context || {}) }),
@@ -290,11 +287,10 @@ export const notificationsAPI = {
 
 // Notification Archive API (Settings Page - Permanent, all notifications)
 export const notificationArchiveAPI = {
-  getAll: (params?: { read?: boolean; limit?: number; skip?: number }) => {
+  getAll: (params?: { read?: boolean; limit?: number }) => {
     const queryParams = new URLSearchParams();
     if (params?.read !== undefined) queryParams.append('read', params.read.toString());
     if (params?.limit !== undefined) queryParams.append('limit', params.limit.toString());
-    if (params?.skip !== undefined) queryParams.append('skip', params.skip.toString());
     const query = queryParams.toString();
     return apiRequest<any[]>(`/notifications/archive${query ? `?${query}` : ''}`);
   },
@@ -365,6 +361,15 @@ export const billingAPI = {
     body: JSON.stringify({ pidx }),
   }),
 
+  // eSewa payment endpoints
+  initiateEsewaPayment: (data: any) => apiRequest<any>('/billing/esewa/initiate', {
+    method: 'POST',
+    body: JSON.stringify(data),
+  }),
+  verifyEsewaPayment: (encodedResponse: string) => apiRequest<any>('/billing/esewa/verify', {
+    method: 'POST',
+    body: JSON.stringify({ encodedResponse }),
+  }),
 };
 
 // Export token management functions
