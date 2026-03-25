@@ -7,6 +7,7 @@ import InvoiceFilters from './Invoices/InvoiceFilters';
 import InvoiceTable from './Invoices/InvoiceTable';
 import InvoiceDetailsModal from './Invoices/InvoiceDetailsModal';
 import PaymentUpdateModal from './Invoices/PaymentUpdateModal';
+import SendEmailModal from './Invoices/SendEmailModal';
 import { Invoice, InvoiceStats as IInvoiceStats, InvoiceFilters as IInvoiceFilters, InvoiceResponse } from './Invoices/types';
 import { buildQueryString } from './Invoices/utils';
 import { invoicesAPI } from '../services/api';
@@ -59,6 +60,8 @@ const Invoices: React.FC = () => {
   const [selectedInvoice, setSelectedInvoice] = useState<Invoice | null>(null);
   const [showDetailsModal, setShowDetailsModal] = useState(false);
   const [showPaymentModal, setShowPaymentModal] = useState(false);
+  const [showEmailModal, setShowEmailModal] = useState(false);
+  const [emailingInvoiceId, setEmailingInvoiceId] = useState<string | null>(null);
   const [error, setError] = useState('');
 
   // Fetch invoices
@@ -216,10 +219,32 @@ const Invoices: React.FC = () => {
     }
   };
 
+  const handleEmailInvoice = (invoice: Invoice) => {
+    setSelectedInvoice(invoice);
+    setShowEmailModal(true);
+  };
+
+  const handleSendEmail = async (email: string) => {
+    if (!selectedInvoice) return;
+
+    try {
+      setEmailingInvoiceId(selectedInvoice._id);
+      await invoicesAPI.sendEmail(selectedInvoice._id, { email });
+      toast.success(`Invoice sent to ${email}`);
+    } catch (err: any) {
+      const message = err?.message || 'Failed to send invoice email';
+      toast.error(message);
+      throw err;
+    } finally {
+      setEmailingInvoiceId(null);
+    }
+  };
+
   // Handle modal close
   const handleCloseModals = () => {
     setShowDetailsModal(false);
     setShowPaymentModal(false);
+    setShowEmailModal(false);
     setSelectedInvoice(null);
     setHighlightedInvoice(null);
   };
@@ -292,8 +317,9 @@ const Invoices: React.FC = () => {
                     {pagination.total} results
                   </div>
                   <div className="flex items-center gap-2">
-                    <label className="text-sm text-gray-600">Per page:</label>
+                    <label htmlFor="invoice-page-size" className="text-sm text-gray-600">Per page:</label>
                     <select
+                      id="invoice-page-size"
                       value={filters.limit}
                       onChange={(e) => {
                         const newLimit = parseInt(e.target.value)
@@ -359,6 +385,8 @@ const Invoices: React.FC = () => {
           isOpen={showDetailsModal}
           onClose={handleCloseModals}
           onUpdatePayment={handleUpdatePayment}
+          onEmailInvoice={handleEmailInvoice}
+          emailSending={Boolean((highlightedInvoice || selectedInvoice)?._id && emailingInvoiceId === (highlightedInvoice || selectedInvoice)?._id)}
         />
 
         <PaymentUpdateModal
@@ -366,6 +394,14 @@ const Invoices: React.FC = () => {
           isOpen={showPaymentModal}
           onClose={handleCloseModals}
           onSave={handlePaymentUpdate}
+        />
+
+        <SendEmailModal
+          invoice={selectedInvoice}
+          isOpen={showEmailModal}
+          onClose={handleCloseModals}
+          onSend={handleSendEmail}
+          isSending={emailingInvoiceId === selectedInvoice?._id}
         />
       </div>
     </Layout>

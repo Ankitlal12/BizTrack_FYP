@@ -196,6 +196,10 @@ export const invoicesAPI = {
     method: 'POST',
     body: JSON.stringify(paymentData),
   }),
+  sendEmail: (id: string, data?: { email?: string }) => apiRequest<any>(`/invoices/${id}/send-email`, {
+    method: 'POST',
+    body: JSON.stringify(data || {}),
+  }),
   generateFromSale: (saleId: string) => apiRequest<any>(`/invoices/generate/sale/${saleId}`, {
     method: 'POST',
   }),

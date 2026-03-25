@@ -10,6 +10,7 @@ const {
   updatePaymentStatus,
   recordInvoicePayment,
   getInvoiceStats,
+  sendInvoiceEmail,
 } = require("../controllers/invoiceController");
 const router = express.Router();
 
@@ -28,6 +29,7 @@ router.put("/:id", updateInvoice);
 router.delete("/:id", deleteInvoice);
 router.patch("/:id/payment", updatePaymentStatus);
 router.post("/:id/payments", recordInvoicePayment);
+router.post("/:id/send-email", sendInvoiceEmail);
 
 module.exports = router;
 

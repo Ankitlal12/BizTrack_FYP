@@ -9,7 +9,8 @@
     "jsonwebtoken": "^9.0.3",
     "mongodb": "^7.0.0",
     "mongoose": "^8.19.4",
-    "nodemailer": "^8.0.1"
+    "nodemailer": "^8.0.1",
+    "pdfkit": "^0.18.0"
   },
   "name": "backend",
   "version": "1.0.0",

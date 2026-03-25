@@ -19,6 +19,8 @@ interface InvoiceDetailsModalProps {
   isOpen: boolean;
   onClose: () => void;
   onUpdatePayment: (invoice: Invoice) => void;
+  onEmailInvoice: (invoice: Invoice) => void;
+  emailSending?: boolean;
 }
 
 const InvoiceDetailsModal: React.FC<InvoiceDetailsModalProps> = ({
@@ -26,6 +28,8 @@ const InvoiceDetailsModal: React.FC<InvoiceDetailsModalProps> = ({
   isOpen,
   onClose,
   onUpdatePayment,
+  onEmailInvoice,
+  emailSending = false,
 }) => {
   if (!isOpen || !invoice) return null;
 
@@ -73,6 +77,8 @@ const InvoiceDetailsModal: React.FC<InvoiceDetailsModalProps> = ({
           </div>
           <button
             onClick={onClose}
+            title="Close"
+            aria-label="Close"
             className="text-gray-400 hover:text-gray-600 transition-colors"
           >
             <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -323,6 +329,13 @@ const InvoiceDetailsModal: React.FC<InvoiceDetailsModalProps> = ({
               className="px-4 py-2 bg-gray-600 text-white rounded-md hover:bg-gray-700 transition-colors"
             >
               Print/PDF
+            </button>
+            <button
+              onClick={() => onEmailInvoice(invoice)}
+              disabled={emailSending}
+              className="px-4 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700 transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
+            >
+              {emailSending ? 'Sending...' : 'Export'}
             </button>
           </div>
           <div className="flex space-x-3">
