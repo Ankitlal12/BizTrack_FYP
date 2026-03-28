@@ -21,7 +21,7 @@ export const useBilling = () => {
   const [searchProduct, setSearchProduct] = useState('')
   const [cartItems, setCartItems] = useState<CartItem[]>([])
   const [showCustomerForm, setShowCustomerForm] = useState(false)
-  const [paymentMethod, setPaymentMethod] = useState('cash')
+  const [paymentMethod, setPaymentMethod] = useState('khalti')
   const [paidAmount, setPaidAmount] = useState(0)
   const [notes, setNotes] = useState('')
   const [saleCompleted, setSaleCompleted] = useState(false)
@@ -176,15 +176,6 @@ export const useBilling = () => {
     if (cartItems.length === 0) {
       errors.cart = 'Cart cannot be empty'
     }
-    if (!paymentMethod) {
-      errors.payment = 'Please select a payment method'
-    }
-    if (paidAmount < 0) {
-      errors.paidAmount = 'Payment amount cannot be negative'
-    }
-    if (paidAmount > total) {
-      errors.paidAmount = `Payment amount cannot exceed total amount of Rs ${total.toFixed(2)}`
-    }
     setValidationErrors(errors)
     return Object.keys(errors).length === 0
   }
@@ -253,107 +244,7 @@ export const useBilling = () => {
     if (!validateSale()) {
       return
     }
-    
-    // Check if Khalti payment is selected
-    if (paymentMethod === 'khalti') {
-      await handleKhaltiPayment();
-      return;
-    }
-
-    // Start processing for non-wallet payments
-    setIsProcessing(true)
-    try {
-      // Prepare bill data for API
-      const billData = {
-        customerId: typeof selectedCustomer?.id === 'string' ? selectedCustomer.id : undefined,
-        customer: selectedCustomer
-          ? {
-              name: selectedCustomer.name,
-              email: selectedCustomer.email,
-              phone: selectedCustomer.phone,
-            }
-          : undefined,
-        items: cartItems.map((item) => ({
-          id: item.id,
-          name: item.name,
-          quantity: item.quantity,
-          price: item.price,
-          total: item.total,
-        })),
-        subtotal,
-        tax,
-        discount: 0,
-        total,
-        paymentMethod,
-        paidAmount,
-        notes,
-      }
-
-      // Create bill via API
-      const createdSale = await billingAPI.createBill(billData)
-
-      // Transform API response to SaleData format for receipt
-      const completedSale: SaleData = {
-        invoiceNumber: createdSale.invoiceNumber,
-        date: createdSale.createdAt || new Date().toISOString(),
-        customer: selectedCustomer!,
-        items: cartItems,
-        subtotal: createdSale.subtotal,
-        tax: createdSale.tax,
-        total: createdSale.total,
-        paymentMethod: createdSale.paymentMethod,
-        paidAmount: createdSale.paidAmount || paidAmount,
-        notes: createdSale.notes || notes,
-        createdBy: {
-          name: user?.name || 'Unknown User',
-          role: user?.role || 'staff',
-        },
-      }
-
-      // Check for low stock items and show notifications
-      const lowStockItems = createdSale.items?.filter(
-        (item: any) => item.inventoryId?.stock < 5,
-      )
-      if (lowStockItems && lowStockItems.length > 0) {
-        lowStockItems.forEach((item: any) => {
-          const stock = item.inventoryId?.stock || 0
-          if (stock === 0) {
-            toast.error(`${item.name} is now out of stock!`, {
-              description: 'Please reorder immediately',
-              duration: 5000,
-            })
-          } else {
-            toast.warning(`${item.name} is running low!`, {
-              description: `Only ${stock} units remaining`,
-              duration: 5000,
-            })
-          }
-        })
-      }
-
-      // Set sale as completed and store sale data for receipt
-      setSaleData(completedSale)
-      setSaleCompleted(true)
-      // Clear validation errors
-      setValidationErrors({})
-      // Reload products to reflect updated stock
-      await loadProducts()
-      toast.success('Sale completed successfully!', {
-        description: `Invoice #${completedSale.invoiceNumber}`,
-      })
-    } catch (error: any) {
-      console.error('Error completing sale:', error)
-      const errorMessage =
-        error.message || error.details || 'Failed to complete sale'
-      setValidationErrors({
-        general: errorMessage,
-      })
-      toast.error('Failed to complete sale', {
-        description: errorMessage,
-      })
-    } finally {
-      setIsProcessing(false)
-    }
+    await handleKhaltiPayment()
   }
 
   const handleKhaltiPayment = async () => {
@@ -416,10 +307,9 @@ export const useBilling = () => {
   }
 
   const handleStartNewSale = () => {
-    // Reset the form for a new sale
     setCartItems([])
     setSelectedCustomer(null)
-    setPaymentMethod('cash')
+    setPaymentMethod('khalti')
     setPaidAmount(0)
     setNotes('')
     setSaleCompleted(false)
