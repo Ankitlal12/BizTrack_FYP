@@ -1,3 +1,4 @@
+// ==================== IMPORTS ====================
 const User = require("../models/User");
 const LoginHistory = require("../models/LoginHistory");
 const Notification = require("../models/Notification");
@@ -7,6 +8,72 @@ const { OAuth2Client } = require("google-auth-library");
 const { generateToken } = require("../utils/jwt");
 const { getNepaliCurrentDateTime } = require("../utils/dateUtils");
 const { createNotification } = require("../utils/notificationHelper");
+const { generateOTP, getOTPExpiration, verifyOTP, sendOTPEmail } = require("../utils/otpService");
+
+// ==================== CONSTANTS ====================
+const GOOGLE_CLIENT_ID = process.env.GOOGLE_CLIENT_ID || "905396434192-03aqn8vkab2knh33brep80bfvmh3ojik.apps.googleusercontent.com";
+
+// ==================== HELPERS ====================
+
+// Verify a Google ID token and return the payload
+const verifyGoogleToken = async (credential) => {
+  const client = new OAuth2Client(GOOGLE_CLIENT_ID);
+  const ticket = await client.verifyIdToken({ idToken: credential, audience: GOOGLE_CLIENT_ID });
+  return ticket.getPayload();
+};
+
+// Find or create a user from Google OAuth payload
+const findOrCreateGoogleUser = async (googleId, email, name, picture) => {
+  let user = await User.findOne({ $or: [{ email }, { googleId }] });
+
+  if (user) {
+    let updated = false;
+    if (!user.googleId) { user.googleId = googleId; updated = true; }
+    if (picture && user.avatar !== picture) { user.avatar = picture; updated = true; }
+    if (updated) await user.save();
+    return user;
+  }
+
+  // Generate unique username
+  const baseUsername = email.split('@')[0].toLowerCase().replace(/[^a-z0-9]/g, '');
+  let username = baseUsername || `user${Date.now()}`;
+  let counter = 1;
+  while (await User.findOne({ username })) {
+    username = `${baseUsername}${counter++}`;
+    if (counter > 1000) { username = `user${Date.now()}`; break; }
+  }
+
+  return User.create({
+    name: name || email.split('@')[0],
+    email,
+    username,
+    googleId,
+    avatar: picture,
+    role: 'owner',
+    active: true,
+    dateAdded: new Date(),
+  });
+};
+
+// Record a login history entry
+const recordLoginHistory = async (user, req, method, success) => {
+  try {
+    await LoginHistory.create({
+      userId: user._id,
+      userName: user.name,
+      userRole: user.role,
+      ipAddress: req.ip || req.connection.remoteAddress,
+      userAgent: req.get('User-Agent'),
+      loginMethod: method,
+      success,
+      loginTime: getNepaliCurrentDateTime(),
+    });
+  } catch (err) {
+    console.error("Failed to record login history:", err);
+  }
+};
+
+// ==================== USER CRUD ENDPOINTS ====================
 
 // Create a new user (staff member)
 exports.createUser = async (req, res) => {
@@ -85,6 +152,8 @@ exports.getAllUsers = async (req, res) => {
     res.status(500).json({ error: err.message });
   }
 };
+
+// ==================== AUTH ENDPOINTS ====================
 
 // Login user
 exports.login = async (req, res) => {
@@ -393,285 +462,79 @@ exports.deleteUser = async (req, res) => {
   }
 };
 
-// Google Login
+// ==================== GOOGLE AUTH ENDPOINTS ====================
+
+// Google Login (direct — no OTP)
 exports.googleLogin = async (req, res) => {
   try {
     const { credential } = req.body;
+    if (!credential) return res.status(400).json({ error: "Google credential is required" });
 
-    if (!credential) {
-      return res.status(400).json({ 
-        error: "Google credential is required" 
-      });
-    }
-
-    // Get Google Client ID from environment or use the one from frontend
-    const GOOGLE_CLIENT_ID = process.env.GOOGLE_CLIENT_ID || "905396434192-03aqn8vkab2knh33brep80bfvmh3ojik.apps.googleusercontent.com";
-    
-    // Verify the Google token
-    const client = new OAuth2Client(GOOGLE_CLIENT_ID);
-    
-    let ticket;
+    let payload;
     try {
-      ticket = await client.verifyIdToken({
-        idToken: credential,
-        audience: GOOGLE_CLIENT_ID,
-      });
-    } catch (verifyError) {
-      return res.status(401).json({ 
-        error: "Invalid Google token" 
-      });
+      payload = await verifyGoogleToken(credential);
+    } catch {
+      return res.status(401).json({ error: "Invalid Google token" });
     }
 
-    const payload = ticket.getPayload();
     const { sub: googleId, email, name, picture } = payload;
+    if (!email) return res.status(400).json({ error: "Email not provided by Google" });
 
-    if (!email) {
-      return res.status(400).json({ 
-        error: "Email not provided by Google" 
-      });
-    }
-
-    // Check if user exists by email or googleId
-    let user = await User.findOne({
-      $or: [{ email }, { googleId }]
-    });
-
-    if (user) {
-      console.log('Existing user found:', { id: user._id, email: user.email });
-      
-      // Update user if they logged in with Google before but didn't have googleId
-      let updated = false;
-      if (!user.googleId) {
-        user.googleId = googleId;
-        updated = true;
-      }
-      if (picture && user.avatar !== picture) {
-        user.avatar = picture;
-        updated = true;
-      }
-      if (updated) {
-        await user.save();
-        console.log('User updated with Google info');
-      }
-      
-      // Check if user is active
-      if (!user.active) {
-        return res.status(401).json({ 
-          error: "Account is inactive. Please contact administrator." 
-        });
-      }
-    } else {
-      // Create new user from Google account
-      console.log('Creating new Google user:', { email, name, googleId });
-      
-      // Generate a unique username from email
-      const baseUsername = email.split('@')[0].toLowerCase().replace(/[^a-z0-9]/g, '');
-      let username = baseUsername || `user${Date.now()}`;
-      let counter = 1;
-      
-      // Ensure username is unique
-      while (await User.findOne({ username })) {
-        username = `${baseUsername}${counter}`;
-        counter++;
-        // Prevent infinite loop
-        if (counter > 1000) {
-          username = `user${Date.now()}`;
-          break;
-        }
-      }
-
-      try {
-        user = await User.create({
-          name: name || email.split('@')[0],
-          email,
-          username,
-          googleId,
-          avatar: picture,
-          role: 'owner', // Default role for Google users
-          active: true,
-          dateAdded: new Date(),
-        });
-        
-        console.log('New Google user created successfully:', {
-          id: user._id,
-          email: user.email,
-          name: user.name,
-        });
-      } catch (createError) {
-        console.error('Error creating Google user:', createError);
-        
-        // If creation fails due to duplicate, try to find existing user
-        if (createError.code === 11000) {
-          user = await User.findOne({
-            $or: [{ email }, { googleId }]
-          });
-          
-          if (!user) {
-            throw new Error('Failed to create user and user not found');
-          }
-        } else {
-          throw createError;
-        }
-      }
-    }
-
-    // Record successful Google login
+    let user;
     try {
-      await LoginHistory.create({
-        userId: user._id,
-        userName: user.name,
-        userRole: user.role,
-        ipAddress: req.ip || req.connection.remoteAddress,
-        userAgent: req.get('User-Agent'),
-        loginMethod: "google",
-        success: true,
-        loginTime: getNepaliCurrentDateTime(),
-      });
-    } catch (historyError) {
-      console.error("Failed to record Google login history:", historyError);
+      user = await findOrCreateGoogleUser(googleId, email, name, picture);
+    } catch (createError) {
+      if (createError.code === 11000) {
+        user = await User.findOne({ $or: [{ email }, { googleId }] });
+        if (!user) throw new Error('Failed to create user and user not found');
+      } else {
+        throw createError;
+      }
     }
 
-    // Generate JWT token
-    const token = generateToken(user);
+    if (!user.active) return res.status(401).json({ error: "Account is inactive. Please contact administrator." });
 
-    // Return user without password and token
+    await recordLoginHistory(user, req, "google", true);
+    const token = generateToken(user);
     const userResponse = user.toObject();
     delete userResponse.password;
-
-    res.json({
-      user: userResponse,
-      token,
-    });
+    res.json({ user: userResponse, token });
   } catch (err) {
     console.error("Google login error:", err);
     res.status(500).json({ error: err.message });
   }
 };
 
-// OTP Service imports
-const { 
-  generateOTP, 
-  getOTPExpiration, 
-  verifyOTP, 
-  sendOTPEmail 
-} = require("../utils/otpService");
+// ==================== OTP ENDPOINTS ====================
 
 // Google Login with OTP (Step 1: Verify Google token and send OTP)
 exports.googleLoginWithOTP = async (req, res) => {
   try {
     const { credential } = req.body;
+    if (!credential) return res.status(400).json({ error: "Google credential is required" });
 
-    if (!credential) {
-      return res.status(400).json({ 
-        error: "Google credential is required" 
-      });
-    }
-
-    // Get Google Client ID from environment
-    const GOOGLE_CLIENT_ID = process.env.GOOGLE_CLIENT_ID || "905396434192-03aqn8vkab2knh33brep80bfvmh3ojik.apps.googleusercontent.com";
-    
-    // Verify the Google token
-    const client = new OAuth2Client(GOOGLE_CLIENT_ID);
-    
-    let ticket;
+    let payload;
     try {
-      ticket = await client.verifyIdToken({
-        idToken: credential,
-        audience: GOOGLE_CLIENT_ID,
-      });
-    } catch (verifyError) {
-      return res.status(401).json({ 
-        error: "Invalid Google token" 
-      });
+      payload = await verifyGoogleToken(credential);
+    } catch {
+      return res.status(401).json({ error: "Invalid Google token" });
     }
 
-    const payload = ticket.getPayload();
     const { sub: googleId, email, name, picture } = payload;
+    if (!email) return res.status(400).json({ error: "Email not provided by Google" });
 
-    if (!email) {
-      return res.status(400).json({ 
-        error: "Email not provided by Google" 
-      });
-    }
+    const user = await findOrCreateGoogleUser(googleId, email, name, picture);
+    if (!user.active) return res.status(401).json({ error: "Account is inactive. Please contact administrator." });
 
-    // Check if user exists by email or googleId
-    let user = await User.findOne({
-      $or: [{ email }, { googleId }]
-    });
-
-    if (user) {
-      // Update user if they logged in with Google before but didn't have googleId
-      let updated = false;
-      if (!user.googleId) {
-        user.googleId = googleId;
-        updated = true;
-      }
-      if (picture && user.avatar !== picture) {
-        user.avatar = picture;
-        updated = true;
-      }
-      
-      // Check if user is active
-      if (!user.active) {
-        return res.status(401).json({ 
-          error: "Account is inactive. Please contact administrator." 
-        });
-      }
-
-      if (updated) {
-        await user.save();
-      }
-    } else {
-      // Create new user from Google account
-      const baseUsername = email.split('@')[0].toLowerCase().replace(/[^a-z0-9]/g, '');
-      let username = baseUsername || `user${Date.now()}`;
-      let counter = 1;
-      
-      // Ensure username is unique
-      while (await User.findOne({ username })) {
-        username = `${baseUsername}${counter}`;
-        counter++;
-        if (counter > 1000) {
-          username = `user${Date.now()}`;
-          break;
-        }
-      }
-
-      user = await User.create({
-        name: name || email.split('@')[0],
-        email,
-        username,
-        googleId,
-        avatar: picture,
-        role: 'owner',
-        active: true,
-        dateAdded: new Date(),
-        twoFactorEnabled: true, // Enable 2FA for new Google users
-      });
-    }
-
-    // Generate OTP
+    // Generate and save OTP
     const otp = generateOTP();
     const otpExpiration = getOTPExpiration();
-
-    // Save OTP to user
-    user.otp = {
-      code: otp,
-      expiresAt: otpExpiration,
-      verified: false,
-    };
+    user.otp = { code: otp, expiresAt: otpExpiration, verified: false };
     await user.save();
 
-    // Send OTP via email
     const emailResult = await sendOTPEmail(email, otp, name);
+    if (!emailResult.success) return res.status(500).json({ error: "Failed to send OTP. Please try again." });
 
-    if (!emailResult.success) {
-      return res.status(500).json({ 
-        error: "Failed to send OTP. Please try again." 
-      });
-    }
-
-    // Return temporary session info (without full token)
     res.json({
       message: "OTP sent successfully",
       requiresOTP: true,
@@ -857,6 +720,8 @@ exports.toggle2FA = async (req, res) => {
     res.status(500).json({ error: err.message });
   }
 };
+
+// ==================== ANALYTICS ENDPOINTS ====================
 
 // Staff Analytics - comprehensive performance metrics for all staff
 exports.getStaffAnalytics = async (req, res) => {

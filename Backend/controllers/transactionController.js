@@ -1,10 +1,13 @@
+// ==================== IMPORTS ====================
 const Sale = require("../models/Sale");
 const Purchase = require("../models/Purchase");
+
+// ==================== HELPERS ====================
 
 const formatDay = (date) =>
   new Date(date).toLocaleDateString("en-US", { weekday: "long" });
 
-// Return unified list of sales and purchases for transaction history
+// ==================== ENDPOINTS ====================
 exports.getTransactions = async (req, res) => {
   try {
     const page = parseInt(req.query.page) || 1;

@@ -1,10 +1,9 @@
+// ==================== IMPORTS ====================
 const Customer = require("../models/Customer");
 const Sale = require("../models/Sale");
 const Invoice = require("../models/Invoice");
 
-/**
- * Get all customers with optional filtering
- */
+// ==================== READ ENDPOINTS ====================
 exports.getAllCustomers = async (req, res) => {
   try {
     const { search, isActive, page = 1, limit = 10 } = req.query;
@@ -87,6 +86,8 @@ exports.getCustomerById = async (req, res) => {
     });
   }
 };
+
+// ==================== WRITE ENDPOINTS ====================
 
 /**
  * Create new customer
@@ -198,6 +199,8 @@ exports.deleteCustomer = async (req, res) => {
     });
   }
 };
+
+// ==================== HISTORY & ANALYTICS ====================
 
 /**
  * Get customer purchase history and payment details

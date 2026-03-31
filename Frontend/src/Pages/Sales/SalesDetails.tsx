@@ -177,15 +177,23 @@ const SalesDetails: React.FC<SalesDetailsProps> = ({ sale, onRecordPayment, onVi
                     {sale.payments.map((payment, index) => (
                       <tr key={index} className="hover:bg-gray-50">
                         <td className="py-2 px-3 text-xs text-gray-900">
-                          {formatNepaliDateTime(payment.date, {
-                            timeZone: 'Asia/Kathmandu',
-                            year: 'numeric',
-                            month: 'short',
-                            day: 'numeric',
-                            hour: '2-digit',
-                            minute: '2-digit',
-                            hour12: true,
-                          })}
+                          {(payment as any).status === 'scheduled'
+                            ? formatNepaliDateTime(payment.date, {
+                                timeZone: 'Asia/Kathmandu',
+                                year: 'numeric',
+                                month: 'short',
+                                day: 'numeric',
+                              })
+                            : formatNepaliDateTime(payment.date, {
+                                timeZone: 'Asia/Kathmandu',
+                                year: 'numeric',
+                                month: 'short',
+                                day: 'numeric',
+                                hour: '2-digit',
+                                minute: '2-digit',
+                                hour12: true,
+                              })
+                          }
                         </td>
                         <td className="py-2 px-3 text-xs text-gray-900 text-right font-medium">
                           Rs {payment.amount.toFixed(2)}

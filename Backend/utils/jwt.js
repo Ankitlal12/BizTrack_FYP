@@ -1,13 +1,17 @@
+// ==================== IMPORTS ====================
 const jwt = require('jsonwebtoken');
 
-// JWT Secret - should be in environment variable
+// ==================== CONSTANTS ====================
+
 const JWT_SECRET = process.env.JWT_SECRET || '905396434192-03aqn8vkab2knh33brep80bfvmh3ojik.apps.googleusercontent.com';
-const JWT_EXPIRES_IN = process.env.JWT_EXPIRES_IN || '30d'; //30 days
+const JWT_EXPIRES_IN = process.env.JWT_EXPIRES_IN || '30d';
+
+// ==================== TOKEN UTILITIES ====================
 
 /**
- * Generate JWT token for user
- * @param {Object} user - User object with id, email, role
- * @returns {String} JWT token
+ * Generate a JWT token for a user
+ * @param {Object} user - User object with _id/id, email, role
+ * @returns {string} Signed JWT token
  */
 const generateToken = (user) => {
   const payload = {
@@ -15,40 +19,32 @@ const generateToken = (user) => {
     email: user.email,
     role: user.role,
   };
-
-  return jwt.sign(payload, JWT_SECRET, {
-    expiresIn: JWT_EXPIRES_IN,
-  });
+  return jwt.sign(payload, JWT_SECRET, { expiresIn: JWT_EXPIRES_IN });
 };
 
 /**
- * Verify JWT token
- * @param {String} token - JWT token to verify
- * @returns {Object} Decoded token payload
+ * Verify a JWT token and return the decoded payload
+ * @param {string} token
+ * @returns {Object} Decoded payload
+ * @throws {Error} If token is invalid or expired
  */
 const verifyToken = (token) => {
   try {
     return jwt.verify(token, JWT_SECRET);
-  } catch (error) {
+  } catch {
     throw new Error('Invalid or expired token');
   }
 };
 
 /**
- * Extract token from Authorization header
- * @param {String} authHeader - Authorization header value
- * @returns {String|null} Token or null
+ * Extract the Bearer token from an Authorization header
+ * @param {string} authHeader - e.g. "Bearer <token>"
+ * @returns {string|null}
  */
 const extractTokenFromHeader = (authHeader) => {
   if (!authHeader) return null;
-  
-  // Check for "Bearer <token>" format
   const parts = authHeader.split(' ');
-  if (parts.length === 2 && parts[0] === 'Bearer') {
-    return parts[1];
-  }
-  
-  return null;
+  return parts.length === 2 && parts[0] === 'Bearer' ? parts[1] : null;
 };
 
 module.exports = {
@@ -56,4 +52,3 @@ module.exports = {
   verifyToken,
   extractTokenFromHeader,
 };
-

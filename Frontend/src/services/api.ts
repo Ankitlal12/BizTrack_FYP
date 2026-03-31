@@ -2,7 +2,7 @@
 // @ts-ignore - Vite environment variables
 const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
 
-// Token management
+// ==================== TOKEN MANAGEMENT ====================
 const getToken = (): string | null => {
   return localStorage.getItem('biztrack_token');
 };
@@ -14,6 +14,8 @@ const setToken = (token: string): void => {
 const removeToken = (): void => {
   localStorage.removeItem('biztrack_token');
 };
+
+// ==================== CORE REQUEST ====================
 
 // Generic API request function
 async function apiRequest<T>(
@@ -65,6 +67,8 @@ async function apiRequest<T>(
     throw error;
   }
 }
+
+// ==================== RESOURCE APIs ====================
 
 // Inventory API (with reorder functionality)
 const inventoryAPIBase = {
@@ -471,6 +475,8 @@ export const loginHistoryAPI = {
   }),
 };
 
+// ==================== GENERIC CLIENT ====================
+
 // Generic API client for direct usage
 const api = {
   get: <T>(endpoint: string) => apiRequest<T>(endpoint),
@@ -490,8 +496,6 @@ const api = {
     method: 'DELETE',
   }),
 };
-
-export default api;
 
 // Suppliers API
 export const suppliersAPI = {
@@ -608,3 +612,5 @@ export const staffAnalyticsAPI = {
     return apiRequest<any>(`/users/staff-analytics${query}`);
   },
 };
+
+export default api;

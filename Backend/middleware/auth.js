@@ -1,107 +1,85 @@
+// ==================== IMPORTS ====================
 const { verifyToken, extractTokenFromHeader } = require("../utils/jwt");
 const User = require("../models/User");
 
+// ==================== HELPERS ====================
+
 /**
- * Authentication middleware to verify JWT token
- * Adds user info to req.user if token is valid
- * Supports token from Authorization header or query parameter
+ * Extract and verify a JWT token from the request.
+ * Supports Authorization header and ?token query param (for sendBeacon).
+ * @param {import('express').Request} req
+ * @returns {Promise<Object|null>} Decoded user object or null
+ */
+const resolveUserFromRequest = async (req) => {
+  const authHeader = req.headers.authorization;
+  let token = extractTokenFromHeader(authHeader);
+
+  // Fallback: query param (sendBeacon compatibility)
+  if (!token && req.query.token) token = req.query.token;
+  if (!token) return null;
+
+  const decoded = verifyToken(token);
+  const user = await User.findById(decoded.id).select('-password');
+  return user || null;
+};
+
+// ==================== MIDDLEWARE ====================
+
+/**
+ * Require a valid JWT. Attaches req.user, req.userId, req.userRole.
+ * Returns 401 if token is missing, invalid, or the account is inactive.
  */
 const authenticate = async (req, res, next) => {
   try {
-    // Extract token from Authorization header or query parameter
-    const authHeader = req.headers.authorization;
-    let token = extractTokenFromHeader(authHeader);
-    
-    // Fallback to query parameter (for sendBeacon compatibility)
-    if (!token && req.query.token) {
-      token = req.query.token;
-    }
-
-    if (!token) {
-      return res.status(401).json({ 
-        error: "No token provided. Authorization required." 
-      });
-    }
-
-    // Verify token
-    const decoded = verifyToken(token);
-
-    // Find user by ID from token
-    const user = await User.findById(decoded.id).select('-password');
+    const user = await resolveUserFromRequest(req);
 
     if (!user) {
-      return res.status(401).json({ 
-        error: "User not found. Invalid token." 
-      });
+      return res.status(401).json({ error: "No token provided. Authorization required." });
     }
 
-    // Check if user is active
     if (!user.active) {
-      return res.status(401).json({ 
-        error: "Account is inactive. Please contact administrator." 
-      });
+      return res.status(401).json({ error: "Account is inactive. Please contact administrator." });
     }
 
-    // Attach user to request object
     req.user = user;
-    req.userId = decoded.id;
-    req.userRole = decoded.role;
-
+    req.userId = user._id;
+    req.userRole = user.role;
     next();
   } catch (error) {
-    return res.status(401).json({ 
-      error: error.message || "Invalid or expired token" 
-    });
+    return res.status(401).json({ error: error.message || "Invalid or expired token" });
   }
 };
 
 /**
- * Optional authentication - doesn't fail if no token
- * Useful for endpoints that work with or without auth
+ * Optional authentication — attaches req.user if a valid token is present,
+ * but never blocks the request if it's missing or invalid.
  */
 const optionalAuthenticate = async (req, res, next) => {
   try {
-    const authHeader = req.headers.authorization;
-    const token = extractTokenFromHeader(authHeader);
-
-    if (token) {
-      const decoded = verifyToken(token);
-      const user = await User.findById(decoded.id).select('-password');
-      
-      if (user && user.active) {
-        req.user = user;
-        req.userId = decoded.id;
-        req.userRole = decoded.role;
-      }
+    const user = await resolveUserFromRequest(req);
+    if (user?.active) {
+      req.user = user;
+      req.userId = user._id;
+      req.userRole = user.role;
     }
-    
-    next();
-  } catch (error) {
-    // Continue without authentication if token is invalid
-    next();
+  } catch {
+    // Silently continue without auth
   }
+  next();
 };
 
 /**
- * Role-based authorization middleware
- * Must be used after authenticate middleware
+ * Role-based authorization. Must be used after `authenticate`.
+ * @param {...string} roles - Allowed roles (e.g. 'owner', 'manager')
  */
-const authorize = (...roles) => {
-  return (req, res, next) => {
-    if (!req.user) {
-      return res.status(401).json({ 
-        error: "Authentication required" 
-      });
-    }
-
-    if (!roles.includes(req.user.role)) {
-      return res.status(403).json({ 
-        error: "Access denied. Insufficient permissions." 
-      });
-    }
-
-    next();
-  };
+const authorize = (...roles) => (req, res, next) => {
+  if (!req.user) {
+    return res.status(401).json({ error: "Authentication required" });
+  }
+  if (!roles.includes(req.user.role)) {
+    return res.status(403).json({ error: "Access denied. Insufficient permissions." });
+  }
+  next();
 };
 
 module.exports = {
@@ -109,4 +87,3 @@ module.exports = {
   optionalAuthenticate,
   authorize,
 };
-

@@ -10,6 +10,28 @@ import InventoryTable from './Inventory/InventoryTable'
 import InventorySummary from './Inventory/InventorySummary'
 import { useAuth } from '../contexts/AuthContext'
 
+// ==================== HELPERS ====================
+
+/** Classify inventory items by expiry status */
+const classifyExpiryItems = (items: InventoryItem[]) => {
+  const today = new Date()
+  today.setHours(0, 0, 0, 0)
+
+  const expiringSoon: InventoryItem[] = []
+  const expired: InventoryItem[] = []
+
+  items.forEach(item => {
+    if (!item.expiryDate) return
+    const expiry = new Date(item.expiryDate)
+    expiry.setHours(0, 0, 0, 0)
+    const days = Math.ceil((expiry.getTime() - today.getTime()) / (1000 * 60 * 60 * 24))
+    if (days < 0) expired.push(item)
+    else if (days <= 2) expiringSoon.push(item)
+  })
+
+  return { expiringSoon, expired }
+}
+
 const Inventory = () => {
   const navigate = useNavigate()
   const { user } = useAuth()
@@ -44,80 +66,21 @@ const Inventory = () => {
 
   useEffect(() => {
     if (inventoryItems.length > 0) {
-      checkExpiringItems()
+      const { expiringSoon, expired } = classifyExpiryItems(inventoryItems)
+      if (expired.length > 0) {
+        toast.error(`${expired.length} item(s) have expired`, {
+          description: 'Do not sell or use these items. Remove them from inventory immediately.',
+        })
+      }
+      if (expiringSoon.length > 0) {
+        toast.warning(`${expiringSoon.length} item(s) expiring within 2 days`, {
+          description: 'Sell or use these items quickly to avoid waste.',
+        })
+      }
     }
   }, [inventoryItems])
 
-  const checkExpiringItems = () => {
-    const today = new Date()
-    today.setHours(0, 0, 0, 0)
-    
-    const expiringSoon = inventoryItems.filter((item) => {
-      if (!item.expiryDate) return false
-      
-      const expiryDate = new Date(item.expiryDate)
-      expiryDate.setHours(0, 0, 0, 0)
-      
-      const daysUntilExpiry = Math.ceil((expiryDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24))
-      
-      return daysUntilExpiry <= 2 && daysUntilExpiry >= 0
-    })
-    
-    const expired = inventoryItems.filter((item) => {
-      if (!item.expiryDate) return false
-      
-      const expiryDate = new Date(item.expiryDate)
-      expiryDate.setHours(0, 0, 0, 0)
-      
-      const daysUntilExpiry = Math.ceil((expiryDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24))
-      
-      return daysUntilExpiry < 0
-    })
-
-    if (expired.length > 0) {
-      toast.error(`${expired.length} item(s) have expired`, {
-        description: 'Do not sell or use these items. Remove them from inventory immediately.',
-      })
-    }
-
-    if (expiringSoon.length > 0) {
-      toast.warning(`${expiringSoon.length} item(s) expiring within 2 days`, {
-        description: 'Sell or use these items quickly to avoid waste.',
-      })
-    }
-  }
-
-  // Calculate expiring items for banner
-  const getExpiringItems = () => {
-    const today = new Date()
-    today.setHours(0, 0, 0, 0)
-    
-    const expiringSoon = inventoryItems.filter((item) => {
-      if (!item.expiryDate) return false
-      
-      const expiryDate = new Date(item.expiryDate)
-      expiryDate.setHours(0, 0, 0, 0)
-      
-      const daysUntilExpiry = Math.ceil((expiryDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24))
-      
-      return daysUntilExpiry <= 2 && daysUntilExpiry >= 0
-    })
-    
-    const expired = inventoryItems.filter((item) => {
-      if (!item.expiryDate) return false
-      
-      const expiryDate = new Date(item.expiryDate)
-      expiryDate.setHours(0, 0, 0, 0)
-      
-      const daysUntilExpiry = Math.ceil((expiryDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24))
-      
-      return daysUntilExpiry < 0
-    })
-
-    return { expiringSoon, expired }
-  }
-
-  const { expiringSoon, expired } = getExpiringItems()
+  const { expiringSoon, expired } = classifyExpiryItems(inventoryItems)
 
   const loadInventory = async () => {
     setIsLoading(true)

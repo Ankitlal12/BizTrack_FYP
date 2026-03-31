@@ -1,14 +1,17 @@
+// ==================== IMPORTS ====================
 const Purchase = require("../models/Purchase");
 const Inventory = require("../models/Inventory");
 const Notification = require("../models/Notification");
 const { generateInvoiceFromPurchase } = require("./invoiceController");
 const { getNepaliCurrentDateTime } = require("../utils/dateUtils");
 const { createNotification } = require("../utils/notificationHelper");
+const { initiateKhaltiPayment, verifyKhaltiPayment } = require("../utils/khaltiService");
 
-// Expiry notification function removed - notifications were too frequent and annoying
-// Visual banners on inventory page are sufficient for expiry tracking
+// Note: Expiry notifications removed — too frequent. Visual banners on inventory page are sufficient.
 
-// Helper function to check and create low stock notifications
+// ==================== HELPERS ====================
+
+// Check stock level and fire low-stock / out-of-stock notifications
 const checkAndCreateStockNotification = async (item) => {
   try {
     // Check if stock is out
@@ -63,6 +66,8 @@ const checkAndCreateStockNotification = async (item) => {
     console.error("Failed to create stock notification:", notifError);
   }
 };
+
+// ==================== READ ENDPOINTS ====================
 
 // Get upcoming products (pending purchases with a future expected delivery date)
 exports.getUpcomingProducts = async (req, res) => {
@@ -224,6 +229,8 @@ exports.getPurchaseById = async (req, res) => {
     res.status(500).json({ error: err.message });
   }
 };
+
+// ==================== WRITE ENDPOINTS ====================
 
 // Create new purchase
 exports.createPurchase = async (req, res) => {
@@ -596,6 +603,8 @@ exports.deletePurchase = async (req, res) => {
   }
 };
 
+// ==================== PAYMENT ENDPOINTS ====================
+
 // Record payment for a purchase
 exports.recordPayment = async (req, res) => {
   try {
@@ -684,7 +693,8 @@ exports.recordPayment = async (req, res) => {
       
       purchase.paymentStatus = newPaymentStatus;
       
-      // Update main status when payment is completed
+      // Auto-receive the purchase when fully paid
+      // (goods are considered received when payment is complete)
       if (newPaymentStatus === "paid" && purchase.status === "pending") {
         purchase.status = "received";
       }
@@ -808,8 +818,6 @@ exports.triggerDeliveryProcessing = async (req, res) => {
 };
 
 // ==================== KHALTI PAYMENT ENDPOINTS FOR PURCHASES ====================
-
-const { initiateKhaltiPayment, verifyKhaltiPayment } = require("../utils/khaltiService");
 
 // Initiate Khalti payment for a purchase (payment on existing purchase)
 exports.initiateKhaltiPurchasePayment = async (req, res) => {

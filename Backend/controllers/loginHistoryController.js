@@ -1,7 +1,8 @@
+// ==================== IMPORTS ====================
 const LoginHistory = require("../models/LoginHistory");
 const { formatNepaliDateTime } = require("../utils/dateUtils");
 
-// Get all login history with pagination
+// ==================== READ ENDPOINTS ====================
 exports.getAllLoginHistory = async (req, res) => {
   try {
     const { page = 1, limit = 50, userId, days = 30 } = req.query;
@@ -122,6 +123,8 @@ exports.getUserLoginHistory = async (req, res) => {
   }
 };
 
+// ==================== WRITE ENDPOINTS ====================
+
 // Record a new login
 exports.recordLogin = async (req, res) => {
   try {
@@ -227,6 +230,8 @@ exports.getLoginStats = async (req, res) => {
     res.status(500).json({ error: err.message });
   }
 };
+
+// ==================== SESSION MANAGEMENT ====================
 
 // Record logout
 exports.recordLogout = async (req, res) => {

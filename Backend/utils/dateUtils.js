@@ -1,29 +1,26 @@
-/**
- * Utility functions for handling Nepali timezone (Asia/Kathmandu)
- * Nepal Standard Time (NPT) is UTC+5:45
- */
+// ==================== CONSTANTS ====================
 
 const NEPAL_TIMEZONE = 'Asia/Kathmandu';
 
+// ==================== DATE UTILITIES ====================
+
 /**
- * Get current date/time in Nepali timezone
- * @returns {Date} Current date adjusted for Nepali timezone
+ * Get current date/time in Nepali timezone (UTC+5:45)
+ * @returns {Date}
  */
 const getNepaliCurrentDateTime = () => {
   const now = new Date();
-  // Convert to Nepali timezone (UTC+5:45)
-  const nepaliTime = new Date(now.toLocaleString("en-US", { timeZone: NEPAL_TIMEZONE }));
-  return nepaliTime;
+  return new Date(now.toLocaleString("en-US", { timeZone: NEPAL_TIMEZONE }));
 };
 
 /**
- * Format date to Nepali timezone string
- * @param {Date|string} date - Date to format
- * @returns {string} Formatted date string in Nepali timezone
+ * Format a date to a readable Nepali timezone string
+ * @param {Date|string} date
+ * @returns {string}
  */
 const formatNepaliDateTime = (date) => {
   const dateObj = typeof date === 'string' ? new Date(date) : date;
-  return dateObj.toLocaleString("en-US", { 
+  return dateObj.toLocaleString("en-US", {
     timeZone: NEPAL_TIMEZONE,
     year: 'numeric',
     month: 'short',
@@ -31,14 +28,14 @@ const formatNepaliDateTime = (date) => {
     hour: '2-digit',
     minute: '2-digit',
     second: '2-digit',
-    hour12: true
+    hour12: true,
   });
 };
 
 /**
- * Convert UTC date to Nepali timezone
- * @param {Date|string} utcDate - UTC date
- * @returns {Date} Date adjusted for Nepali timezone
+ * Convert a UTC date to Nepali timezone
+ * @param {Date|string} utcDate
+ * @returns {Date}
  */
 const convertToNepaliTime = (utcDate) => {
   const date = typeof utcDate === 'string' ? new Date(utcDate) : utcDate;

@@ -1,3 +1,4 @@
+// ==================== IMPORTS ====================
 const Reorder = require("../models/Reorder");
 const Inventory = require("../models/Inventory");
 const Supplier = require("../models/Supplier");
@@ -6,9 +7,19 @@ const Notification = require("../models/Notification");
 const { calculateReorderQuantity, calculatePriority, getUrgencyLevel } = require("../utils/reorderCalculator");
 const { createNotification } = require("../utils/notificationHelper");
 
-/**
- * Get low stock report with analytics
- */
+// ==================== HELPERS ====================
+
+// Generate the next sequential number for a given model (e.g. RO-000001, PO-000001)
+const generateSequentialNumber = async (Model, field, prefix) => {
+  const last = await Model.findOne().sort({ createdAt: -1 });
+  if (last && last[field]) {
+    const lastNum = parseInt(last[field].split('-')[1]);
+    return `${prefix}-${String(lastNum + 1).padStart(6, '0')}`;
+  }
+  return `${prefix}-000001`;
+};
+
+// ==================== READ ENDPOINTS ====================
 exports.getLowStockReport = async (req, res) => {
   try {
     const { category, supplier, urgency, reorderStatus, page = 1, limit = 20 } = req.query;
@@ -194,6 +205,8 @@ exports.getAllReorders = async (req, res) => {
     });
   }
 };
+
+// ==================== WRITE ENDPOINTS ====================
 
 /**
  * Create manual reorder request
@@ -479,6 +492,8 @@ exports.createQuickReorder = async (req, res) => {
     });
   }
 };
+
+// ==================== STATUS UPDATE ENDPOINTS ====================
 
 /**
  * Approve reorder
@@ -889,6 +904,8 @@ exports.markReorderReceived = async (req, res) => {
     });
   }
 };
+
+// ==================== STATS ENDPOINT ====================
 
 /**
  * Get reorder statistics

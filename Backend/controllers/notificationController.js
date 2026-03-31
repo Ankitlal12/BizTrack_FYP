@@ -1,8 +1,9 @@
+// ==================== IMPORTS ====================
 const Notification = require("../models/Notification");
 const NotificationArchive = require("../models/NotificationArchive");
 const { dismissFromLayoutBar, createNotification: createNotificationHelper } = require("../utils/notificationHelper");
 
-// Get all notifications for layout bar (max 7, most recent)
+// ==================== READ ENDPOINTS ====================
 exports.getAllNotifications = async (req, res) => {
   try {
     const { read } = req.query;
@@ -52,6 +53,8 @@ exports.getNotificationById = async (req, res) => {
     res.status(500).json({ error: err.message });
   }
 };
+
+// ==================== WRITE ENDPOINTS ====================
 
 // Create notification
 exports.createNotification = async (req, res) => {

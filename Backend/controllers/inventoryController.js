@@ -1,60 +1,17 @@
+// ==================== IMPORTS ====================
 const Inventory = require("../models/Inventory");
 const Notification = require("../models/Notification");
 const mongoose = require("mongoose");
 const { createNotification } = require("../utils/notificationHelper");
 
+// ==================== HELPERS ====================
+
 // Check database connection
-const checkDBConnection = () => {
-  return mongoose.connection.readyState === 1;
-};
+const checkDBConnection = () => mongoose.connection.readyState === 1;
 
-// Expiry notification function removed - notifications were too frequent and annoying
-// Visual banners on inventory page are sufficient for expiry tracking
+// Note: Expiry notifications removed — too frequent. Visual banners on inventory page are sufficient.
 
-// Get all inventory items
-exports.getAllInventory = async (req, res) => {
-  try {
-    // Check if database is connected
-    if (!checkDBConnection()) {
-      return res.status(503).json({ 
-        error: "Database not connected. Please check your MongoDB connection.",
-        details: "The server cannot connect to MongoDB. Please verify your .env file and ensure MongoDB is running."
-      });
-    }
-
-    const items = await Inventory.find().sort({ createdAt: 1 });
-    
-    // Only check for expiring items once per day (not on every inventory load)
-    // This prevents notification spam
-    // Notifications will be created when:
-    // 1. Item is purchased with expiry date
-    // 2. Item is updated with expiry date
-    // 3. Daily scheduled check (if implemented)
-    
-    res.json(items);
-  } catch (err) {
-    console.error("Error fetching inventory:", err);
-    res.status(500).json({ 
-      error: "Failed to load inventory items",
-      details: err.message 
-    });
-  }
-};
-
-// Get single inventory item
-exports.getInventoryById = async (req, res) => {
-  try {
-    const item = await Inventory.findById(req.params.id);
-    if (!item) {
-      return res.status(404).json({ error: "Inventory item not found" });
-    }
-    res.json(item);
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
-};
-
-// Helper function to check and create low stock notifications
+// Check stock level and fire low-stock / out-of-stock notifications
 const checkAndCreateStockNotification = async (item) => {
   try {
     // Check if stock is out
@@ -122,6 +79,52 @@ const checkAndCreateStockNotification = async (item) => {
     console.error("Failed to create stock notification:", notifError);
   }
 };
+
+// ==================== READ ENDPOINTS ====================
+
+exports.getAllInventory = async (req, res) => {
+  try {
+    // Check if database is connected
+    if (!checkDBConnection()) {
+      return res.status(503).json({ 
+        error: "Database not connected. Please check your MongoDB connection.",
+        details: "The server cannot connect to MongoDB. Please verify your .env file and ensure MongoDB is running."
+      });
+    }
+
+    const items = await Inventory.find().sort({ createdAt: 1 });
+    
+    // Only check for expiring items once per day (not on every inventory load)
+    // This prevents notification spam
+    // Notifications will be created when:
+    // 1. Item is purchased with expiry date
+    // 2. Item is updated with expiry date
+    // 3. Daily scheduled check (if implemented)
+    
+    res.json(items);
+  } catch (err) {
+    console.error("Error fetching inventory:", err);
+    res.status(500).json({ 
+      error: "Failed to load inventory items",
+      details: err.message 
+    });
+  }
+};
+
+// Get single inventory item
+exports.getInventoryById = async (req, res) => {
+  try {
+    const item = await Inventory.findById(req.params.id);
+    if (!item) {
+      return res.status(404).json({ error: "Inventory item not found" });
+    }
+    res.json(item);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+};
+
+// ==================== WRITE ENDPOINTS ====================
 
 // Create new inventory item
 exports.createInventory = async (req, res) => {

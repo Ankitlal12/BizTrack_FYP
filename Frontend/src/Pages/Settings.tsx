@@ -14,7 +14,6 @@ import ProfileTab from './Settings/ProfileTab'
 import StaffTab from './Settings/StaffTab'
 import NotificationsTab from './Settings/NotificationsTab'
 import SecurityTab from './Settings/SecurityTab'
-import DataTab from './Settings/DataTab'
 import LoginHistoryTab from './Settings/LoginHistoryTab'
 
 type TabId = 'profile' | 'staff' | 'notifications' | 'security' | 'data' | 'loginHistory'
@@ -24,8 +23,7 @@ const tabs: { id: TabId; label: string; icon: React.ReactNode }[] = [
   { id: 'staff', label: 'Staff Management', icon: <UsersIcon size={18} /> },
   { id: 'notifications', label: 'Notifications', icon: <BellIcon size={18} /> },
   { id: 'security', label: 'Security', icon: <ShieldIcon size={18} /> },
-  { id: 'data', label: 'Data & Backup', icon: <DatabaseIcon size={18} /> },
-  { id: 'loginHistory', label: 'Login History', icon: <ClockIcon size={18} /> },
+  { id: 'loginHistory', label: 'Audit Log', icon: <ClockIcon size={18} /> },
 ]
 
 const Settings = () => {

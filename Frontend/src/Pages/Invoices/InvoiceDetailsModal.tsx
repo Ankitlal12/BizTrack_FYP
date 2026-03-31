@@ -270,11 +270,17 @@ const InvoiceDetailsModal: React.FC<InvoiceDetailsModalProps> = ({
                     {invoice.payments.map((payment, index) => (
                       <tr key={index} className={payment.status === 'scheduled' ? 'bg-blue-50' : ''}>
                         <td className="px-4 py-3 text-sm text-gray-900">
-                          {formatNepaliDateTime(payment.date, {
-                            timeZone: 'Asia/Kathmandu',
-                            year: 'numeric', month: 'short', day: 'numeric',
-                            hour: '2-digit', minute: '2-digit', hour12: true,
-                          })}
+                          {payment.status === 'scheduled'
+                            ? formatNepaliDateTime(payment.date, {
+                                timeZone: 'Asia/Kathmandu',
+                                year: 'numeric', month: 'short', day: 'numeric',
+                              })
+                            : formatNepaliDateTime(payment.date, {
+                                timeZone: 'Asia/Kathmandu',
+                                year: 'numeric', month: 'short', day: 'numeric',
+                                hour: '2-digit', minute: '2-digit', hour12: true,
+                              })
+                          }
                           <div className="text-xs text-gray-400 mt-0.5">NPT</div>
                         </td>
                         <td className="px-4 py-3 text-sm text-right font-medium text-gray-900">

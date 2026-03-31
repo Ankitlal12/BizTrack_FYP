@@ -1,151 +1,93 @@
+// ==================== IMPORTS ====================
 import { useEffect, useRef } from 'react'
 import { useAuth } from '../contexts/AuthContext'
 import { loginHistoryAPI } from '../services/api'
 
+// ==================== CONSTANTS ====================
+
+const HEARTBEAT_INTERVAL_MS = 2 * 60 * 1000  // 2 minutes
+// @ts-ignore - Vite env
+const API_BASE_URL: string = import.meta.env?.VITE_API_URL || 'http://localhost:5000/api'
+
+// ==================== HELPERS ====================
+
+/** Send a logout beacon when the page is closing (sendBeacon or keepalive fetch fallback) */
+const sendLogoutBeacon = (userId: string) => {
+  const token = localStorage.getItem('biztrack_token')
+  const url = `${API_BASE_URL}/login-history/logout`
+  const body = JSON.stringify({ userId })
+  const blob = new Blob([body], { type: 'application/json' })
+
+  if (navigator.sendBeacon) {
+    // sendBeacon doesn't support custom headers — append token as query param
+    navigator.sendBeacon(token ? `${url}?token=${token}` : url, blob)
+  } else {
+    fetch(url, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        ...(token && { Authorization: `Bearer ${token}` }),
+      },
+      body,
+      keepalive: true,
+    })
+  }
+}
+
+// ==================== COMPONENT ====================
+
 /**
- * SessionTracker Component
- * 
- * Tracks user session activity and automatically logs out inactive sessions.
- * 
- * Features:
- * 1. Sends heartbeat every 2 minutes to keep session alive
- * 2. Detects browser close/tab close and records logout time
- * 3. Detects page visibility changes (tab switching)
- * 4. Records exact logout time when browser is closed
+ * SessionTracker — invisible component that:
+ * 1. Sends a heartbeat every 2 minutes to keep the session alive
+ * 2. Records logout time when the browser tab/window closes
+ * 3. Sends a heartbeat when the user returns to the tab
  */
 const SessionTracker: React.FC = () => {
   const { user } = useAuth()
-  const heartbeatIntervalRef = useRef<number | null>(null)
-  const lastActivityRef = useRef<Date>(new Date())
-
-  // Send heartbeat to server
-  const sendHeartbeat = async () => {
-    if (!user?.id) return
-
-    try {
-      await loginHistoryAPI.updateHeartbeat(user.id)
-      lastActivityRef.current = new Date()
-      console.log('💓 Heartbeat sent:', new Date().toLocaleTimeString())
-    } catch (error) {
-      console.error('Failed to send heartbeat:', error)
-    }
-  }
-
-  // Record logout when browser/tab is closed
-  const recordLogoutOnClose = async () => {
-    if (!user?.id) return
-
-    console.log('🔴 Browser closing, recording logout for user:', user.id)
-
-    try {
-      // Use sendBeacon for reliable delivery even when page is closing
-      const data = JSON.stringify({ userId: user.id })
-      const blob = new Blob([data], { type: 'application/json' })
-      
-      // Get token for authentication
-      const token = localStorage.getItem('biztrack_token')
-      // @ts-ignore - Vite environment variables
-      const apiUrl = import.meta.env?.VITE_API_URL || 'http://localhost:5000/api'
-      const url = `${apiUrl}/login-history/logout`
-      
-      console.log('📡 Sending logout beacon to:', url)
-      console.log('📦 Data:', data)
-      console.log('🔑 Token:', token ? 'Present' : 'Missing')
-      
-      // Try sendBeacon first (most reliable for page unload)
-      if (navigator.sendBeacon) {
-        // Note: sendBeacon doesn't support custom headers, so we append token to URL
-        const beaconUrl = token ? `${url}?token=${token}` : url
-        const sent = navigator.sendBeacon(beaconUrl, blob)
-        console.log('✅ Beacon sent:', sent)
-      } else {
-        console.log('⚠️ sendBeacon not supported, using fetch')
-        // Fallback to synchronous fetch (less reliable but better than nothing)
-        fetch(url, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            ...(token && { Authorization: `Bearer ${token}` }),
-          },
-          body: data,
-          keepalive: true, // Keep request alive even if page closes
-        })
-      }
-    } catch (error) {
-      console.error('❌ Failed to record logout on close:', error)
-    }
-  }
+  const heartbeatRef = useRef<number | null>(null)
 
   useEffect(() => {
     if (!user?.id) return
 
-    // Start heartbeat interval (every 2 minutes)
-    heartbeatIntervalRef.current = setInterval(() => {
-      sendHeartbeat()
-    }, 2 * 60 * 1000) // 2 minutes
-
-    // Send initial heartbeat
-    sendHeartbeat()
-
-    // Track user activity (mouse, keyboard, scroll)
-    const updateActivity = () => {
-      lastActivityRef.current = new Date()
-    }
-
-    window.addEventListener('mousemove', updateActivity)
-    window.addEventListener('keydown', updateActivity)
-    window.addEventListener('scroll', updateActivity)
-    window.addEventListener('click', updateActivity)
-
-    // Handle page visibility changes (tab switching)
-    const handleVisibilityChange = () => {
-      if (document.visibilityState === 'visible') {
-        // User came back to tab, send heartbeat
-        sendHeartbeat()
+    // ---- Heartbeat ----
+    const sendHeartbeat = async () => {
+      try {
+        await loginHistoryAPI.updateHeartbeat(user.id)
+      } catch (error) {
+        console.error('Failed to send heartbeat:', error)
       }
     }
 
+    sendHeartbeat() // immediate on mount
+    heartbeatRef.current = setInterval(sendHeartbeat, HEARTBEAT_INTERVAL_MS)
+
+    // ---- Activity tracking ----
+    const updateActivity = () => {} // kept for future use; heartbeat covers session tracking
+    const activityEvents = ['mousemove', 'keydown', 'scroll', 'click'] as const
+    activityEvents.forEach(e => window.addEventListener(e, updateActivity))
+
+    // ---- Tab visibility ----
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible') sendHeartbeat()
+    }
     document.addEventListener('visibilitychange', handleVisibilityChange)
 
-    // Handle browser/tab close
-    const handleBeforeUnload = (e: BeforeUnloadEvent) => {
-      recordLogoutOnClose()
-      // Don't show confirmation dialog
-      // e.preventDefault()
-      // e.returnValue = ''
-    }
+    // ---- Page close / unload ----
+    const handleClose = () => sendLogoutBeacon(user.id)
+    window.addEventListener('beforeunload', handleClose)
+    window.addEventListener('unload', handleClose)
+    window.addEventListener('pagehide', handleClose)
 
-    const handleUnload = () => {
-      recordLogoutOnClose()
-    }
-
-    window.addEventListener('beforeunload', handleBeforeUnload)
-    window.addEventListener('unload', handleUnload)
-
-    // Handle page hide (more reliable than unload on mobile)
-    const handlePageHide = () => {
-      recordLogoutOnClose()
-    }
-
-    window.addEventListener('pagehide', handlePageHide)
-
-    // Cleanup
     return () => {
-      if (heartbeatIntervalRef.current) {
-        clearInterval(heartbeatIntervalRef.current)
-      }
-      window.removeEventListener('mousemove', updateActivity)
-      window.removeEventListener('keydown', updateActivity)
-      window.removeEventListener('scroll', updateActivity)
-      window.removeEventListener('click', updateActivity)
+      if (heartbeatRef.current) clearInterval(heartbeatRef.current)
+      activityEvents.forEach(e => window.removeEventListener(e, updateActivity))
       document.removeEventListener('visibilitychange', handleVisibilityChange)
-      window.removeEventListener('beforeunload', handleBeforeUnload)
-      window.removeEventListener('unload', handleUnload)
-      window.removeEventListener('pagehide', handlePageHide)
+      window.removeEventListener('beforeunload', handleClose)
+      window.removeEventListener('unload', handleClose)
+      window.removeEventListener('pagehide', handleClose)
     }
   }, [user?.id])
 
-  // This component doesn't render anything
   return null
 }
 

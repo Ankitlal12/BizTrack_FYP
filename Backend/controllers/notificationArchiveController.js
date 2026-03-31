@@ -1,8 +1,9 @@
+// ==================== IMPORTS ====================
 const NotificationArchive = require("../models/NotificationArchive");
 const Notification = require("../models/Notification");
 const { permanentlyDeleteNotification } = require("../utils/notificationHelper");
 
-// Get all archived notifications (for Settings page)
+// ==================== READ ENDPOINTS ====================
 exports.getAllArchivedNotifications = async (req, res) => {
   try {
     const { read, limit = 25, skip = 0 } = req.query;
@@ -100,6 +101,8 @@ exports.markAllAsRead = async (req, res) => {
     res.status(400).json({ error: err.message });
   }
 };
+
+// ==================== WRITE ENDPOINTS ====================
 
 // Permanently delete notification (Settings page only)
 exports.deleteNotification = async (req, res) => {

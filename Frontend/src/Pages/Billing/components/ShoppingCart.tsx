@@ -1,5 +1,5 @@
 import React from 'react'
-import { MinusIcon, PlusIcon, TrashIcon } from 'lucide-react'
+import { Minus, Plus, Trash2, ShoppingCart as CartIcon } from 'lucide-react'
 import { CartItem } from '../types'
 
 interface ShoppingCartProps {
@@ -19,76 +19,75 @@ const ShoppingCart: React.FC<ShoppingCartProps> = ({
 }) => {
   if (cartItems.length === 0) {
     return (
-      <div className="text-center py-8 text-gray-500">
-        No items in cart. Add products to get started.
+      <div className="flex flex-col items-center justify-center h-full py-8 text-center">
+        <div className="w-14 h-14 rounded-2xl bg-gray-100 flex items-center justify-center mb-3">
+          <CartIcon className="w-7 h-7 text-gray-400" />
+        </div>
+        <p className="text-sm font-semibold text-gray-500">Cart is empty</p>
+        <p className="text-xs text-gray-400 mt-1">Click products on the left to add them</p>
       </div>
     )
   }
 
   return (
-    <div className="space-y-4">
-      <div className="max-h-80 overflow-y-auto">
-        {cartItems.map((item) => (
+    <div className="flex flex-col h-full min-h-0 gap-3">
+      {/* Scrollable items */}
+      <div className="flex-1 overflow-y-auto min-h-0 space-y-2 pr-0.5">
+        {cartItems.map(item => (
           <div
             key={item.id}
-            className="flex items-center justify-between py-3 border-b"
+            className="flex items-center gap-2.5 p-2.5 bg-gray-50 rounded-xl border border-gray-100"
           >
-            <div className="flex-1">
-              <h4 className="text-sm font-medium text-gray-900">
-                {item.name}
-              </h4>
-              <div className="text-sm text-gray-500">
-                Rs {item.price.toFixed(2)} each
-              </div>
+            {/* Name + price */}
+            <div className="flex-1 min-w-0">
+              <p className="text-xs font-semibold text-gray-900 truncate">{item.name}</p>
+              <p className="text-xs text-gray-400 mt-0.5">Rs {item.price.toFixed(2)}</p>
             </div>
-            <div className="flex items-center space-x-3">
-              <div className="flex items-center border rounded-md">
-                <button
-                  onClick={() => onUpdateQuantity(item.id, item.quantity - 1)}
-                  className="px-2 py-1 text-gray-500 hover:text-gray-700"
-                >
-                  <MinusIcon size={14} />
-                </button>
-                <input
-                  type="number"
-                  min="1"
-                  value={item.quantity}
-                  onChange={(e) => {
-                    const value = parseInt(e.target.value, 10)
-                    if (!isNaN(value) && value >= 1) {
-                      onUpdateQuantity(item.id, value)
-                    }
-                  }}
-                  className="w-12 text-center text-sm border-0 focus:outline-none focus:ring-0 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
-                />
-                <button
-                  onClick={() => onUpdateQuantity(item.id, item.quantity + 1)}
-                  className="px-2 py-1 text-gray-500 hover:text-gray-700"
-                >
-                  <PlusIcon size={14} />
-                </button>
-              </div>
-              <div className="text-sm font-medium text-gray-900 w-16 text-right">
-                Rs {item.total.toFixed(2)}
-              </div>
+
+            {/* Qty stepper */}
+            <div className="flex items-center bg-white border border-gray-200 rounded-lg overflow-hidden flex-shrink-0">
               <button
-                onClick={() => onRemoveItem(item.id)}
-                className="text-red-500 hover:text-red-700"
+                onClick={() => onUpdateQuantity(item.id, item.quantity - 1)}
+                className="w-6 h-6 flex items-center justify-center text-gray-500 hover:bg-teal-50 hover:text-teal-600 transition-colors"
               >
-                <TrashIcon size={16} />
+                <Minus className="w-3 h-3" />
+              </button>
+              <span className="w-7 text-center text-xs font-bold text-gray-800 select-none">
+                {item.quantity}
+              </span>
+              <button
+                onClick={() => onUpdateQuantity(item.id, item.quantity + 1)}
+                className="w-6 h-6 flex items-center justify-center text-gray-500 hover:bg-teal-50 hover:text-teal-600 transition-colors"
+              >
+                <Plus className="w-3 h-3" />
               </button>
             </div>
+
+            {/* Line total */}
+            <span className="text-xs font-bold text-gray-900 w-14 text-right flex-shrink-0">
+              Rs {item.total.toFixed(2)}
+            </span>
+
+            {/* Remove */}
+            <button
+              onClick={() => onRemoveItem(item.id)}
+              className="w-6 h-6 flex items-center justify-center text-gray-300 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors flex-shrink-0"
+            >
+              <Trash2 className="w-3.5 h-3.5" />
+            </button>
           </div>
         ))}
       </div>
-      <div className="border-t pt-4">
-        <div className="flex justify-between text-sm">
-          <span className="text-gray-600">Subtotal</span>
-          <span className="font-medium">Rs {subtotal.toFixed(2)}</span>
+
+      {/* Totals — always at bottom */}
+      <div className="border-t border-gray-100 pt-3 space-y-1.5 flex-shrink-0">
+        <div className="flex justify-between text-xs text-gray-500">
+          <span>{cartItems.reduce((s, i) => s + i.quantity, 0)} items</span>
+          <span>Rs {subtotal.toFixed(2)}</span>
         </div>
-        <div className="flex justify-between text-lg font-bold mt-2 pt-2 border-t">
-          <span>Total</span>
-          <span>Rs {total.toFixed(2)}</span>
+        <div className="flex justify-between items-center">
+          <span className="text-sm font-bold text-gray-900">Total</span>
+          <span className="text-lg font-extrabold text-teal-700">Rs {total.toFixed(2)}</span>
         </div>
       </div>
     </div>
@@ -96,4 +95,3 @@ const ShoppingCart: React.FC<ShoppingCartProps> = ({
 }
 
 export default ShoppingCart
-

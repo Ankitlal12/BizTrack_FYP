@@ -1,9 +1,12 @@
+// ==================== IMPORTS ====================
 const Invoice = require("../models/Invoice");
 const Sale = require("../models/Sale");
 const Purchase = require("../models/Purchase");
 const { getNepaliCurrentDateTime } = require("../utils/dateUtils");
 const nodemailer = require("nodemailer");
 const PDFDocument = require("pdfkit");
+
+// ==================== HELPERS ====================
 
 const formatCurrency = (amount = 0) => `Rs ${Number(amount).toFixed(2)}`;
 
@@ -211,6 +214,8 @@ const generateInvoiceFromPurchase = async (purchase, userInfo = {}) => {
   }
 };
 
+// ==================== READ ENDPOINTS ====================
+
 // Get all invoices
 exports.getAllInvoices = async (req, res) => {
   try {
@@ -402,6 +407,8 @@ exports.getInvoiceById = async (req, res) => {
   }
 };
 
+// ==================== WRITE ENDPOINTS ====================
+
 // Create new invoice
 exports.createInvoice = async (req, res) => {
   try {
@@ -544,8 +551,9 @@ exports.generateFromPurchase = async (req, res) => {
   }
 };
 
-// Record one or more payments for an invoice — proxies to the related Sale or Purchase
-// Accepts either a single payment object or { payments: [...] } for batch/installment
+// ==================== PAYMENT ENDPOINTS ====================
+
+// Record one or more payments for an invoice
 exports.recordInvoicePayment = async (req, res) => {
   try {
     const invoice = await Invoice.findById(req.params.id);
@@ -834,6 +842,8 @@ exports.getInvoiceStats = async (req, res) => {
     res.status(500).json({ error: err.message });
   }
 };
+
+// ==================== EMAIL ENDPOINT ====================
 
 exports.sendInvoiceEmail = async (req, res) => {
   try {

@@ -1,4 +1,5 @@
 import React from 'react'
+import { UserPlus, X } from 'lucide-react'
 import { NewCustomer, ValidationErrors } from '../types'
 
 interface CustomerFormProps {
@@ -17,65 +18,79 @@ const CustomerForm: React.FC<CustomerFormProps> = ({
   validationErrors,
 }) => {
   return (
-    <div className="space-y-4">
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">
-            Customer Name <span className="text-red-500">*</span>
-          </label>
-          <input
-            type="text"
-            className={`w-full border ${
-              validationErrors.name ? 'border-red-500' : 'border-gray-300'
-            } rounded-lg py-2 px-4 focus:outline-none focus:ring-2 focus:ring-teal-500`}
-            value={newCustomer.name}
-            onChange={(e) =>
-              onCustomerChange({
-                ...newCustomer,
-                name: e.target.value,
-              })
-            }
-          />
-          {validationErrors.name && (
-            <p className="text-red-500 text-sm mt-1">
-              {validationErrors.name}
-            </p>
-          )}
+    <div className="bg-teal-50 border border-teal-200 rounded-lg p-4 space-y-3">
+      <div className="flex items-center justify-between mb-1">
+        <div className="flex items-center gap-2">
+          <UserPlus className="w-4 h-4 text-teal-600" />
+          <span className="text-sm font-semibold text-teal-800">New Customer</span>
         </div>
+        <button onClick={onCancel} className="p-1 hover:bg-teal-100 rounded transition-colors">
+          <X className="w-4 h-4 text-teal-600" />
+        </button>
+      </div>
+
+      <div className="grid grid-cols-1 gap-3">
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">
-            Phone Number <span className="text-red-500">*</span>
+          <label className="block text-xs font-medium text-gray-700 mb-1">
+            Full Name <span className="text-red-500">*</span>
           </label>
           <input
             type="text"
-            className={`w-full border ${
-              validationErrors.phone ? 'border-red-500' : 'border-gray-300'
-            } rounded-lg py-2 px-4 focus:outline-none focus:ring-2 focus:ring-teal-500`}
-            value={newCustomer.phone}
-            onChange={(e) =>
-              onCustomerChange({
-                ...newCustomer,
-                phone: e.target.value,
-              })
-            }
+            placeholder="Enter customer name"
+            className={`w-full border text-sm rounded-lg py-2 px-3 focus:outline-none focus:ring-2 focus:ring-teal-500 ${
+              validationErrors.name ? 'border-red-400 bg-red-50' : 'border-gray-300 bg-white'
+            }`}
+            value={newCustomer.name}
+            onChange={e => onCustomerChange({ ...newCustomer, name: e.target.value })}
           />
-          {validationErrors.phone && (
-            <p className="text-red-500 text-sm mt-1">
-              {validationErrors.phone}
-            </p>
-          )}
+          {validationErrors.name && <p className="text-red-500 text-xs mt-1">{validationErrors.name}</p>}
+        </div>
+
+        <div>
+          <label className="block text-xs font-medium text-gray-700 mb-1">
+            Phone <span className="text-red-500">*</span>
+          </label>
+          <input
+            type="tel"
+            placeholder="98XXXXXXXX"
+            className={`w-full border text-sm rounded-lg py-2 px-3 focus:outline-none focus:ring-2 focus:ring-teal-500 ${
+              validationErrors.phone ? 'border-red-400 bg-red-50' : 'border-gray-300 bg-white'
+            }`}
+            value={newCustomer.phone}
+            onChange={e => onCustomerChange({ ...newCustomer, phone: e.target.value })}
+          />
+          {validationErrors.phone && <p className="text-red-500 text-xs mt-1">{validationErrors.phone}</p>}
+        </div>
+
+        <div>
+          <label className="block text-xs font-medium text-gray-700 mb-1">Email (optional)</label>
+          <input
+            type="email"
+            placeholder="customer@email.com"
+            className={`w-full border text-sm rounded-lg py-2 px-3 focus:outline-none focus:ring-2 focus:ring-teal-500 ${
+              validationErrors.email ? 'border-red-400 bg-red-50' : 'border-gray-300 bg-white'
+            }`}
+            value={newCustomer.email}
+            onChange={e => onCustomerChange({ ...newCustomer, email: e.target.value })}
+          />
+          {validationErrors.email && <p className="text-red-500 text-xs mt-1">{validationErrors.email}</p>}
         </div>
       </div>
-      <div className="flex justify-end space-x-2">
+
+      {validationErrors.general && (
+        <p className="text-red-600 text-xs bg-red-50 border border-red-200 rounded p-2">{validationErrors.general}</p>
+      )}
+
+      <div className="flex gap-2 pt-1">
         <button
           onClick={onCancel}
-          className="border border-gray-300 text-gray-700 py-2 px-4 rounded-lg hover:bg-gray-50"
+          className="flex-1 py-2 text-sm border border-gray-300 text-gray-600 rounded-lg hover:bg-gray-50 transition-colors"
         >
           Cancel
         </button>
         <button
           onClick={onSave}
-          className="bg-teal-500 hover:bg-teal-600 text-white py-2 px-4 rounded-lg"
+          className="flex-1 py-2 text-sm bg-teal-600 hover:bg-teal-700 text-white rounded-lg font-medium transition-colors"
         >
           Save Customer
         </button>
@@ -85,4 +100,3 @@ const CustomerForm: React.FC<CustomerFormProps> = ({
 }
 
 export default CustomerForm
-

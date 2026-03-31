@@ -1,11 +1,10 @@
+// ==================== IMPORTS ====================
 const Supplier = require("../models/Supplier");
 const Inventory = require("../models/Inventory");
 const Purchase = require("../models/Purchase");
 const Reorder = require("../models/Reorder");
 
-/**
- * Get all suppliers with optional filtering
- */
+// ==================== READ ENDPOINTS ====================
 exports.getAllSuppliers = async (req, res) => {
   try {
     const { search, isActive, page = 1, limit = 10 } = req.query;
@@ -96,6 +95,8 @@ exports.getSupplierById = async (req, res) => {
     });
   }
 };
+
+// ==================== WRITE ENDPOINTS ====================
 
 /**
  * Create new supplier
@@ -214,6 +215,8 @@ exports.deleteSupplier = async (req, res) => {
   }
 };
 
+// ==================== PRODUCT MANAGEMENT ====================
+
 /**
  * Get products linked to supplier
  */
@@ -326,6 +329,8 @@ exports.removeProductFromSupplier = async (req, res) => {
     });
   }
 };
+
+// ==================== HISTORY & ANALYTICS ====================
 
 /**
  * Get supplier purchase history and payment details

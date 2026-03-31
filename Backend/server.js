@@ -5,6 +5,7 @@ const mongoose = require("mongoose");
 const connectDB = require("./config/db");
 const { processAllScheduledPayments, processDeliveries } = require("./services/paymentScheduler");
 
+// ==================== APP SETUP ====================
 const app = express();
 
 // Middleware
@@ -14,7 +15,7 @@ app.use(express.json());
 // Connect to DB
 connectDB();
 
-// Health check route with database status
+// ==================== HEALTH ROUTES ====================
 app.get("/", (req, res) => {
   const dbStatus = mongoose.connection.readyState;
   const dbStates = {
@@ -52,6 +53,8 @@ app.get("/api/health", (req, res) => {
   });
 });
 
+// ==================== ROUTES ====================
+
 // Routes
 const userRoutes = require("./routes/userRoutes");
 const inventoryRoutes = require("./routes/inventoryRoutes");
@@ -82,6 +85,8 @@ app.use("/api/login-history", loginHistoryRoutes);
 app.use("/api/suppliers", supplierRoutes);
 app.use("/api/customers", customerRoutes);
 app.use("/api/reorders", reorderRoutes);
+
+// ==================== SERVER START ====================
 
 const PORT = process.env.PORT || 5000;
 

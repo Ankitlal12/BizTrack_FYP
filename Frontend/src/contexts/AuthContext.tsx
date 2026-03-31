@@ -66,51 +66,7 @@ const AuthContext = createContext<AuthContextType>({
   deleteStaffMember: async () => {},
 })
 
-// =====================
-// MOCK DATA
-// =====================
-const mockOwner: User = {
-  id: 'owner-1',
-  name: 'John Doe',
-  email: 'john@biztrack.com',
-  role: 'owner',
-}
 
-const mockStaffMembers: StaffMember[] = [
-  {
-    id: 'staff-1',
-    name: 'Sarah Johnson',
-    email: 'sarah@biztrack.com',
-    username: 'sarah',
-    role: 'staff',
-    active: true,
-    dateAdded: '2023-04-15',
-  },
-  {
-    id: 'staff-2',
-    name: 'Mike Wilson',
-    email: 'mike@biztrack.com',
-    username: 'mike',
-    role: 'manager',
-    active: true,
-    dateAdded: '2023-05-20',
-  },
-  {
-    id: 'staff-3',
-    name: 'Emily Clark',
-    email: 'emily@biztrack.com',
-    username: 'emily',
-    role: 'staff',
-    active: false,
-    dateAdded: '2023-06-10',
-  },
-]
-
-const mockCredentials = {
-  owner: { username: 'admin', password: 'admin123' },
-  manager: { username: 'mike', password: 'mike123' },
-  staff: { username: 'sarah', password: 'sarah123' },
-}
 
 // =====================
 // PROVIDER

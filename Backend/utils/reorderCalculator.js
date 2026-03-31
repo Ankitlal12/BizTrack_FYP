@@ -1,30 +1,25 @@
+// ==================== IMPORTS ====================
 const Sale = require("../models/Sale");
 const Inventory = require("../models/Inventory");
 
+// ==================== ANALYTICS CALCULATIONS ====================
+
 /**
- * Calculate reorder quantity and analytics for an inventory item
- * @param {String} inventoryId - MongoDB ObjectId of inventory item
- * @returns {Object} Analytics and suggested reorder quantity
+ * Calculate reorder quantity and demand analytics for an inventory item
+ * based on the last 90 days of sales data.
+ * @param {string} inventoryId - MongoDB ObjectId of the inventory item
+ * @returns {Promise<Object>} Analytics and suggested reorder quantity
  */
 const calculateReorderQuantity = async (inventoryId) => {
   try {
-    // Get inventory item
     const item = await Inventory.findById(inventoryId);
-    if (!item) {
-      throw new Error('Inventory item not found');
-    }
+    if (!item) throw new Error('Inventory item not found');
 
-    // Calculate date 90 days ago
     const ninetyDaysAgo = new Date();
     ninetyDaysAgo.setDate(ninetyDaysAgo.getDate() - 90);
 
-    // Get sales data from last 90 days
-    const sales = await Sale.find({
-      'items.inventoryId': inventoryId,
-      createdAt: { $gte: ninetyDaysAgo }
-    });
-
-    // Calculate total sold in 90 days
+    // Aggregate total units sold in the last 90 days
+    const sales = await Sale.find({ 'items.inventoryId': inventoryId, createdAt: { $gte: ninetyDaysAgo } });
     let totalSold90Days = 0;
     sales.forEach(sale => {
       sale.items.forEach(saleItem => {
@@ -34,22 +29,13 @@ const calculateReorderQuantity = async (inventoryId) => {
       });
     });
 
-    // Calculate average daily sales
     const averageDailySales = totalSold90Days / 90;
-    
-    // Calculate annual demand
     const annualDemand = averageDailySales * 365;
-
-    // Calculate safety stock (lead time * average daily sales)
     const safetyStock = item.leadTimeDays * averageDailySales;
+    const daysUntilStockout = averageDailySales > 0 ? Math.floor(item.stock / averageDailySales) : 999;
 
-    // Calculate days until stockout
-    const daysUntilStockout = averageDailySales > 0 ? 
-      Math.floor(item.stock / averageDailySales) : 999;
-
-    // Calculate suggested quantity
-    // Formula: (Lead time + review period) * average daily sales + safety stock - current stock
-    const reviewPeriod = 7; // Weekly review
+    // Suggested quantity: cover lead time + weekly review period + safety stock, minus current stock
+    const reviewPeriod = 7;
     const suggestedQuantity = Math.max(
       Math.ceil((item.leadTimeDays + reviewPeriod) * averageDailySales + safetyStock - item.stock),
       item.reorderQuantity || 10
@@ -66,8 +52,8 @@ const calculateReorderQuantity = async (inventoryId) => {
         annualDemand: Math.round(annualDemand),
         safetyStock: Math.ceil(safetyStock),
         leadTimeDays: item.leadTimeDays,
-        reviewPeriod
-      }
+        reviewPeriod,
+      },
     };
   } catch (error) {
     console.error('Error calculating reorder quantity:', error);
@@ -75,55 +61,42 @@ const calculateReorderQuantity = async (inventoryId) => {
   }
 };
 
+// ==================== PRIORITY & URGENCY ====================
+
 /**
- * Calculate priority score for reorder items
- * @param {Object} item - Inventory item
- * @param {Object} analytics - Analytics from calculateReorderQuantity
- * @returns {Number} Priority score (higher = more urgent)
+ * Calculate a numeric priority score for a low-stock item.
+ * Higher score = more urgent.
+ * @param {Object} item - Inventory document
+ * @param {Object} analytics - Result from calculateReorderQuantity
+ * @returns {number}
  */
 const calculatePriority = (item, analytics) => {
   let priority = 0;
 
-  // Out of stock gets highest priority
-  if (item.stock <= 0) {
-    priority += 100;
-  }
-  // Critical stock (≤3 days)
-  else if (analytics.daysUntilStockout <= 3) {
-    priority += 50;
-  }
-  // Low stock (≤7 days)
-  else if (analytics.daysUntilStockout <= 7) {
-    priority += 25;
-  }
+  // Stock level scoring
+  if (item.stock <= 0) priority += 100;
+  else if (analytics.daysUntilStockout <= 3) priority += 50;
+  else if (analytics.daysUntilStockout <= 7) priority += 25;
 
-  // High sales volume
-  if (analytics.averageDailySales > 5) {
-    priority += 30;
-  } else if (analytics.averageDailySales > 2) {
-    priority += 15;
-  }
+  // Sales velocity scoring
+  if (analytics.averageDailySales > 5) priority += 30;
+  else if (analytics.averageDailySales > 2) priority += 15;
 
-  // High value items
+  // Item value scoring
   const itemValue = item.price * item.stock;
-  if (itemValue > 10000) {
-    priority += 20;
-  } else if (itemValue > 5000) {
-    priority += 10;
-  }
+  if (itemValue > 10000) priority += 20;
+  else if (itemValue > 5000) priority += 10;
 
   // Below reorder level
-  if (item.stock <= item.reorderLevel) {
-    priority += 15;
-  }
+  if (item.stock <= item.reorderLevel) priority += 15;
 
   return priority;
 };
 
 /**
- * Get urgency level based on priority score
- * @param {Number} priority - Priority score
- * @returns {String} Urgency level
+ * Map a priority score to a human-readable urgency level
+ * @param {number} priority
+ * @returns {'critical'|'high'|'medium'|'low'}
  */
 const getUrgencyLevel = (priority) => {
   if (priority >= 100) return 'critical';
@@ -135,5 +108,5 @@ const getUrgencyLevel = (priority) => {
 module.exports = {
   calculateReorderQuantity,
   calculatePriority,
-  getUrgencyLevel
+  getUrgencyLevel,
 };

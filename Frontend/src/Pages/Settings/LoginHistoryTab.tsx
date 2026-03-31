@@ -269,7 +269,7 @@ const LoginHistoryTab: React.FC = () => {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-xl font-semibold text-gray-800">Login History</h2>
+          <h2 className="text-xl font-semibold text-gray-800">Audit Log</h2>
           <p className="text-sm text-gray-600 mt-1">
             Track all user login activities with detailed information
             {totalItems > 0 && (

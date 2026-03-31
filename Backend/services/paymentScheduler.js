@@ -1,17 +1,11 @@
+// ==================== IMPORTS ====================
 const Purchase = require("../models/Purchase");
 const Sale = require("../models/Sale");
 const Inventory = require("../models/Inventory");
 const Notification = require("../models/Notification");
 const { createNotification } = require("../utils/notificationHelper");
 
-/**
- * Payment Scheduler Service
- * Processes scheduled payments that are due for execution
- */
-
-/**
- * Process scheduled payments for purchases that are due today
- */
+// ==================== SCHEDULED PAYMENT PROCESSORS ====================
 const processScheduledPurchasePayments = async () => {
   try {
     console.log("🔄 Running scheduled payment processor for purchases...");
@@ -282,6 +276,8 @@ const getUpcomingScheduledPayments = async () => {
     throw error;
   }
 };
+
+// ==================== DELIVERY PROCESSOR ====================
 
 /**
  * Auto-receive pending purchases whose expectedDeliveryDate has arrived.

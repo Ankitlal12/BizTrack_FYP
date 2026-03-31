@@ -1,3 +1,4 @@
+// ==================== IMPORTS ====================
 import React, { useEffect, useState, useMemo } from 'react'
 import { PlusIcon } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
@@ -192,6 +193,9 @@ const Purchases: React.FC = () => {
       )
       // Also update selectedPurchase so the modal balance is correct if still open
       setSelectedPurchase(updatedPurchase)
+
+      // Reload from server to guarantee the table shows the latest paymentStatus / status
+      await loadPurchases()
     } catch (error: any) {
       throw error // Let the modal handle the error display
     }
