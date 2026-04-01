@@ -1,37 +1,28 @@
 const express = require("express");
-const { authenticate } = require("../middleware/auth");
+const { authenticate, authorize } = require("../middleware/auth");
+const { OWNER_MANAGER, OWNER_ONLY } = require("../config/roles");
 const {
-  getLowStockReport,
-  getReorderById,
-  getAllReorders,
-  createReorder,
-  createQuickReorder,
-  approveReorder,
-  createPurchaseFromReorder,
-  createBulkReorder,
-  cancelReorder,
-  markReorderReceived,
-  getReorderStats,
+  getLowStockReport, getReorderById, getAllReorders, createReorder,
+  createQuickReorder, approveReorder, createPurchaseFromReorder,
+  createBulkReorder, cancelReorder, markReorderReceived, getReorderStats,
 } = require("../controllers/reorderController");
 
 const router = express.Router();
 
-// Apply authentication to all routes
+// All reorder routes require authentication + owner/manager role
 router.use(authenticate);
+router.use(authorize(...OWNER_MANAGER));
 
-// Low stock and reorder routes
-router.get("/low-stock", getLowStockReport);
-router.get("/stats", getReorderStats);
-router.get("/", getAllReorders);
-router.get("/:id", getReorderById);
-
-// Reorder management routes
-router.post("/", createReorder);
-router.post("/quick", createQuickReorder);
-router.post("/bulk", createBulkReorder);
-router.put("/:id/approve", approveReorder);
-router.post("/:reorderId/purchase", createPurchaseFromReorder);
-router.put("/:id/cancel", cancelReorder);
-router.put("/:reorderId/received", markReorderReceived);
+router.get("/low-stock",              getLowStockReport);
+router.get("/stats",                  getReorderStats);
+router.get("/",                       getAllReorders);
+router.get("/:id",                    getReorderById);
+router.post("/",                      createReorder);
+router.post("/quick",                 createQuickReorder);
+router.post("/bulk",                  createBulkReorder);
+router.put("/:id/approve",            approveReorder);
+router.post("/:reorderId/purchase",   createPurchaseFromReorder);
+router.put("/:id/cancel",             cancelReorder);
+router.put("/:reorderId/received",    markReorderReceived);
 
 module.exports = router;

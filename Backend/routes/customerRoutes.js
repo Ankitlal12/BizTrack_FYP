@@ -1,31 +1,25 @@
 const express = require("express");
-const { authenticate } = require("../middleware/auth");
+const { authenticate, authorize } = require("../middleware/auth");
+const { OWNER_MANAGER, OWNER_ONLY } = require("../config/roles");
 const {
-  getAllCustomers,
-  getCustomerById,
-  createCustomer,
-  updateCustomer,
-  deleteCustomer,
-  getCustomerPurchaseHistory,
-  getCustomerRetentionAnalytics,
+  getAllCustomers, getCustomerById, createCustomer, updateCustomer, deleteCustomer,
+  getCustomerPurchaseHistory, getCustomerRetentionAnalytics,
 } = require("../controllers/customerController");
 
 const router = express.Router();
 
-// Apply authentication to all routes
+// All customer routes require authentication + owner/manager role
 router.use(authenticate);
+router.use(authorize(...OWNER_MANAGER));
 
-// Customer CRUD routes
-router.get("/", getAllCustomers);
-router.get("/:id", getCustomerById);
-router.post("/", createCustomer);
-router.put("/:id", updateCustomer);
-router.delete("/:id", deleteCustomer);
+router.get("/",                          getAllCustomers);
+router.get("/analytics/retention",       getCustomerRetentionAnalytics);
+router.get("/:id",                       getCustomerById);
+router.post("/",                         createCustomer);
+router.put("/:id",                       updateCustomer);
+router.get("/:id/purchase-history",      getCustomerPurchaseHistory);
 
-// Customer purchase history and payments
-router.get("/:id/purchase-history", getCustomerPurchaseHistory);
-
-// Customer retention analytics
-router.get("/analytics/retention", getCustomerRetentionAnalytics);
+// Delete — owner only
+router.delete("/:id",                    authorize(...OWNER_ONLY), deleteCustomer);
 
 module.exports = router;

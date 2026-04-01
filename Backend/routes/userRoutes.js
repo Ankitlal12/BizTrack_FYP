@@ -1,58 +1,33 @@
 const express = require("express");
-const { 
-  createUser, 
-  getAllUsers, 
-  login, 
-  updateUserStatus,
-  getUserById,
-  googleLogin,
-  googleLoginWithOTP,
-  verifyOTPAndLogin,
-  resendOTP,
-  toggle2FA,
-  updateUser,
-  deleteUser,
-  getStaffAnalytics
+const { authenticate, authorize } = require("../middleware/auth");
+const { OWNER_ONLY, OWNER_MANAGER } = require("../config/roles");
+const {
+  createUser, getAllUsers, login, updateUserStatus, getUserById,
+  googleLogin, googleLoginWithOTP, verifyOTPAndLogin, resendOTP,
+  toggle2FA, updateUser, deleteUser, getStaffAnalytics,
 } = require("../controllers/userController");
+
 const router = express.Router();
 
-// Create a new user (staff member)
-router.post("/add", createUser);
-
-// Login
-router.post("/login", login);
-
-// Google Login (without OTP)
-router.post("/google-login", googleLogin);
-
-// Google Login with OTP (Step 1: Send OTP)
+// ── Public (no auth required) ──────────────────────────────
+router.post("/login",            login);
+router.post("/google-login",     googleLogin);
 router.post("/google-login-otp", googleLoginWithOTP);
+router.post("/verify-otp",       verifyOTPAndLogin);
+router.post("/resend-otp",       resendOTP);
 
-// Verify OTP and complete login (Step 2: Verify OTP)
-router.post("/verify-otp", verifyOTPAndLogin);
+// ── Owner only — named routes MUST come before /:id ────────
+router.post("/add",              authenticate, authorize(...OWNER_ONLY), createUser);
+router.get("/",                  authenticate, authorize(...OWNER_ONLY), getAllUsers);
+router.get("/staff-analytics",   authenticate, authorize(...OWNER_ONLY), getStaffAnalytics);
 
-// Resend OTP
-router.post("/resend-otp", resendOTP);
+// ── Owner + Manager only ───────────────────────────────────
+router.put("/:id/status",        authenticate, authorize(...OWNER_MANAGER), updateUserStatus);
 
-// Staff analytics (must be before /:id routes)
-router.get("/staff-analytics", getStaffAnalytics);
-
-// Toggle 2FA for user
-router.put("/:id/toggle-2fa", toggle2FA);
-
-// Get all users
-router.get("/", getAllUsers);
-
-// Update user status (activate/deactivate) - more specific route first
-router.put("/:id/status", updateUserStatus);
-
-// Get user by ID
-router.get("/:id", getUserById);
-
-// Update user (username and/or password)
-router.put("/:id", updateUser);
-
-// Delete user
-router.delete("/:id", deleteUser);
+// ── Authenticated: any role (must come after named routes) ─
+router.put("/:id/toggle-2fa",    authenticate, toggle2FA);
+router.get("/:id",               authenticate, getUserById);
+router.put("/:id",               authenticate, updateUser);
+router.delete("/:id",            authenticate, authorize(...OWNER_ONLY), deleteUser);
 
 module.exports = router;

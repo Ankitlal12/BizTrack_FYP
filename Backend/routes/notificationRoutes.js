@@ -1,34 +1,26 @@
 const express = require("express");
-const router = express.Router();
+const { authenticate, authorize } = require("../middleware/auth");
+const { OWNER_ONLY } = require("../config/roles");
 const notificationController = require("../controllers/notificationController");
 
-// Get all notifications
-router.get("/", notificationController.getAllNotifications);
+const router = express.Router();
 
-// Get unread count - MUST come before /:id
-router.get("/unread/count", notificationController.getUnreadCount);
+// All notification routes require authentication + owner role
+// (notifications are only shown to owners in the UI)
+router.use(authenticate);
+router.use(authorize(...OWNER_ONLY));
 
-// Mark all as read - MUST come before /:id/read
-router.patch("/read/all", notificationController.markAllAsRead);
+// Named routes before /:id
+router.get("/",                  notificationController.getAllNotifications);
+router.get("/unread/count",      notificationController.getUnreadCount);
+router.patch("/read/all",        notificationController.markAllAsRead);
+router.delete("/read/all",       notificationController.deleteAllRead);
+router.delete("/expiry/all",     notificationController.deleteAllExpiryNotifications);
+router.post("/",                 notificationController.createNotification);
 
-// Delete all read notifications - MUST come before /:id
-router.delete("/read/all", notificationController.deleteAllRead);
-
-// Delete all expiry notifications - MUST come before /:id
-router.delete("/expiry/all", notificationController.deleteAllExpiryNotifications);
-
-// Create notification
-router.post("/", notificationController.createNotification);
-
-// Get single notification - parameterized routes MUST come after specific routes
-router.get("/:id", notificationController.getNotificationById);
-
-// Mark notification as read
-router.patch("/:id/read", notificationController.markAsRead);
-
-// Delete notification
-router.delete("/:id", notificationController.deleteNotification);
+// Dynamic /:id routes
+router.get("/:id",               notificationController.getNotificationById);
+router.patch("/:id/read",        notificationController.markAsRead);
+router.delete("/:id",            notificationController.deleteNotification);
 
 module.exports = router;
-
-

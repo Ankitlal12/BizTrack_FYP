@@ -1,9 +1,10 @@
 // ==================== IMPORTS ====================
-import React, { Suspense, lazy } from 'react'
-import { Routes, Route, Navigate } from 'react-router-dom'
-import { Toaster } from 'sonner'
+import React, { Suspense, lazy, useEffect } from 'react'
+import { Routes, Route, Navigate, useLocation } from 'react-router-dom'
+import { Toaster, toast } from 'sonner'
 import { useAuth } from './contexts/AuthContext'
 import SessionTracker from './components/SessionTracker'
+import { canAccess, ROLE_HOME, UserRole } from './config/roles'
 
 // ==================== LAZY PAGE IMPORTS ====================
 const Login               = lazy(() => import('./Pages/Login'))
@@ -37,25 +38,59 @@ const PageLoader = () => (
   </div>
 )
 
-// Wrap a page element: redirect to /login if not authenticated
-const Protected = ({ element }: { element: React.ReactNode }) => {
-  const { isAuthenticated } = useAuth()
-  return isAuthenticated ? <>{element}</> : <Navigate to="/login" replace />
+/**
+ * RoleGuard — checks authentication AND role before rendering.
+ * - Not authenticated  → /login
+ * - Auth loading       → spinner (prevents flash of restricted content)
+ * - Role not allowed   → role's home page + "Access denied" toast
+ */
+const RoleGuard = ({ element, roles }: { element: React.ReactNode; roles: string[] }) => {
+  const { isAuthenticated, isLoading, user } = useAuth()
+  const location = useLocation()
+
+  useEffect(() => {
+    if (!isLoading && isAuthenticated && user && !roles.includes(user.role)) {
+      toast.error('Access denied', {
+        description: `Your role (${user.role}) does not have permission to view this page.`,
+      })
+    }
+  }, [isLoading, isAuthenticated, user, location.pathname])
+
+  if (isLoading) return <PageLoader />
+  if (!isAuthenticated) return <Navigate to="/login" replace />
+  if (!user || !roles.includes(user.role)) {
+    const home = ROLE_HOME[(user?.role as UserRole) ?? 'staff']
+    return <Navigate to={home} replace />
+  }
+  return <>{element}</>
 }
 
-// Wrap a page element: redirect to /inventory if role not allowed
-const RoleGuard = ({
-  element,
-  roles,
-  fallback = '/inventory',
-}: {
-  element: React.ReactNode
-  roles: string[]
-  fallback?: string
-}) => {
-  const { isAuthenticated, user } = useAuth()
+/**
+ * Protected — requires authentication only (any role).
+ * Uses canAccess() from the centralized role policy so staff
+ * cannot reach routes that are not in their allowed list.
+ */
+const Protected = ({ element }: { element: React.ReactNode }) => {
+  const { isAuthenticated, isLoading, user } = useAuth()
+  const location = useLocation()
+
+  useEffect(() => {
+    if (!isLoading && isAuthenticated && user && !canAccess(user.role as UserRole, location.pathname)) {
+      toast.error('Access denied', {
+        description: `Your role (${user.role}) does not have permission to view this page.`,
+      })
+    }
+  }, [isLoading, isAuthenticated, user, location.pathname])
+
+  if (isLoading) return <PageLoader />
   if (!isAuthenticated) return <Navigate to="/login" replace />
-  if (!roles.includes(user?.role ?? '')) return <Navigate to={fallback} replace />
+
+  // Role check via centralized policy
+  if (user && !canAccess(user.role as UserRole, location.pathname)) {
+    const home = ROLE_HOME[(user.role as UserRole) ?? 'staff']
+    return <Navigate to={home} replace />
+  }
+
   return <>{element}</>
 }
 
@@ -72,13 +107,13 @@ export const App = () => {
       {isAuthenticated && <SessionTracker />}
       <Suspense fallback={<PageLoader />}>
         <Routes>
-          {/* Auth */}
+          {/* ── Auth ── */}
           <Route
             path="/login"
             element={!isAuthenticated ? <Login /> : <Navigate to="/" replace />}
           />
 
-          {/* Root — role-based redirect */}
+          {/* ── Root: role-based home redirect ── */}
           <Route
             path="/"
             element={
@@ -94,33 +129,33 @@ export const App = () => {
             }
           />
 
-          {/* Owner + Manager */}
-          <Route path="/inventory"         element={<RoleGuard element={<Inventory />}        roles={['owner', 'manager']} fallback="/billing" />} />
-          <Route path="/low-stock"         element={<RoleGuard element={<LowStock />}          roles={['owner', 'manager']} />} />
-          <Route path="/upcoming-products" element={<RoleGuard element={<UpcomingProducts />}  roles={['owner', 'manager']} />} />
-          <Route path="/suppliers"         element={<RoleGuard element={<Suppliers />}         roles={['owner', 'manager']} />} />
-          <Route path="/customers"         element={<RoleGuard element={<Customers />}         roles={['owner', 'manager']} />} />
+          {/* ── Owner + Manager only ── */}
+          <Route path="/inventory"         element={<RoleGuard element={<Inventory />}       roles={['owner', 'manager']} />} />
+          <Route path="/low-stock"         element={<RoleGuard element={<LowStock />}         roles={['owner', 'manager']} />} />
+          <Route path="/upcoming-products" element={<RoleGuard element={<UpcomingProducts />} roles={['owner', 'manager']} />} />
+          <Route path="/expiry-management" element={<RoleGuard element={<ExpiryManagement />} roles={['owner', 'manager']} />} />
+          <Route path="/suppliers"         element={<RoleGuard element={<Suppliers />}        roles={['owner', 'manager']} />} />
+          <Route path="/customers"         element={<RoleGuard element={<Customers />}        roles={['owner', 'manager']} />} />
+          <Route path="/purchases"         element={<RoleGuard element={<Purchases />}        roles={['owner', 'manager']} />} />
+          <Route path="/purchases/payment-success" element={<RoleGuard element={<KhaltiPurchaseSuccess />} roles={['owner', 'manager']} />} />
+          <Route path="/sales"             element={<RoleGuard element={<Sales />}            roles={['owner', 'manager']} />} />
+          <Route path="/invoices"          element={<RoleGuard element={<Invoices />}         roles={['owner', 'manager']} />} />
+          <Route path="/invoices/:id"      element={<RoleGuard element={<InvoiceDetail />}    roles={['owner', 'manager']} />} />
+          <Route path="/transactions"      element={<RoleGuard element={<TransactionHistory />} roles={['owner', 'manager']} />} />
+          <Route path="/settings"          element={<RoleGuard element={<Settings />}         roles={['owner', 'manager']} />} />
 
-          {/* Owner only */}
-          <Route path="/reorder-history"   element={<RoleGuard element={<ReorderHistory />}   roles={['owner']} fallback="/login" />} />
+          {/* ── Owner only ── */}
+          <Route path="/reports"           element={<RoleGuard element={<Reports />}          roles={['owner']} />} />
+          <Route path="/reorder-history"   element={<RoleGuard element={<ReorderHistory />}   roles={['owner']} />} />
           <Route path="/stock-list"        element={<RoleGuard element={<StockList />}         roles={['owner']} />} />
           <Route path="/stock-report"      element={<RoleGuard element={<StockReport />}       roles={['owner']} />} />
           <Route path="/staff-analytics"   element={<RoleGuard element={<StaffAnalytics />}   roles={['owner']} />} />
 
-          {/* Authenticated (any role) */}
-          <Route path="/purchases"                   element={<Protected element={<Purchases />} />} />
-          <Route path="/invoices"                    element={<Protected element={<Invoices />} />} />
-          <Route path="/invoices/:id"                element={<Protected element={<InvoiceDetail />} />} />
-          <Route path="/reports"                     element={<Protected element={<Reports />} />} />
-          <Route path="/sales"                       element={<Protected element={<Sales />} />} />
-          <Route path="/settings"                    element={<Protected element={<Settings />} />} />
-          <Route path="/transactions"                element={<Protected element={<TransactionHistory />} />} />
-          <Route path="/expiry-management"           element={<Protected element={<ExpiryManagement />} />} />
-          <Route path="/billing"                     element={<Protected element={<Billing />} />} />
-          <Route path="/billing/payment-success"     element={<Protected element={<KhaltiPaymentSuccess />} />} />
-          <Route path="/purchases/payment-success"   element={<Protected element={<KhaltiPurchaseSuccess />} />} />
+          {/* ── All authenticated roles (billing + Khalti success) ── */}
+          <Route path="/billing"                 element={<Protected element={<Billing />} />} />
+          <Route path="/billing/payment-success" element={<Protected element={<KhaltiPaymentSuccess />} />} />
 
-          {/* Fallback */}
+          {/* ── Catch-all ── */}
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </Suspense>

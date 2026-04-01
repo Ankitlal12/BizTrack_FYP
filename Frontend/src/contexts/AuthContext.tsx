@@ -133,19 +133,15 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const login = useCallback(
     async (username: string, password: string): Promise<boolean> => {
       try {
-        // Try to login via API
         const response = await usersAPI.login(username, password)
         
-        // Extract user and token from response
         const loggedInUser = response.user || response
         const token = response.token
 
-        // Store token if provided
         if (token) {
           tokenManager.setToken(token)
         }
         
-        // Convert MongoDB _id to id
         const userObj: User = {
           id: loggedInUser._id || loggedInUser.id,
           name: loggedInUser.name,
@@ -177,13 +173,23 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           console.error('Failed to refresh staff list:', error)
         }
 
+        // Navigate based on role using the fresh userObj (not React state,
+        // which may not have flushed yet when navigate() is called)
+        if (userObj.role === 'owner') {
+          navigate('/', { replace: true })
+        } else if (userObj.role === 'manager') {
+          navigate('/inventory', { replace: true })
+        } else {
+          navigate('/billing', { replace: true })
+        }
+
         return true
       } catch (error: any) {
         console.error('Login failed:', error)
         return false
       }
     },
-    [],
+    [navigate],
   )
 
   // =====================
@@ -236,7 +242,15 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           console.error('Failed to refresh staff list:', error)
         }
 
-        navigate('/', { replace: true })
+        // Navigate based on role using the fresh userObj (not React state)
+        if (userObj.role === 'owner') {
+          navigate('/', { replace: true })
+        } else if (userObj.role === 'manager') {
+          navigate('/inventory', { replace: true })
+        } else {
+          navigate('/billing', { replace: true })
+        }
+
         return true
       } catch (error: any) {
         console.error('Google login failed:', error)

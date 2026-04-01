@@ -38,11 +38,10 @@ const Login = () => {
 
     try {
       const success = await login(username, password);
-      if (success) {
-        navigate('/', { replace: true });
-      } else {
+      if (!success) {
         setError('Invalid username or password');
       }
+      // Navigation is handled inside AuthContext.login() based on role
     } catch (err) {
       setError('An error occurred. Please try again.');
     } finally {
@@ -102,7 +101,14 @@ const Login = () => {
       localStorage.setItem('biztrack_user', JSON.stringify(userObj));
       
       toast.success('Login successful!');
-      navigate('/', { replace: true });
+      // Navigate based on role using fresh userObj — not React state
+      if (userObj.role === 'owner') {
+        navigate('/', { replace: true });
+      } else if (userObj.role === 'manager') {
+        navigate('/inventory', { replace: true });
+      } else {
+        navigate('/billing', { replace: true });
+      }
     } catch (err: any) {
       console.error("OTP verification error:", err);
       toast.error(err.message || 'Invalid OTP. Please try again.');

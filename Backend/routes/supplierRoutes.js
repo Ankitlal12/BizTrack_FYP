@@ -1,35 +1,28 @@
 const express = require("express");
-const { authenticate } = require("../middleware/auth");
+const { authenticate, authorize } = require("../middleware/auth");
+const { OWNER_MANAGER, OWNER_ONLY } = require("../config/roles");
 const {
-  getAllSuppliers,
-  getSupplierById,
-  createSupplier,
-  updateSupplier,
-  deleteSupplier,
-  getSupplierProducts,
-  addProductToSupplier,
-  removeProductFromSupplier,
+  getAllSuppliers, getSupplierById, createSupplier, updateSupplier, deleteSupplier,
+  getSupplierProducts, addProductToSupplier, removeProductFromSupplier,
   getSupplierPurchaseHistory,
 } = require("../controllers/supplierController");
 
 const router = express.Router();
 
-// Apply authentication to all routes
+// All supplier routes require authentication + owner/manager role
 router.use(authenticate);
+router.use(authorize(...OWNER_MANAGER));
 
-// Supplier CRUD routes
-router.get("/", getAllSuppliers);
-router.get("/:id", getSupplierById);
-router.post("/", createSupplier);
-router.put("/:id", updateSupplier);
-router.delete("/:id", deleteSupplier);
+router.get("/",                                          getAllSuppliers);
+router.get("/:id",                                       getSupplierById);
+router.post("/",                                         createSupplier);
+router.put("/:id",                                       updateSupplier);
+router.get("/:id/products",                              getSupplierProducts);
+router.post("/:id/products",                             addProductToSupplier);
+router.get("/:id/purchase-history",                      getSupplierPurchaseHistory);
 
-// Supplier product management routes
-router.get("/:id/products", getSupplierProducts);
-router.post("/:id/products", addProductToSupplier);
-router.delete("/:supplierId/products/:inventoryId", removeProductFromSupplier);
-
-// Supplier purchase history and payments
-router.get("/:id/purchase-history", getSupplierPurchaseHistory);
+// Delete + remove product — owner only
+router.delete("/:id",                                    authorize(...OWNER_ONLY), deleteSupplier);
+router.delete("/:supplierId/products/:inventoryId",      authorize(...OWNER_ONLY), removeProductFromSupplier);
 
 module.exports = router;

@@ -1,39 +1,24 @@
 const express = require("express");
 const { authenticate, authorize } = require("../middleware/auth");
+const { OWNER_MANAGER } = require("../config/roles");
 const {
-  getAllLoginHistory,
-  getUserLoginHistory,
-  recordLogin,
-  getLoginStats,
-  recordLogout,
-  updateHeartbeat,
-  autoLogoutInactiveSessions,
+  getAllLoginHistory, getUserLoginHistory, recordLogin, getLoginStats,
+  recordLogout, updateHeartbeat, autoLogoutInactiveSessions,
 } = require("../controllers/loginHistoryController");
 
 const router = express.Router();
 
-// Apply authentication to all routes
 router.use(authenticate);
 
-// Get all login history (admin/owner only)
-router.get("/", authorize("owner", "manager"), getAllLoginHistory);
+// Owner + Manager: view history and stats
+router.get("/",              authorize(...OWNER_MANAGER), getAllLoginHistory);
+router.get("/stats",         authorize(...OWNER_MANAGER), getLoginStats);
+router.get("/user/:userId",  authorize(...OWNER_MANAGER), getUserLoginHistory);
+router.post("/auto-logout",  authorize(...OWNER_MANAGER), autoLogoutInactiveSessions);
 
-// Get login statistics (admin/owner only)
-router.get("/stats", authorize("owner", "manager"), getLoginStats);
-
-// Get login history for a specific user (admin/owner only)
-router.get("/user/:userId", authorize("owner", "manager"), getUserLoginHistory);
-
-// Record a login (internal use - called by auth system)
-router.post("/record", recordLogin);
-
-// Record a logout
-router.post("/logout", recordLogout);
-
-// Update session heartbeat (keep session alive)
-router.post("/heartbeat", updateHeartbeat);
-
-// Auto-logout inactive sessions (can be called manually or by cron)
-router.post("/auto-logout", authorize("owner", "manager"), autoLogoutInactiveSessions);
+// Any authenticated role: session management
+router.post("/logout",       recordLogout);
+router.post("/heartbeat",    updateHeartbeat);
+router.post("/record",       recordLogin);
 
 module.exports = router;
