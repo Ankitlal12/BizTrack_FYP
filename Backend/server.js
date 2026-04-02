@@ -139,6 +139,6 @@ app.listen(PORT, () => {
     }
   }, 10000); // Run after 10 seconds to let server fully initialize
   
-  console.log("✅ Payment scheduler & delivery processor initialized successfully");
+  // console.log("✅ Payment scheduler & delivery processor initialized successfully");
 });
 

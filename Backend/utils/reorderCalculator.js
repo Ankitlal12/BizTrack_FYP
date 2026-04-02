@@ -38,7 +38,7 @@ const calculateReorderQuantity = async (inventoryId) => {
     const reviewPeriod = 7;
     const suggestedQuantity = Math.max(
       Math.ceil((item.leadTimeDays + reviewPeriod) * averageDailySales + safetyStock - item.stock),
-      item.reorderQuantity || 10
+      item.reorderQuantity || 50
     );
 
     return {
