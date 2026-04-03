@@ -157,14 +157,14 @@ const Login = () => {
   }
 
   return (
-    <div className="relative min-h-screen flex items-center justify-center bg-gradient-to-br from-white via-gray-50 to-teal-50 overflow-hidden">
+    <div className="relative min-h-screen flex items-center justify-center bg-gradient-to-br from-white via-gray-50 to-teal-50 overflow-hidden px-4 py-8">
 
       {/* Background gradient blobs */}
       <div className="absolute top-0 left-0 w-80 h-80 bg-teal-200 opacity-30 rounded-full blur-3xl animate-pulse"></div>
       <div className="absolute bottom-0 right-0 w-96 h-96 bg-teal-300 opacity-20 rounded-full blur-3xl animate-pulse"></div>
 
       {/* Login Card */}
-      <div className="relative z-10 bg-white/80 backdrop-blur-md border border-gray-100 shadow-xl rounded-3xl p-10 w-full max-w-md">
+      <div className="relative z-10 bg-white/80 backdrop-blur-md border border-gray-100 shadow-xl rounded-3xl p-6 sm:p-10 w-full max-w-md mx-4">
 
         {/* Logo */}
         <div className="text-center mb-8">

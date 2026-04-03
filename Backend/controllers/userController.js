@@ -308,103 +308,74 @@ exports.getUserById = async (req, res) => {
 exports.updateUser = async (req, res) => {
   try {
     const { id } = req.params;
-    const { username, password } = req.body;
+    const { username, password, role } = req.body;
 
     // Find user
     const user = await User.findById(id);
-
     if (!user) {
       return res.status(404).json({ error: "User not found" });
     }
 
-    // Prepare update object
+    // Owners cannot have their role changed through this endpoint
+    if (user.role === 'owner') {
+      return res.status(403).json({ error: "Owner role cannot be changed." });
+    }
+
     const updateData = {};
 
     // Update username if provided
     if (username !== undefined) {
       if (!username || username.trim() === '') {
-        return res.status(400).json({ 
-          error: "Username cannot be empty" 
-        });
+        return res.status(400).json({ error: "Username cannot be empty" });
       }
-
-      // Check if new username is already taken by another user
-      const existingUser = await User.findOne({ 
-        username: username.trim(),
-        _id: { $ne: id } // Exclude current user
-      });
-
+      const existingUser = await User.findOne({ username: username.trim(), _id: { $ne: id } });
       if (existingUser) {
-        return res.status(400).json({ 
-          error: "Username is already taken" 
-        });
+        return res.status(400).json({ error: "Username is already taken" });
       }
-
       updateData.username = username.trim();
     }
 
     // Update password if provided
     if (password !== undefined) {
       if (!password || password.length < 6) {
-        return res.status(400).json({ 
-          error: "Password must be at least 6 characters long" 
-        });
+        return res.status(400).json({ error: "Password must be at least 6 characters long" });
       }
-
-      // Hash new password
       const saltRounds = 10;
       updateData.password = await bcrypt.hash(password, saltRounds);
     }
 
-    // If no updates provided
-    if (Object.keys(updateData).length === 0) {
-      return res.status(400).json({ 
-        error: "No valid fields to update. Provide username and/or password." 
-      });
+    // Update role if provided — only staff <-> manager swaps allowed
+    if (role !== undefined) {
+      const allowedRoles = ['staff', 'manager'];
+      if (!allowedRoles.includes(role)) {
+        return res.status(400).json({ error: "Role must be 'staff' or 'manager'." });
+      }
+      updateData.role = role;
     }
 
-    // Update user
-    const updatedUser = await User.findByIdAndUpdate(
-      id,
-      updateData,
-      { new: true }
-    ).select('-password');
+    if (Object.keys(updateData).length === 0) {
+      return res.status(400).json({ error: "No valid fields to update." });
+    }
 
-    // Create notification for security changes
+    const updatedUser = await User.findByIdAndUpdate(id, updateData, { new: true }).select('-password');
+
+    // Notification
     try {
-      let changeDetails = [];
-      if (updateData.username) {
-        changeDetails.push(`username changed to "${updateData.username}"`);
-      }
-      if (updateData.password) {
-        changeDetails.push('password updated');
-      }
+      const changeDetails = [];
+      if (updateData.username) changeDetails.push(`username changed to "${updateData.username}"`);
+      if (updateData.password) changeDetails.push('password updated');
+      if (updateData.role) changeDetails.push(`role changed to "${updateData.role}"`);
 
-      console.log('🔔 Creating security change notification:', {
-        type: "security_change",
-        title: "Security Settings Changed",
-        userName: user.name,
-        changes: changeDetails
-      });
-
-      const notification = await createNotification({
-        type: "security_change",
-        title: "Security Settings Changed",
-        message: `Security settings for ${user.name} have been updated: ${changeDetails.join(', ')}.`,
+      await createNotification({
+        type: updateData.role ? "system" : "security_change",
+        title: updateData.role ? "User Role Changed" : "Security Settings Changed",
+        message: `${user.name} has been updated: ${changeDetails.join(', ')}.`,
         relatedId: user._id,
         relatedModel: "User",
-        metadata: {
-          userName: user.name,
-          email: user.email,
-          changes: changeDetails,
-          changedAt: new Date(),
-        },
+        metadata: { userName: user.name, email: user.email, changes: changeDetails, changedAt: new Date() },
       });
-
-      console.log('✅ Security change notification created successfully:', notification.archive._id);
     } catch (notifError) {
-      console.error("❌ Failed to create security change notification:", notifError);
-      console.error("Error details:", notifError.message);
+      console.error("Failed to create notification:", notifError);
     }
 
     res.json(updatedUser);

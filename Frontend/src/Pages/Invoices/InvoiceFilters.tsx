@@ -57,9 +57,9 @@ const InvoiceFilters: React.FC<InvoiceFiltersProps> = ({
   return (
     <div className="bg-white p-5 rounded-lg shadow-sm border border-gray-200 mb-6">
       {/* Main Filter Row */}
-      <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+      <div className="flex flex-wrap gap-3">
         {/* Search Bar */}
-        <div className="relative flex-1">
+        <div className="relative w-full sm:flex-1 sm:min-w-[200px]">
           <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
             <SearchIcon size={18} className="text-gray-400" />
           </div>
@@ -76,7 +76,8 @@ const InvoiceFilters: React.FC<InvoiceFiltersProps> = ({
         <select
           value={filters.type || ''}
           onChange={(e) => handleFilterChange('type', e.target.value)}
-          className="border border-gray-300 rounded-lg py-2 px-4 bg-white focus:outline-none focus:ring-2 focus:ring-teal-500"
+          title="Filter by invoice type"
+          className="w-full sm:w-auto border border-gray-300 rounded-lg py-2 px-4 bg-white focus:outline-none focus:ring-2 focus:ring-teal-500 sm:min-w-[130px]"
         >
           <option value="">All Types</option>
           <option value="sale">Sales Invoice</option>
@@ -87,7 +88,8 @@ const InvoiceFilters: React.FC<InvoiceFiltersProps> = ({
         <select
           value={filters.status || ''}
           onChange={(e) => handleFilterChange('status', e.target.value)}
-          className="border border-gray-300 rounded-lg py-2 px-4 bg-white focus:outline-none focus:ring-2 focus:ring-teal-500"
+          title="Filter by invoice status"
+          className="w-full sm:w-auto border border-gray-300 rounded-lg py-2 px-4 bg-white focus:outline-none focus:ring-2 focus:ring-teal-500 sm:min-w-[130px]"
         >
           <option value="">All Status</option>
           <option value="draft">Draft</option>
@@ -102,20 +104,23 @@ const InvoiceFilters: React.FC<InvoiceFiltersProps> = ({
         <select
           value={filters.paymentStatus || ''}
           onChange={(e) => handleFilterChange('paymentStatus', e.target.value)}
-          className="border border-gray-300 rounded-lg py-2 px-4 bg-white focus:outline-none focus:ring-2 focus:ring-teal-500"
+          title="Filter by payment status"
+          className="w-full sm:w-auto border border-gray-300 rounded-lg py-2 px-4 bg-white focus:outline-none focus:ring-2 focus:ring-teal-500 sm:min-w-[160px]"
         >
           <option value="">All Payment Status</option>
           <option value="unpaid">Unpaid</option>
           <option value="partial">Partially Paid</option>
           <option value="paid">Paid</option>
+          <option value="scheduled">Scheduled</option>
         </select>
 
         {/* Sort Controls */}
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 w-full sm:w-auto">
           <select
             value={filters.sortBy || 'createdAt'}
             onChange={(e) => handleFilterChange('sortBy', e.target.value)}
-            className="border border-gray-300 rounded-lg py-2 px-3 bg-white focus:outline-none focus:ring-2 focus:ring-teal-500 text-sm"
+            title="Sort invoices by"
+            className="flex-1 sm:flex-none border border-gray-300 rounded-lg py-2 px-3 bg-white focus:outline-none focus:ring-2 focus:ring-teal-500 text-sm"
           >
             <option value="createdAt">Sort by Date</option>
             <option value="dueDate">Sort by Due Date</option>
@@ -128,7 +133,7 @@ const InvoiceFilters: React.FC<InvoiceFiltersProps> = ({
             className={`border border-gray-300 rounded-lg p-2 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-teal-500 ${
               filters.sortOrder === 'desc' ? 'bg-teal-50 border-teal-300' : 'bg-white'
             }`}
-            title={filters.sortOrder === 'desc' ? 'Newest first (click for oldest first)' : 'Oldest first (click for newest first)'}
+            title={filters.sortOrder === 'desc' ? 'Newest first' : 'Oldest first'}
           >
             {filters.sortOrder === 'desc' ? (
               <ArrowDownIcon size={18} className="text-teal-600" />
@@ -138,32 +143,26 @@ const InvoiceFilters: React.FC<InvoiceFiltersProps> = ({
           </button>
         </div>
 
-        {/* Filters Button */}
-        <button
-          onClick={() => setShowAdvanced(!showAdvanced)}
-          className={`border border-gray-300 text-gray-700 py-2 px-4 rounded-lg flex items-center hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-teal-500 ${
-            hasActiveFilters ? 'bg-teal-50 border-teal-300' : 'bg-white'
-          }`}
-        >
-          <FilterIcon size={18} className="mr-2" />
-          <span>Filters</span>
-          {hasActiveFilters && (
-            <span className="ml-2 bg-teal-500 text-white rounded-full w-5 h-5 flex items-center justify-center text-xs">
-              !
-            </span>
-          )}
-        </button>
-
-        {/* Clear Filters Button */}
-        {hasActiveFilters && (
+        {/* Filters + Clear */}
+        <div className="flex items-center gap-2 w-full sm:w-auto sm:ml-auto">
           <button
-            onClick={onReset}
-            className="text-gray-600 hover:text-red-600 py-2 px-3 flex items-center focus:outline-none"
-            title="Clear all filters"
+            onClick={() => setShowAdvanced(!showAdvanced)}
+            className={`flex-1 sm:flex-none border border-gray-300 text-gray-700 py-2 px-4 rounded-lg flex items-center justify-center hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-teal-500 ${
+              hasActiveFilters ? 'bg-teal-50 border-teal-300' : 'bg-white'
+            }`}
           >
-            <XIcon size={18} />
+            <FilterIcon size={18} className="mr-2" />
+            <span>Filters</span>
+            {hasActiveFilters && (
+              <span className="ml-2 bg-teal-500 text-white rounded-full w-5 h-5 flex items-center justify-center text-xs">!</span>
+            )}
           </button>
-        )}
+          {hasActiveFilters && (
+            <button onClick={onReset} className="text-gray-600 hover:text-red-600 py-2 px-3 flex items-center focus:outline-none" title="Clear all filters">
+              <XIcon size={18} />
+            </button>
+          )}
+        </div>
       </div>
 
       {/* Advanced Filters */}
@@ -178,6 +177,7 @@ const InvoiceFilters: React.FC<InvoiceFiltersProps> = ({
               <select
                 value={filters.paymentMethod || ''}
                 onChange={(e) => handleFilterChange('paymentMethod', e.target.value)}
+                title="Filter by payment method"
                 className="border border-gray-300 rounded-lg py-2 px-3 w-full text-sm focus:outline-none focus:ring-2 focus:ring-teal-500 bg-white"
               >
                 <option value="">All Methods</option>
@@ -195,6 +195,7 @@ const InvoiceFilters: React.FC<InvoiceFiltersProps> = ({
               <select
                 value={filters.generatedFrom || ''}
                 onChange={(e) => handleFilterChange('generatedFrom', e.target.value)}
+                title="Filter by source"
                 className="border border-gray-300 rounded-lg py-2 px-3 w-full text-sm focus:outline-none focus:ring-2 focus:ring-teal-500 bg-white"
               >
                 <option value="">All Sources</option>
@@ -210,6 +211,7 @@ const InvoiceFilters: React.FC<InvoiceFiltersProps> = ({
               <select
                 value={filters.autoGenerated || ''}
                 onChange={(e) => handleFilterChange('autoGenerated', e.target.value)}
+                title="Filter by auto-generated status"
                 className="border border-gray-300 rounded-lg py-2 px-3 w-full text-sm focus:outline-none focus:ring-2 focus:ring-teal-500 bg-white"
               >
                 <option value="">All</option>
@@ -249,6 +251,7 @@ const InvoiceFilters: React.FC<InvoiceFiltersProps> = ({
                 type="date"
                 value={formatDateForInput(filters.dateFrom)}
                 onChange={(e) => handleFilterChange('dateFrom', e.target.value)}
+                title="Issue date from"
                 className="border border-gray-300 rounded-lg py-2 px-3 w-full text-sm focus:outline-none focus:ring-2 focus:ring-teal-500 bg-white"
               />
             </div>
@@ -260,6 +263,7 @@ const InvoiceFilters: React.FC<InvoiceFiltersProps> = ({
                 type="date"
                 value={formatDateForInput(filters.dateTo)}
                 onChange={(e) => handleFilterChange('dateTo', e.target.value)}
+                title="Issue date to"
                 className="border border-gray-300 rounded-lg py-2 px-3 w-full text-sm focus:outline-none focus:ring-2 focus:ring-teal-500 bg-white"
               />
             </div>
@@ -271,6 +275,7 @@ const InvoiceFilters: React.FC<InvoiceFiltersProps> = ({
                 type="date"
                 value={formatDateForInput(filters.dueDateFrom)}
                 onChange={(e) => handleFilterChange('dueDateFrom', e.target.value)}
+                title="Due date from"
                 className="border border-gray-300 rounded-lg py-2 px-3 w-full text-sm focus:outline-none focus:ring-2 focus:ring-teal-500 bg-white"
               />
             </div>
@@ -282,6 +287,7 @@ const InvoiceFilters: React.FC<InvoiceFiltersProps> = ({
                 type="date"
                 value={formatDateForInput(filters.dueDateTo)}
                 onChange={(e) => handleFilterChange('dueDateTo', e.target.value)}
+                title="Due date to"
                 className="border border-gray-300 rounded-lg py-2 px-3 w-full text-sm focus:outline-none focus:ring-2 focus:ring-teal-500 bg-white"
               />
             </div>

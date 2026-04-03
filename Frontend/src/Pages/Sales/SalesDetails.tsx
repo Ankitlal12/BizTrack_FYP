@@ -3,6 +3,7 @@ import { UserIcon, DollarSignIcon, ClockIcon, FileTextIcon } from 'lucide-react'
 import { Sale } from '../Sales/types'
 import { getStatusBadgeClass, getPaymentStatusBadgeClass, formatPaymentMethod } from '../Sales/utils'
 import { formatNepaliDateTime } from '../../utils/dateUtils'
+import { useAuth } from '../../contexts/AuthContext'
 
 interface SalesDetailsProps {
   sale: Sale
@@ -11,6 +12,8 @@ interface SalesDetailsProps {
 }
 
 const SalesDetails: React.FC<SalesDetailsProps> = ({ sale, onRecordPayment, onViewInvoice }) => {
+  const { user } = useAuth()
+  const isOwner = user?.role === 'owner'
   const paidAmount = sale.paidAmount || 0
   const remainingBalance = sale.total - paidAmount
   return (

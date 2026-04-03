@@ -10,9 +10,9 @@ interface InvoiceStatsProps {
 const InvoiceStats: React.FC<InvoiceStatsProps> = ({ stats, loading = false }) => {
   if (loading) {
     return (
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-6">
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-6 mb-4 sm:mb-6">
         {[...Array(4)].map((_, index) => (
-          <div key={index} className="bg-white p-6 rounded-lg shadow-sm border border-gray-200">
+          <div key={index} className="bg-white p-4 sm:p-6 rounded-lg shadow-sm border border-gray-200">
             <div className="animate-pulse">
               <div className="h-4 bg-gray-200 rounded w-3/4 mb-2"></div>
               <div className="h-8 bg-gray-200 rounded w-1/2"></div>
@@ -71,16 +71,16 @@ const InvoiceStats: React.FC<InvoiceStatsProps> = ({ stats, loading = false }) =
   ];
 
   return (
-    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-6">
+    <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-6 mb-4 sm:mb-6">
       {statCards.map((card, index) => (
-        <div key={index} className={`${card.bgColor} p-6 rounded-lg shadow-sm border border-gray-200`}>
+        <div key={index} className={`${card.bgColor} p-3 sm:p-6 rounded-lg shadow-sm border border-gray-200`}>
           <div className="flex items-center justify-between">
-            <div className="flex-1">
-              <p className="text-sm font-medium text-gray-600 mb-1">{card.title}</p>
-              <p className="text-2xl font-bold text-gray-900 mb-1">{card.value}</p>
-              <p className="text-xs text-gray-500">{card.subtitle}</p>
+            <div className="flex-1 min-w-0">
+              <p className="text-xs sm:text-sm font-medium text-gray-600 mb-1 truncate">{card.title}</p>
+              <p className="text-lg sm:text-2xl font-bold text-gray-900 mb-1 truncate">{card.value}</p>
+              <p className="text-xs text-gray-500 hidden sm:block">{card.subtitle}</p>
             </div>
-            <div className="flex-shrink-0">
+            <div className="flex-shrink-0 ml-2 hidden sm:block">
               {card.icon}
             </div>
           </div>

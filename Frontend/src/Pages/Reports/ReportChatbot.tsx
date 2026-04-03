@@ -643,7 +643,7 @@ const ReportChatbot: React.FC<ReportChatbotProps> = ({
       {!isOpen && (
         <button
           onClick={() => setIsOpen(true)}
-          className="fixed bottom-8 right-8 bg-gradient-to-r from-teal-500 to-teal-600 hover:from-teal-600 hover:to-teal-700 text-white rounded-full p-4 shadow-2xl transition-all hover:scale-110 z-50 group"
+          className="fixed bottom-4 right-4 sm:bottom-8 sm:right-8 bg-gradient-to-r from-teal-500 to-teal-600 hover:from-teal-600 hover:to-teal-700 text-white rounded-full p-3 sm:p-4 shadow-2xl transition-all hover:scale-110 z-50 group"
           title="Ask Report Assistant"
         >
           <MessageCircle className="w-7 h-7" />
@@ -655,8 +655,8 @@ const ReportChatbot: React.FC<ReportChatbotProps> = ({
       )}
 
       {isOpen && (
-        <div className="fixed bottom-8 right-8 w-[420px] h-[650px] bg-white rounded-2xl shadow-2xl flex flex-col z-50 overflow-hidden">
-          <div className="bg-gradient-to-r from-teal-500 to-teal-600 text-white p-5 flex items-center justify-between">
+        <div className="fixed inset-x-3 top-20 bottom-3 sm:inset-x-auto sm:top-auto sm:bottom-8 sm:right-8 sm:w-[420px] sm:h-[650px] bg-white rounded-2xl shadow-2xl flex flex-col z-50 overflow-hidden">
+          <div className="bg-gradient-to-r from-teal-500 to-teal-600 text-white p-4 sm:p-5 flex items-center justify-between">
             <div className="flex items-center gap-3">
               <div className="bg-white/20 p-2 rounded-lg backdrop-blur-sm">
                 <Sparkles className="w-5 h-5" />
@@ -727,7 +727,7 @@ const ReportChatbot: React.FC<ReportChatbotProps> = ({
           {messages.length <= 2 && (
             <div className="px-4 py-3 bg-gray-50 border-t border-gray-100">
               <p className="text-xs text-gray-600 font-medium mb-2">💡 Quick questions:</p>
-              <div className="grid grid-cols-2 gap-2">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                 {quickQuestions.map((question, index) => (
                   <button
                     key={index}
@@ -744,7 +744,7 @@ const ReportChatbot: React.FC<ReportChatbotProps> = ({
             </div>
           )}
 
-          <div className="p-4 bg-white border-t border-gray-100">
+          <div className="p-3 sm:p-4 bg-white border-t border-gray-100">
             <div className="flex gap-2">
               <input
                 type="text"

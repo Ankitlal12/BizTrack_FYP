@@ -99,7 +99,7 @@ const KhaltiPaymentSuccess = () => {
   return (
     <Layout>
       <div className="min-h-[60vh] flex items-center justify-center">
-        <div className="bg-white rounded-lg shadow-lg p-8 max-w-md w-full text-center">
+        <div className="bg-white rounded-lg shadow-lg p-5 sm:p-8 max-w-md w-full text-center mx-4">
           {status === 'verifying' && (
             <>
               <Loader2 className="w-16 h-16 text-teal-500 mx-auto mb-4 animate-spin" />

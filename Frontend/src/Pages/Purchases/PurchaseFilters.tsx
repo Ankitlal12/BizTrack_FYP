@@ -83,9 +83,9 @@ const PurchaseFilters: React.FC<PurchaseFiltersProps> = ({
 
   return (
     <div className="p-5 border-b">
-      <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+      <div className="flex flex-wrap gap-4">
         {/* Search Bar */}
-        <div className="relative flex-1">
+        <div className="relative w-full sm:flex-1 sm:min-w-[200px]">
           <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
             <SearchIcon size={18} className="text-gray-400" />
           </div>
@@ -100,7 +100,8 @@ const PurchaseFilters: React.FC<PurchaseFiltersProps> = ({
 
         {/* Status Filter */}
         <select
-          className="border border-gray-300 rounded-lg py-2 px-4 bg-white focus:outline-none focus:ring-2 focus:ring-teal-500"
+          title="Filter purchases by status"
+          className="w-full sm:w-auto border border-gray-300 rounded-lg py-2 px-4 bg-white focus:outline-none focus:ring-2 focus:ring-teal-500 sm:min-w-[140px]"
           value={filterStatus}
           onChange={(e) => onFilterStatusChange(e.target.value)}
         >
@@ -112,7 +113,8 @@ const PurchaseFilters: React.FC<PurchaseFiltersProps> = ({
 
         {/* Payment Status Filter */}
         <select
-          className="border border-gray-300 rounded-lg py-2 px-4 bg-white focus:outline-none focus:ring-2 focus:ring-teal-500"
+          title="Filter purchases by payment status"
+          className="w-full sm:w-auto border border-gray-300 rounded-lg py-2 px-4 bg-white focus:outline-none focus:ring-2 focus:ring-teal-500 sm:min-w-[160px]"
           value={paymentStatusFilter}
           onChange={(e) => onPaymentStatusChange(e.target.value)}
         >
@@ -123,9 +125,10 @@ const PurchaseFilters: React.FC<PurchaseFiltersProps> = ({
         </select>
 
         {/* Sort Controls */}
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 w-full sm:w-auto">
           <select
-            className="border border-gray-300 rounded-lg py-2 px-3 bg-white focus:outline-none focus:ring-2 focus:ring-teal-500 text-sm"
+            title="Sort purchases by"
+            className="flex-1 sm:flex-none border border-gray-300 rounded-lg py-2 px-3 bg-white focus:outline-none focus:ring-2 focus:ring-teal-500 text-sm"
             value={sortField}
             onChange={(e) => onSortFieldChange(e.target.value)}
           >
@@ -139,7 +142,7 @@ const PurchaseFilters: React.FC<PurchaseFiltersProps> = ({
             className={`border border-gray-300 rounded-lg p-2 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-teal-500 ${
               sortDirection === 'desc' ? 'bg-teal-50 border-teal-300' : 'bg-white'
             }`}
-            title={sortDirection === 'desc' ? 'Newest first (click for oldest first)' : 'Oldest first (click for newest first)'}
+            title={sortDirection === 'desc' ? 'Newest first' : 'Oldest first'}
           >
             {sortDirection === 'desc' ? (
               <ArrowDownIcon size={18} className="text-teal-600" />
@@ -149,32 +152,26 @@ const PurchaseFilters: React.FC<PurchaseFiltersProps> = ({
           </button>
         </div>
 
-        {/* Filters Button */}
-        <button
-          onClick={toggleMoreFilters}
-          className={`border border-gray-300 text-gray-700 py-2 px-4 rounded-lg flex items-center hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-teal-500 ${
-            hasActiveFilters ? 'bg-teal-50 border-teal-300' : 'bg-white'
-          }`}
-        >
-          <FilterIcon size={18} className="mr-2" />
-          <span>Filters</span>
-          {hasActiveFilters && (
-            <span className="ml-2 bg-teal-500 text-white rounded-full w-5 h-5 flex items-center justify-center text-xs">
-              !
-            </span>
-          )}
-        </button>
-
-        {/* Clear Filters Button */}
-        {hasActiveFilters && (
+        {/* Filters + Clear */}
+        <div className="flex items-center gap-2 w-full sm:w-auto sm:ml-auto">
           <button
-            onClick={onClearFilters}
-            className="text-gray-600 hover:text-red-600 py-2 px-3 flex items-center focus:outline-none"
-            title="Clear all filters"
+            onClick={toggleMoreFilters}
+            className={`flex-1 sm:flex-none border border-gray-300 text-gray-700 py-2 px-4 rounded-lg flex items-center justify-center hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-teal-500 ${
+              hasActiveFilters ? 'bg-teal-50 border-teal-300' : 'bg-white'
+            }`}
           >
-            <XIcon size={18} />
+            <FilterIcon size={18} className="mr-2" />
+            <span>Filters</span>
+            {hasActiveFilters && (
+              <span className="ml-2 bg-teal-500 text-white rounded-full w-5 h-5 flex items-center justify-center text-xs">!</span>
+            )}
           </button>
-        )}
+          {hasActiveFilters && (
+            <button onClick={onClearFilters} className="text-gray-600 hover:text-red-600 py-2 px-3 flex items-center focus:outline-none" title="Clear all filters">
+              <XIcon size={18} />
+            </button>
+          )}
+        </div>
       </div>
 
       {/* Expanded Filters Panel */}
@@ -187,6 +184,7 @@ const PurchaseFilters: React.FC<PurchaseFiltersProps> = ({
             <div className="space-y-2">
               <label className="text-xs font-medium text-gray-600 block">Supplier</label>
               <select
+                title="Filter purchases by supplier"
                 className="border border-gray-300 rounded-lg py-2 px-3 w-full text-sm focus:outline-none focus:ring-2 focus:ring-teal-500 bg-white"
                 value={supplierFilter}
                 onChange={(e) => onSupplierChange(e.target.value)}
@@ -204,6 +202,7 @@ const PurchaseFilters: React.FC<PurchaseFiltersProps> = ({
             <div className="space-y-2">
               <label className="text-xs font-medium text-gray-600 block">Payment Method</label>
               <select
+                title="Filter purchases by payment method"
                 className="border border-gray-300 rounded-lg py-2 px-3 w-full text-sm focus:outline-none focus:ring-2 focus:ring-teal-500 bg-white"
                 value={paymentMethodFilter}
                 onChange={(e) => onPaymentMethodChange(e.target.value)}
@@ -222,6 +221,7 @@ const PurchaseFilters: React.FC<PurchaseFiltersProps> = ({
               <label className="text-xs font-medium text-gray-600 block">Date From</label>
               <input
                 type="date"
+                title="Purchase date from"
                 className="border border-gray-300 rounded-lg py-2 px-3 w-full text-sm focus:outline-none focus:ring-2 focus:ring-teal-500 bg-white"
                 value={dateFrom}
                 onChange={(e) => onDateFromChange(e.target.value)}
@@ -232,6 +232,7 @@ const PurchaseFilters: React.FC<PurchaseFiltersProps> = ({
               <label className="text-xs font-medium text-gray-600 block">Date To</label>
               <input
                 type="date"
+                title="Purchase date to"
                 className="border border-gray-300 rounded-lg py-2 px-3 w-full text-sm focus:outline-none focus:ring-2 focus:ring-teal-500 bg-white"
                 value={dateTo}
                 onChange={(e) => onDateToChange(e.target.value)}

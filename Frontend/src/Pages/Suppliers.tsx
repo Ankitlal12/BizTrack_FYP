@@ -128,9 +128,9 @@ const Suppliers: React.FC = () => {
     <Layout>
       <div className="p-6 space-y-6">
         {/* Header */}
-        <div className="flex justify-between items-center">
+        <div className="flex flex-wrap justify-between items-center gap-3">
           <div>
-            <h1 className="text-2xl font-bold text-gray-900">Suppliers</h1>
+            <h1 className="text-xl sm:text-2xl font-bold text-gray-900">Suppliers</h1>
             <p className="text-gray-600">
               {user?.role === 'manager' 
                 ? 'View supplier contact information' 

@@ -134,11 +134,11 @@ const KhaltiPurchaseSuccess = () => {
   return (
     <Layout>
       <div className="min-h-[60vh] flex items-center justify-center">
-        <div className="bg-white rounded-lg shadow-lg p-8 max-w-md w-full text-center">
+        <div className="bg-white rounded-lg shadow-lg p-5 sm:p-8 max-w-md w-full text-center mx-4">
           {status === 'verifying' && (
             <>
               <Loader2 className="w-16 h-16 text-teal-500 mx-auto mb-4 animate-spin" />
-              <h2 className="text-2xl font-bold text-gray-800 mb-2">Verifying Payment</h2>
+              <h2 className="text-xl sm:text-2xl font-bold text-gray-800 mb-2">Verifying Payment</h2>
               <p className="text-gray-600">{message}</p>
             </>
           )}
@@ -146,7 +146,7 @@ const KhaltiPurchaseSuccess = () => {
           {status === 'success' && (
             <>
               <CheckCircle className="w-16 h-16 text-green-500 mx-auto mb-4" />
-              <h2 className="text-2xl font-bold text-gray-800 mb-2">Payment Successful!</h2>
+              <h2 className="text-xl sm:text-2xl font-bold text-gray-800 mb-2">Payment Successful!</h2>
               <p className="text-gray-600 mb-4">{message}</p>
               {purchaseData && (
                 <div className="bg-gray-50 rounded-lg p-4 mb-4">
@@ -163,7 +163,7 @@ const KhaltiPurchaseSuccess = () => {
           {status === 'failed' && (
             <>
               <XCircle className="w-16 h-16 text-red-500 mx-auto mb-4" />
-              <h2 className="text-2xl font-bold text-gray-800 mb-2">Payment Failed</h2>
+              <h2 className="text-xl sm:text-2xl font-bold text-gray-800 mb-2">Payment Failed</h2>
               <p className="text-gray-600 mb-6">{message}</p>
               <button
                 onClick={() => navigate('/purchases', { replace: true })}

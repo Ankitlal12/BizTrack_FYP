@@ -22,7 +22,7 @@ const getInitials = (name: string) =>
 
 /** Profile info card shown in the header dropdown */
 const ProfileCard = ({ user }: { user: any }) => (
-  <div className="absolute right-0 mt-2 w-96 bg-white rounded-2xl shadow-2xl border border-gray-100 z-50 overflow-hidden">
+  <div className="absolute right-0 mt-2 w-[calc(100vw-1rem)] max-w-sm sm:w-96 sm:max-w-none bg-white rounded-2xl shadow-2xl border border-gray-100 z-50 overflow-hidden">
     {/* Gradient header */}
     <div className="bg-gradient-to-br from-teal-500 to-teal-600 px-6 py-8 relative">
       <div className="absolute top-0 right-0 w-32 h-32 bg-teal-400 opacity-20 rounded-full -mr-16 -mt-16" />
@@ -103,8 +103,8 @@ const Layout: React.FC<LayoutProps> = memo(({ children }) => {
 
       <div className="flex-1 flex flex-col overflow-hidden">
         <header className="bg-white shadow-sm z-10">
-          <div className="px-4 py-3 flex items-center justify-between">
-            <h1 className="text-2xl font-semibold text-gray-800">BizTrack</h1>
+          <div className="px-3 sm:px-4 py-3 flex items-center justify-between">
+            <h1 className="text-lg sm:text-2xl font-semibold text-gray-800">BizTrack</h1>
 
             <div className="flex items-center gap-4">
               {/* Notifications (owner only) */}
@@ -150,7 +150,7 @@ const Layout: React.FC<LayoutProps> = memo(({ children }) => {
           </div>
         </header>
 
-        <main className="flex-1 overflow-y-auto p-4 bg-gray-50">
+        <main className="flex-1 overflow-y-auto p-3 sm:p-4 bg-gray-50">
           {children}
         </main>
       </div>

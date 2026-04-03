@@ -23,7 +23,7 @@ type StaffTabProps = {
   staffMembers: StaffMember[]
   toggleStaffStatus: (id: string) => Promise<void>
   addStaffMember: (member: any) => Promise<any>
-  updateStaffMember: (id: string, data: { username?: string; password?: string }) => Promise<any>
+  updateStaffMember: (id: string, data: { username?: string; password?: string; role?: string }) => Promise<any>
   deleteStaffMember: (id: string) => Promise<void>
 }
 
@@ -54,6 +54,7 @@ const StaffTab: React.FC<StaffTabProps> = ({
     username: '',
     password: '',
     confirmPassword: '',
+    role: '',
   })
   const [editFormErrors, setEditFormErrors] = useState<Record<string, string>>({})
   const [isUpdating, setIsUpdating] = useState(false)
@@ -80,6 +81,7 @@ const StaffTab: React.FC<StaffTabProps> = ({
       username: staff.username,
       password: '',
       confirmPassword: '',
+      role: staff.role,
     })
     setEditFormErrors({})
     setEditError('')
@@ -94,6 +96,7 @@ const StaffTab: React.FC<StaffTabProps> = ({
       username: '',
       password: '',
       confirmPassword: '',
+      role: '',
     })
     setEditFormErrors({})
     setEditError('')
@@ -132,19 +135,21 @@ const StaffTab: React.FC<StaffTabProps> = ({
 
     setIsUpdating(true)
     try {
-      const updateData: { username?: string; password?: string } = {}
+      const updateData: { username?: string; password?: string; role?: string } = {}
       
-      // Only include username if it changed
       if (editFormData.username !== editingStaff.username) {
         updateData.username = editFormData.username.trim()
       }
       
-      // Only include password if it was provided
       if (editFormData.password) {
         updateData.password = editFormData.password
       }
 
-      // If no changes, show message
+      // Include role if it changed (only staff <-> manager)
+      if (editFormData.role && editFormData.role !== editingStaff.role) {
+        updateData.role = editFormData.role
+      }
+
       if (Object.keys(updateData).length === 0) {
         setEditError('No changes to save')
         setIsUpdating(false)
@@ -265,7 +270,7 @@ const StaffTab: React.FC<StaffTabProps> = ({
 
   return (
     <div>
-      <div className="flex justify-between items-center mb-6">
+      <div className="flex flex-wrap items-center justify-between gap-3 mb-6">
         <h2 className="text-lg font-medium text-gray-800">Staff Management</h2>
         <button
           onClick={() =>
@@ -279,31 +284,18 @@ const StaffTab: React.FC<StaffTabProps> = ({
         </button>
       </div>
 
-      <div className="overflow-x-auto">
+      {/* Staff table — hidden on mobile, shown on md+ */}
+      <div className="hidden md:block overflow-x-auto">
         <table className="min-w-full divide-y divide-gray-200">
           <thead className="bg-gray-50">
             <tr>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                Name
-              </th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                Email
-              </th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                Username
-              </th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                Role
-              </th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                Date Added
-              </th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                Status
-              </th>
-              <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
-                Actions
-              </th>
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Name</th>
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Email</th>
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Username</th>
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Role</th>
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Date Added</th>
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
+              <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
             </tr>
           </thead>
           <tbody className="bg-white divide-y divide-gray-200">
@@ -319,11 +311,7 @@ const StaffTab: React.FC<StaffTabProps> = ({
                   <div className="text-sm text-gray-500">{staff.username}</div>
                 </td>
                 <td className="px-6 py-4 whitespace-nowrap">
-                  <span
-                    className={`inline-flex px-2 py-1 text-xs font-medium rounded-full ${getRoleBadgeClass(
-                      staff.role,
-                    )}`}
-                  >
+                  <span className={`inline-flex px-2 py-1 text-xs font-medium rounded-full ${getRoleBadgeClass(staff.role)}`}>
                     {staff.role.charAt(0).toUpperCase() + staff.role.slice(1)}
                   </span>
                 </td>
@@ -331,44 +319,61 @@ const StaffTab: React.FC<StaffTabProps> = ({
                   <div className="text-sm text-gray-500">{staff.dateAdded}</div>
                 </td>
                 <td className="px-6 py-4 whitespace-nowrap">
-                  <span
-                    className={`inline-flex px-2 py-1 text-xs font-medium rounded-full ${
-                      staff.active
-                        ? 'bg-green-100 text-green-800'
-                        : 'bg-red-100 text-red-800'
-                    }`}
-                  >
+                  <span className={`inline-flex px-2 py-1 text-xs font-medium rounded-full ${staff.active ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}`}>
                     {staff.active ? 'Active' : 'Inactive'}
                   </span>
                 </td>
                 <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
                   <button
-                    onClick={async () => {
-                      try {
-                        await toggleStaffStatus(staff.id)
-                      } catch (error) {
-                        alert('Failed to update staff status. Please try again.')
-                      }
-                    }}
-                    className={`mr-3 ${
-                      staff.active
-                        ? 'text-red-600 hover:text-red-900'
-                        : 'text-green-600 hover:text-green-900'
-                    }`}
+                    onClick={async () => { try { await toggleStaffStatus(staff.id) } catch { alert('Failed to update staff status.') } }}
+                    className={`mr-3 ${staff.active ? 'text-red-600 hover:text-red-900' : 'text-green-600 hover:text-green-900'}`}
                   >
                     {staff.active ? 'Deactivate' : 'Activate'}
                   </button>
-                  <button
-                    onClick={() => handleEditClick(staff)}
-                    className="text-blue-600 hover:text-blue-900"
-                  >
-                    Edit
-                  </button>
+                  <button onClick={() => handleEditClick(staff)} className="text-blue-600 hover:text-blue-900">Edit</button>
                 </td>
               </tr>
             ))}
           </tbody>
         </table>
+      </div>
+
+      {/* Staff cards — shown on mobile only */}
+      <div className="md:hidden space-y-3">
+        {staffMembers.map((staff) => (
+          <div key={staff.id} className="bg-white border border-gray-200 rounded-lg p-4 space-y-3">
+            <div className="flex items-start justify-between">
+              <div>
+                <p className="font-semibold text-gray-900">{staff.name}</p>
+                <p className="text-sm text-gray-500">{staff.email}</p>
+                <p className="text-xs text-gray-400">@{staff.username}</p>
+              </div>
+              <div className="flex flex-col items-end gap-1">
+                <span className={`inline-flex px-2 py-0.5 text-xs font-medium rounded-full ${getRoleBadgeClass(staff.role)}`}>
+                  {staff.role.charAt(0).toUpperCase() + staff.role.slice(1)}
+                </span>
+                <span className={`inline-flex px-2 py-0.5 text-xs font-medium rounded-full ${staff.active ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}`}>
+                  {staff.active ? 'Active' : 'Inactive'}
+                </span>
+              </div>
+            </div>
+            <p className="text-xs text-gray-400">Added: {staff.dateAdded}</p>
+            <div className="flex gap-3 pt-1 border-t border-gray-100">
+              <button
+                onClick={async () => { try { await toggleStaffStatus(staff.id) } catch { alert('Failed to update staff status.') } }}
+                className={`flex-1 py-1.5 text-sm font-medium rounded-lg border ${staff.active ? 'border-red-200 text-red-600 hover:bg-red-50' : 'border-green-200 text-green-600 hover:bg-green-50'}`}
+              >
+                {staff.active ? 'Deactivate' : 'Activate'}
+              </button>
+              <button
+                onClick={() => handleEditClick(staff)}
+                className="flex-1 py-1.5 text-sm font-medium rounded-lg border border-blue-200 text-blue-600 hover:bg-blue-50"
+              >
+                Edit
+              </button>
+            </div>
+          </div>
+        ))}
       </div>
 
       <div id="add-staff-form" className="mt-12 border-t pt-8">
@@ -604,19 +609,38 @@ const StaffTab: React.FC<StaffTabProps> = ({
                     } rounded-lg py-2 px-4`}
                     value={editFormData.username}
                     onChange={(e) =>
-                      setEditFormData({
-                        ...editFormData,
-                        username: e.target.value,
-                      })
+                      setEditFormData({ ...editFormData, username: e.target.value })
                     }
                     required
                   />
                   {editFormErrors.username && (
-                    <p className="mt-1 text-sm text-red-600">
-                      {editFormErrors.username}
-                    </p>
+                    <p className="mt-1 text-sm text-red-600">{editFormErrors.username}</p>
                   )}
                 </div>
+
+                {/* Role — only shown for non-owner accounts */}
+                {editingStaff.role !== 'owner' && (
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Role
+                    </label>
+                    <select
+                      className="w-full border border-gray-300 rounded-lg py-2 px-4 focus:outline-none focus:ring-2 focus:ring-teal-500"
+                      value={editFormData.role}
+                      onChange={(e) =>
+                        setEditFormData({ ...editFormData, role: e.target.value })
+                      }
+                    >
+                      <option value="staff">Staff</option>
+                      <option value="manager">Manager</option>
+                    </select>
+                    {editFormData.role !== editingStaff.role && (
+                      <p className="mt-1 text-xs text-amber-600">
+                        ⚠ Changing role will affect what this user can access.
+                      </p>
+                    )}
+                  </div>
+                )}
 
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -629,17 +653,12 @@ const StaffTab: React.FC<StaffTabProps> = ({
                     } rounded-lg py-2 px-4`}
                     value={editFormData.password}
                     onChange={(e) =>
-                      setEditFormData({
-                        ...editFormData,
-                        password: e.target.value,
-                      })
+                      setEditFormData({ ...editFormData, password: e.target.value })
                     }
                     placeholder="Enter new password"
                   />
                   {editFormErrors.password && (
-                    <p className="mt-1 text-sm text-red-600">
-                      {editFormErrors.password}
-                    </p>
+                    <p className="mt-1 text-sm text-red-600">{editFormErrors.password}</p>
                   )}
                 </div>
 
@@ -651,23 +670,16 @@ const StaffTab: React.FC<StaffTabProps> = ({
                     <input
                       type="password"
                       className={`w-full border ${
-                        editFormErrors.confirmPassword
-                          ? 'border-red-500'
-                          : 'border-gray-300'
+                        editFormErrors.confirmPassword ? 'border-red-500' : 'border-gray-300'
                       } rounded-lg py-2 px-4`}
                       value={editFormData.confirmPassword}
                       onChange={(e) =>
-                        setEditFormData({
-                          ...editFormData,
-                          confirmPassword: e.target.value,
-                        })
+                        setEditFormData({ ...editFormData, confirmPassword: e.target.value })
                       }
                       placeholder="Confirm new password"
                     />
                     {editFormErrors.confirmPassword && (
-                      <p className="mt-1 text-sm text-red-600">
-                        {editFormErrors.confirmPassword}
-                      </p>
+                      <p className="mt-1 text-sm text-red-600">{editFormErrors.confirmPassword}</p>
                     )}
                   </div>
                 )}

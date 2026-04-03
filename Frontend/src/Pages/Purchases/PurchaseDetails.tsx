@@ -6,6 +6,7 @@ import { Purchase } from './types'
 import { getStatusBadgeClass, getPaymentStatusBadgeClass, getPurchaseDate, getPurchaseKey } from './utils'
 import { formatNepaliDateTime } from '../../utils/dateUtils'
 import { purchasesAPI } from '../../services/api'
+import { useAuth } from '../../contexts/AuthContext'
 
 interface PurchaseDetailsProps {
   purchase: Purchase
@@ -27,6 +28,8 @@ const PurchaseDetails: React.FC<PurchaseDetailsProps> = ({
   onMarkReceived,
 }) => {
   const navigate = useNavigate()
+  const { user } = useAuth()
+  const isOwner = user?.role === 'owner'
   const purchaseKey = getPurchaseKey(purchase)
   const paymentStatusValue = purchase.paymentStatus || 'unpaid'
   const paidAmount = purchase.paidAmount || 0
@@ -323,13 +326,15 @@ const PurchaseDetails: React.FC<PurchaseDetailsProps> = ({
             </div>
           )}
           <div className="flex justify-end space-x-2">
-            <button 
-              onClick={() => onViewInvoice && onViewInvoice(purchase._id || purchase.purchaseNumber)}
-              className="bg-blue-500 hover:bg-blue-600 text-white py-1 px-3 rounded text-sm flex items-center"
-            >
-              <FileTextIcon size={14} className="mr-1" />
-              View Invoice
-            </button>
+            {isOwner && (
+              <button 
+                onClick={() => onViewInvoice && onViewInvoice(purchase._id || purchase.purchaseNumber)}
+                className="bg-blue-500 hover:bg-blue-600 text-white py-1 px-3 rounded text-sm flex items-center"
+              >
+                <FileTextIcon size={14} className="mr-1" />
+                View Invoice
+              </button>
+            )}
             {purchase.status !== 'received' &&
               purchase.status !== 'cancelled' && (
                 <button

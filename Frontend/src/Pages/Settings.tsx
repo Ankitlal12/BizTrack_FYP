@@ -78,17 +78,17 @@ const Settings = () => {
 
   return (
     <Layout>
-      <div className="space-y-6">
-        <div className="flex items-center justify-between">
-          <h1 className="text-2xl font-bold text-gray-800">Settings</h1>
+      <div className="space-y-4 sm:space-y-6">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <h1 className="text-xl sm:text-2xl font-bold text-gray-800">Settings</h1>
         </div>
         <div className="bg-white rounded-lg shadow-sm">
-          <div className="flex border-b overflow-x-auto">
+          <div className="flex border-b overflow-x-auto scrollbar-hide">
             {availableTabs.map((tab) => (
               <button
                 key={tab.id}
                 onClick={() => setActiveTab(tab.id)}
-                className={`px-6 py-4 flex items-center text-sm font-medium border-b-2 ${
+                className={`px-4 sm:px-6 py-4 flex items-center text-sm font-medium border-b-2 whitespace-nowrap flex-shrink-0 ${
                   activeTab === tab.id
                     ? 'border-teal-500 text-teal-600'
                     : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
@@ -99,7 +99,7 @@ const Settings = () => {
               </button>
             ))}
           </div>
-          <div className="p-6">{renderTabContent()}</div>
+          <div className="p-4 sm:p-6">{renderTabContent()}</div>
         </div>
       </div>
     </Layout>

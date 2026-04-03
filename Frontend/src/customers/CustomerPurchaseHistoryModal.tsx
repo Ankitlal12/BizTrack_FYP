@@ -108,7 +108,7 @@ const CustomerPurchaseHistoryModal: React.FC<CustomerPurchaseHistoryModalProps> 
   if (loading && !data) {
     return (
       <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-        <div className="bg-white rounded-lg p-8">
+        <div className="bg-white rounded-lg p-6">
           <div className="w-8 h-8 border-4 border-teal-500 border-t-transparent rounded-full animate-spin mx-auto" />
         </div>
       </div>
@@ -120,15 +120,15 @@ const CustomerPurchaseHistoryModal: React.FC<CustomerPurchaseHistoryModalProps> 
       <div className="bg-white rounded-lg shadow-xl max-w-5xl w-full max-h-[90vh] overflow-hidden flex flex-col">
 
         {/* Header */}
-        <div className="flex items-center justify-between p-6 border-b">
+        <div className="flex items-center justify-between p-4 sm:p-6 border-b">
           <div className="flex items-center gap-3">
             <div className="p-2 bg-teal-100 rounded-lg"><Receipt className="w-5 h-5 text-teal-600" /></div>
             <div>
-              <h2 className="text-xl font-semibold text-gray-900">Purchase History</h2>
+              <h2 className="text-lg sm:text-xl font-semibold text-gray-900">Purchase History</h2>
               <p className="text-sm text-gray-600">{customerName}</p>
             </div>
           </div>
-          <button onClick={onClose} className="p-2 hover:bg-gray-100 rounded-lg transition-colors">
+          <button onClick={onClose} className="p-2 hover:bg-gray-100 rounded-lg transition-colors" title="Close modal" aria-label="Close modal">
             <X className="w-5 h-5 text-gray-500" />
           </button>
         </div>
@@ -136,7 +136,7 @@ const CustomerPurchaseHistoryModal: React.FC<CustomerPurchaseHistoryModalProps> 
         {data && (
           <>
             {/* Financial summary */}
-            <div className="p-6 border-b bg-gray-50">
+            <div className="p-4 sm:p-6 border-b bg-gray-50">
               <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                 {[
                   { icon: <DollarSign className="w-4 h-4" />, label: 'Total Purchased', value: `Rs ${data.financialSummary.totalPurchased.toFixed(2)}`, color: 'text-gray-900' },
@@ -146,11 +146,11 @@ const CustomerPurchaseHistoryModal: React.FC<CustomerPurchaseHistoryModalProps> 
                 ].map(({ icon, label, value, color }) => (
                   <div key={label} className="bg-white p-4 rounded-lg border">
                     <div className="flex items-center gap-2 text-gray-600 mb-1">{icon}<span className="text-sm">{label}</span></div>
-                    <p className={`text-2xl font-bold ${color}`}>{value}</p>
+                    <p className={`text-xl sm:text-2xl font-bold ${color}`}>{value}</p>
                   </div>
                 ))}
               </div>
-              <div className="mt-4 flex gap-4 text-sm">
+              <div className="mt-4 flex flex-wrap gap-4 text-sm">
                 {[
                   { color: 'bg-green-500', label: `Paid: ${data.financialSummary.paidPurchases}` },
                   { color: 'bg-yellow-500', label: `Partial: ${data.financialSummary.partialPurchases}` },
@@ -165,7 +165,7 @@ const CustomerPurchaseHistoryModal: React.FC<CustomerPurchaseHistoryModalProps> 
             </div>
 
             {/* Purchase records */}
-            <div className="flex-1 overflow-y-auto p-6">
+            <div className="flex-1 overflow-y-auto p-4 sm:p-6">
               <h3 className="text-lg font-medium text-gray-900 mb-4">Purchase Records</h3>
               {data.sales?.length > 0 ? (
                 <div className="space-y-4">

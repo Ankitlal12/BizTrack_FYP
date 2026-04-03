@@ -1,8 +1,9 @@
 import React, { useState, useEffect } from 'react';
-import { XIcon, PlusIcon, TrashIcon, AlertCircleIcon } from 'lucide-react';
+import { XIcon, PlusIcon, TrashIcon, AlertCircleIcon, Zap } from 'lucide-react';
 import { Invoice } from './types';
 import { formatCurrency } from './utils';
 import { formatNepaliDateTime } from '../../utils/dateUtils';
+import { purchasesAPI } from '../../services/api';
 
 interface PaymentData {
   amount: number;
@@ -108,6 +109,35 @@ const PaymentUpdateModal: React.FC<PaymentUpdateModalProps> = ({
         return;
       }
 
+      // For purchase invoices paid via Khalti — redirect to Khalti instead of recording directly
+      if (method === 'khalti' && invoice.type === 'purchase' && invoice.relatedId) {
+        setLoading(true);
+        try {
+          const purchaseId = typeof invoice.relatedId === 'object'
+            ? (invoice.relatedId as any)._id || String(invoice.relatedId)
+            : String(invoice.relatedId);
+
+          const result = await purchasesAPI.initiateKhaltiPayment({ purchaseId, amount: amt });
+
+          if (result.payment_url) {
+            // Store context so the success page can record the payment
+            localStorage.setItem('biztrack_khalti_purchase', JSON.stringify({
+              purchaseId,
+              purchaseNumber: invoice.invoiceNumber,
+              amount: amt,
+            }));
+            window.location.href = result.payment_url;
+          } else {
+            setError('Failed to get Khalti payment URL. Please try again.');
+            setLoading(false);
+          }
+        } catch (err: any) {
+          setError(err?.message || 'Failed to initiate Khalti payment');
+          setLoading(false);
+        }
+        return;
+      }
+
       setLoading(true);
       try {
         await onSave(invoice._id, { amount: amt, date, method, notes: notes.trim() || undefined });
@@ -133,7 +163,6 @@ const PaymentUpdateModal: React.FC<PaymentUpdateModalProps> = ({
 
       setLoading(true);
       try {
-        // Send all installments in a single atomic request to avoid race conditions
         await onSave(invoice._id, {
           payments: installments.map(inst => ({
             amount: parseFloat(inst.amount.toString()),
@@ -289,9 +318,12 @@ const PaymentUpdateModal: React.FC<PaymentUpdateModalProps> = ({
                     </div>
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-1">Method</label>
-                      <span className="inline-flex items-center px-3 py-2 text-sm font-medium text-purple-700 bg-purple-100 rounded-lg">
-                        Khalti
+                      <span className="inline-flex items-center gap-1.5 px-3 py-2 text-sm font-medium text-purple-700 bg-purple-100 rounded-lg">
+                        <Zap size={14} /> Khalti
                       </span>
+                      {invoice.type === 'purchase' && (
+                        <p className="text-xs text-purple-600 mt-1">You will be redirected to Khalti to complete payment.</p>
+                      )}
                     </div>
                   </div>
                   <div>
@@ -462,9 +494,23 @@ const PaymentUpdateModal: React.FC<PaymentUpdateModalProps> = ({
               <button
                 type="submit"
                 disabled={loading}
-                className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50"
+                className={`flex-1 px-4 py-2 text-white rounded-lg disabled:opacity-50 flex items-center justify-center gap-2 ${
+                  method === 'khalti' && invoice.type === 'purchase' && mode === 'single'
+                    ? 'bg-purple-600 hover:bg-purple-700'
+                    : 'bg-blue-600 hover:bg-blue-700'
+                }`}
               >
-                {loading ? 'Recording...' : mode === 'installment' ? 'Record Installments' : 'Record Payment'}
+                {loading ? (
+                  method === 'khalti' && invoice.type === 'purchase' && mode === 'single'
+                    ? 'Redirecting to Khalti...'
+                    : 'Recording...'
+                ) : method === 'khalti' && invoice.type === 'purchase' && mode === 'single' ? (
+                  <><Zap size={16} /> Pay with Khalti</>
+                ) : mode === 'installment' ? (
+                  'Record Installments'
+                ) : (
+                  'Record Payment'
+                )}
               </button>
             )}
           </div>

@@ -309,9 +309,9 @@ const Inventory = () => {
   return (
     <Layout>
       <div className="p-4 space-y-6">
-        <div className="flex items-center justify-between">
+        <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
-            <h2 className="text-2xl font-semibold text-gray-800">Inventory</h2>
+            <h2 className="text-xl sm:text-2xl font-semibold text-gray-800">Inventory</h2>
             <p className="text-gray-600">
               Manage your items efficiently 
               {totalItems > 0 && (
@@ -486,12 +486,10 @@ const Inventory = () => {
 
           {/* Pagination */}
           {pagination.total > 0 && (
-            <div className="flex flex-col sm:flex-row items-center justify-between gap-4 mt-6 p-4 border-t">
-              <div className="flex items-center gap-4">
+            <div className="flex flex-col sm:flex-row items-center justify-between gap-3 mt-4 p-4 border-t">
+              <div className="flex flex-wrap items-center gap-3">
                 <div className="text-sm text-gray-700">
-                  Showing {((pagination.current - 1) * pagination.limit) + 1} to{' '}
-                  {Math.min(pagination.current * pagination.limit, pagination.total)} of{' '}
-                  {pagination.total} results
+                  {((pagination.current - 1) * pagination.limit) + 1}–{Math.min(pagination.current * pagination.limit, pagination.total)} of {pagination.total}
                 </div>
                 <div className="flex items-center gap-2">
                   <label className="text-sm text-gray-600">Per page:</label>
@@ -499,12 +497,7 @@ const Inventory = () => {
                     value={pagination.limit}
                     onChange={(e) => {
                       const newLimit = parseInt(e.target.value)
-                      setPagination(prev => ({
-                        ...prev,
-                        limit: newLimit,
-                        current: 1,
-                        pages: Math.ceil(prev.total / newLimit)
-                      }))
+                      setPagination(prev => ({ ...prev, limit: newLimit, current: 1, pages: Math.ceil(prev.total / newLimit) }))
                     }}
                     className="px-2 py-1 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-blue-500"
                   >
@@ -516,73 +509,12 @@ const Inventory = () => {
                 </div>
               </div>
               {pagination.pages > 1 && (
-                <div className="flex space-x-2">
-                  <button
-                    onClick={() => handlePageChange(1)}
-                    disabled={pagination.current === 1}
-                    className="px-3 py-2 text-sm bg-gray-200 text-gray-700 rounded-md hover:bg-gray-300 disabled:opacity-50 disabled:cursor-not-allowed"
-                  >
-                    First
-                  </button>
-                  <button
-                    onClick={() => handlePageChange(pagination.current - 1)}
-                    disabled={pagination.current === 1}
-                    className="px-3 py-2 text-sm bg-gray-200 text-gray-700 rounded-md hover:bg-gray-300 disabled:opacity-50 disabled:cursor-not-allowed"
-                  >
-                    Previous
-                  </button>
-                  {(() => {
-                    const pages: (number | string)[] = [];
-                    const total = pagination.pages;
-                    const current = pagination.current;
-                    
-                    if (total <= 7) {
-                      for (let i = 1; i <= total; i++) pages.push(i);
-                    } else {
-                      pages.push(1);
-                      if (current > 3) pages.push('...');
-                      
-                      const start = Math.max(2, current - 1);
-                      const end = Math.min(total - 1, current + 1);
-                      
-                      for (let i = start; i <= end; i++) pages.push(i);
-                      
-                      if (current < total - 2) pages.push('...');
-                      pages.push(total);
-                    }
-                    
-                    return pages.map((page, idx) => (
-                      page === '...' ? (
-                        <span key={`ellipsis-${idx}`} className="px-3 py-2 text-sm text-gray-500">...</span>
-                      ) : (
-                        <button
-                          key={page}
-                          onClick={() => handlePageChange(page as number)}
-                          className={`px-3 py-2 text-sm rounded-md ${
-                            page === current
-                              ? 'bg-blue-600 text-white'
-                              : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
-                          }`}
-                        >
-                          {page}
-                        </button>
-                      )
-                    ));
-                  })()}
-                  <button
-                    onClick={() => handlePageChange(pagination.current + 1)}
-                    disabled={pagination.current === pagination.pages}
-                    className="px-3 py-2 text-sm bg-gray-200 text-gray-700 rounded-md hover:bg-gray-300 disabled:opacity-50 disabled:cursor-not-allowed"
-                  >
-                    Next
-                  </button>
-                  <button
-                    onClick={() => handlePageChange(pagination.pages)}
-                    disabled={pagination.current === pagination.pages}
-                    className="px-3 py-2 text-sm bg-gray-200 text-gray-700 rounded-md hover:bg-gray-300 disabled:opacity-50 disabled:cursor-not-allowed"
-                  >
-                    Last
-                  </button>
+                <div className="flex items-center gap-2">
+                  <button onClick={() => handlePageChange(1)} disabled={pagination.current === 1} className="px-3 py-1.5 text-sm bg-gray-200 text-gray-700 rounded-md hover:bg-gray-300 disabled:opacity-50">First</button>
+                  <button onClick={() => handlePageChange(pagination.current - 1)} disabled={pagination.current === 1} className="px-3 py-1.5 text-sm bg-gray-200 text-gray-700 rounded-md hover:bg-gray-300 disabled:opacity-50">Prev</button>
+                  <span className="text-sm text-gray-600 px-1">{pagination.current} / {pagination.pages}</span>
+                  <button onClick={() => handlePageChange(pagination.current + 1)} disabled={pagination.current === pagination.pages} className="px-3 py-1.5 text-sm bg-gray-200 text-gray-700 rounded-md hover:bg-gray-300 disabled:opacity-50">Next</button>
+                  <button onClick={() => handlePageChange(pagination.pages)} disabled={pagination.current === pagination.pages} className="px-3 py-1.5 text-sm bg-gray-200 text-gray-700 rounded-md hover:bg-gray-300 disabled:opacity-50">Last</button>
                 </div>
               )}
             </div>

@@ -18,7 +18,6 @@ interface InvoiceTableProps {
   highlightedInvoiceId?: string;
   onViewInvoice: (invoice: Invoice) => void;
   onDeleteInvoice: (invoice: Invoice) => void;
-  onUpdatePayment: (invoice: Invoice) => void;
 }
 
 const InvoiceTable: React.FC<InvoiceTableProps> = ({
@@ -26,7 +25,6 @@ const InvoiceTable: React.FC<InvoiceTableProps> = ({
   highlightedInvoiceId,
   onViewInvoice,
   onDeleteInvoice,
-  onUpdatePayment,
 }) => {
   if (invoices.length === 0) {
     return (
@@ -183,15 +181,6 @@ const InvoiceTable: React.FC<InvoiceTableProps> = ({
                       >
                         View
                       </button>
-                      {invoice.paymentStatus !== 'paid' && (
-                        <button
-                          onClick={() => onUpdatePayment(invoice)}
-                          className="text-green-600 hover:text-green-900 text-sm"
-                          title="Update Payment"
-                        >
-                          Payment
-                        </button>
-                      )}
                       <button
                         onClick={() => onDeleteInvoice(invoice)}
                         className="text-red-600 hover:text-red-900 text-sm"

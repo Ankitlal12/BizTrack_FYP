@@ -116,7 +116,7 @@ const invoiceSchema = new mongoose.Schema({
   },
   paymentStatus: {
     type: String,
-    enum: ["unpaid", "partial", "paid"],
+    enum: ["unpaid", "partial", "paid", "scheduled"],
     default: "unpaid",
   },
   paidAmount: {

@@ -1,9 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { toast } from 'sonner';
 import Layout from '../../layout/Layout';
 import InvoiceDetailsModal from './InvoiceDetailsModal';
-import PaymentUpdateModal from './PaymentUpdateModal';
 import { Invoice } from './types';
 import { invoicesAPI } from '../../services/api';
 
@@ -12,7 +10,6 @@ const InvoiceDetail: React.FC = () => {
   const navigate = useNavigate();
   const [invoice, setInvoice] = useState<Invoice | null>(null);
   const [loading, setLoading] = useState(true);
-  const [showPaymentModal, setShowPaymentModal] = useState(false);
   const [error, setError] = useState('');
 
   useEffect(() => {
@@ -33,24 +30,6 @@ const InvoiceDetail: React.FC = () => {
       toast.error('Invoice not found');
     } finally {
       setLoading(false);
-    }
-  };
-
-  const handleUpdatePayment = () => {
-    setShowPaymentModal(true);
-  };
-
-  const handlePaymentUpdate = async (invoiceId: string, paymentData: any) => {
-    try {
-      const updated = await invoicesAPI.recordPayment(invoiceId, paymentData);
-      setInvoice(updated);
-      toast.success(
-        Array.isArray((paymentData as any).payments)
-          ? `${(paymentData as any).payments.length} installments recorded`
-          : 'Payment recorded successfully'
-      );
-    } catch (err: any) {
-      throw err;
     }
   };
 
@@ -106,14 +85,6 @@ const InvoiceDetail: React.FC = () => {
           invoice={invoice}
           isOpen={true}
           onClose={handleClose}
-          onUpdatePayment={handleUpdatePayment}
-        />
-
-        <PaymentUpdateModal
-          invoice={invoice}
-          isOpen={showPaymentModal}
-          onClose={() => setShowPaymentModal(false)}
-          onSave={handlePaymentUpdate}
         />
       </div>
     </Layout>

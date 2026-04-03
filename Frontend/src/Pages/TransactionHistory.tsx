@@ -39,17 +39,13 @@ const TransactionHistory = () => {
 
   return (
     <Layout>
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold text-gray-800">Transaction History</h1>
-        <div className="flex items-center gap-3">
-          <div className="text-sm text-gray-500">
-            Combined sales and purchases with date and weekday.
-          </div>
+    <div className="space-y-4 sm:space-y-6">
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <h1 className="text-xl sm:text-2xl font-bold text-gray-800">Transaction History</h1>
+        <div className="flex flex-wrap items-center gap-3">
+          <p className="text-sm text-gray-500 hidden sm:block">Combined sales and purchases with date and weekday.</p>
           <button
-            onClick={() =>
-              printTransactionStatement(transactions, { dateFrom, dateTo, filterType })
-            }
+            onClick={() => printTransactionStatement(transactions, { dateFrom, dateTo, filterType })}
             className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-blue-700 rounded-lg hover:bg-blue-800 transition-colors shadow-sm"
           >
             <PrinterIcon size={15} />
@@ -110,12 +106,10 @@ const TransactionHistory = () => {
 
             {/* Pagination */}
             {pagination.total > 0 && (
-              <div className="flex flex-col sm:flex-row items-center justify-between gap-4 mt-6 p-4 border-t">
-                <div className="flex items-center gap-4">
+              <div className="flex flex-col sm:flex-row items-center justify-between gap-3 mt-4 p-4 border-t">
+                <div className="flex flex-wrap items-center gap-3">
                   <div className="text-sm text-gray-700">
-                    Showing {((pagination.current - 1) * pagination.limit) + 1} to{' '}
-                    {Math.min(pagination.current * pagination.limit, pagination.total)} of{' '}
-                    {pagination.total} results
+                    {((pagination.current - 1) * pagination.limit) + 1}–{Math.min(pagination.current * pagination.limit, pagination.total)} of {pagination.total}
                   </div>
                   <div className="flex items-center gap-2">
                     <label className="text-sm text-gray-600">Per page:</label>
@@ -132,37 +126,10 @@ const TransactionHistory = () => {
                   </div>
                 </div>
                 {pagination.pages > 1 && (
-                  <div className="flex space-x-2">
-                    <button
-                      onClick={() => handlePageChange(pagination.current - 1)}
-                      disabled={pagination.current === 1}
-                      className="px-3 py-2 text-sm bg-gray-200 text-gray-700 rounded-md hover:bg-gray-300 disabled:opacity-50 disabled:cursor-not-allowed"
-                    >
-                      Previous
-                    </button>
-                    {[...Array(pagination.pages)].map((_, index) => {
-                      const page = index + 1;
-                      return (
-                        <button
-                          key={page}
-                          onClick={() => handlePageChange(page)}
-                          className={`px-3 py-2 text-sm rounded-md ${
-                            page === pagination.current
-                              ? 'bg-blue-600 text-white'
-                              : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
-                          }`}
-                        >
-                          {page}
-                        </button>
-                      );
-                    })}
-                    <button
-                      onClick={() => handlePageChange(pagination.current + 1)}
-                      disabled={pagination.current === pagination.pages}
-                      className="px-3 py-2 text-sm bg-gray-200 text-gray-700 rounded-md hover:bg-gray-300 disabled:opacity-50 disabled:cursor-not-allowed"
-                    >
-                      Next
-                    </button>
+                  <div className="flex items-center gap-2">
+                    <button onClick={() => handlePageChange(pagination.current - 1)} disabled={pagination.current === 1} className="px-3 py-1.5 text-sm bg-gray-200 text-gray-700 rounded-md hover:bg-gray-300 disabled:opacity-50">Prev</button>
+                    <span className="text-sm text-gray-600">{pagination.current} / {pagination.pages}</span>
+                    <button onClick={() => handlePageChange(pagination.current + 1)} disabled={pagination.current === pagination.pages} className="px-3 py-1.5 text-sm bg-gray-200 text-gray-700 rounded-md hover:bg-gray-300 disabled:opacity-50">Next</button>
                   </div>
                 )}
               </div>

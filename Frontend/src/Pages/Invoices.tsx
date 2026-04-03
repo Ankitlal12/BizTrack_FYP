@@ -6,7 +6,6 @@ import InvoiceStats from './Invoices/InvoiceStats';
 import InvoiceFilters from './Invoices/InvoiceFilters';
 import InvoiceTable from './Invoices/InvoiceTable';
 import InvoiceDetailsModal from './Invoices/InvoiceDetailsModal';
-import PaymentUpdateModal from './Invoices/PaymentUpdateModal';
 import SendEmailModal from './Invoices/SendEmailModal';
 import { Invoice, InvoiceStats as IInvoiceStats, InvoiceFilters as IInvoiceFilters, InvoiceResponse } from './Invoices/types';
 import { buildQueryString } from './Invoices/utils';
@@ -59,7 +58,6 @@ const Invoices: React.FC = () => {
   const [statsLoading, setStatsLoading] = useState(true);
   const [selectedInvoice, setSelectedInvoice] = useState<Invoice | null>(null);
   const [showDetailsModal, setShowDetailsModal] = useState(false);
-  const [showPaymentModal, setShowPaymentModal] = useState(false);
   const [showEmailModal, setShowEmailModal] = useState(false);
   const [emailingInvoiceId, setEmailingInvoiceId] = useState<string | null>(null);
   const [error, setError] = useState('');
@@ -200,25 +198,6 @@ const Invoices: React.FC = () => {
     }
   };
 
-  // Handle update payment
-  const handleUpdatePayment = (invoice: Invoice) => {
-    setSelectedInvoice(invoice);
-    setShowPaymentModal(true);
-  };
-
-  // Handle payment update submission
-  const handlePaymentUpdate = async (invoiceId: string, paymentData: any) => {
-    try {
-      const updated = await invoicesAPI.recordPayment(invoiceId, paymentData);
-      // Update the selected invoice in state so the modal reflects fresh data
-      setSelectedInvoice(updated);
-      await fetchInvoices();
-      await fetchStats();
-    } catch (err: any) {
-      throw err;
-    }
-  };
-
   const handleEmailInvoice = (invoice: Invoice) => {
     setSelectedInvoice(invoice);
     setShowEmailModal(true);
@@ -243,7 +222,6 @@ const Invoices: React.FC = () => {
   // Handle modal close
   const handleCloseModals = () => {
     setShowDetailsModal(false);
-    setShowPaymentModal(false);
     setShowEmailModal(false);
     setSelectedInvoice(null);
     setHighlightedInvoice(null);
@@ -251,20 +229,15 @@ const Invoices: React.FC = () => {
 
   return (
     <Layout>
-      <div className="p-6">
+      <div className="p-3 sm:p-6">
         {/* Header */}
-        <div className="flex items-center justify-between mb-6">
+        <div className="flex flex-wrap items-center justify-between gap-3 mb-4 sm:mb-6">
           <div>
-            <h1 className="text-3xl font-bold text-gray-900">Invoices</h1>
-            <p className="text-gray-600 mt-1">
-              Manage your sales and purchase invoices
-            </p>
+            <h1 className="text-xl sm:text-3xl font-bold text-gray-900">Invoices</h1>
+            <p className="text-gray-600 mt-1 text-sm sm:text-base">Manage your sales and purchase invoices</p>
           </div>
           <div className="flex space-x-3">
-            <button
-              onClick={() => fetchInvoices()}
-              className="px-4 py-2 bg-gray-600 text-white rounded-md hover:bg-gray-700 transition-colors"
-            >
+            <button onClick={() => fetchInvoices()} className="px-4 py-2 bg-gray-600 text-white rounded-md hover:bg-gray-700 transition-colors text-sm">
               Refresh
             </button>
           </div>
@@ -272,7 +245,7 @@ const Invoices: React.FC = () => {
 
         {/* Error Message */}
         {error && (
-          <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-md">
+          <div className="mb-4 p-4 bg-red-50 border border-red-200 rounded-md">
             <p className="text-red-600">{error}</p>
           </div>
         )}
@@ -281,11 +254,7 @@ const Invoices: React.FC = () => {
         <InvoiceStats stats={stats} loading={statsLoading} />
 
         {/* Filters */}
-        <InvoiceFilters
-          filters={filters}
-          onFiltersChange={handleFiltersChange}
-          onReset={handleResetFilters}
-        />
+        <InvoiceFilters filters={filters} onFiltersChange={handleFiltersChange} onReset={handleResetFilters} />
 
         {/* Loading State */}
         {loading ? (
@@ -298,23 +267,19 @@ const Invoices: React.FC = () => {
           </div>
         ) : (
           <>
-            {/* Invoice Table */}
             <InvoiceTable
               invoices={invoices}
               highlightedInvoiceId={highlightInvoiceId ?? undefined}
               onViewInvoice={handleViewInvoice}
               onDeleteInvoice={handleDeleteInvoice}
-              onUpdatePayment={handleUpdatePayment}
             />
 
             {/* Pagination */}
             {pagination.total > 0 && (
-              <div className="flex flex-col sm:flex-row items-center justify-between gap-4 mt-6 p-4 border-t">
-                <div className="flex items-center gap-4">
+              <div className="flex flex-col sm:flex-row items-center justify-between gap-3 mt-4 p-4 border-t">
+                <div className="flex flex-wrap items-center gap-3">
                   <div className="text-sm text-gray-700">
-                    Showing {((pagination.current - 1) * filters.limit!) + 1} to{' '}
-                    {Math.min(pagination.current * filters.limit!, pagination.total)} of{' '}
-                    {pagination.total} results
+                    {((pagination.current - 1) * filters.limit!) + 1}–{Math.min(pagination.current * filters.limit!, pagination.total)} of {pagination.total}
                   </div>
                   <div className="flex items-center gap-2">
                     <label htmlFor="invoice-page-size" className="text-sm text-gray-600">Per page:</label>
@@ -324,12 +289,7 @@ const Invoices: React.FC = () => {
                       onChange={(e) => {
                         const newLimit = parseInt(e.target.value)
                         setFilters(prev => ({ ...prev, limit: newLimit, page: 1 }))
-                        setPagination(prev => ({
-                          ...prev,
-                          limit: newLimit,
-                          current: 1,
-                          pages: Math.ceil(prev.total / newLimit)
-                        }))
+                        setPagination(prev => ({ ...prev, limit: newLimit, current: 1, pages: Math.ceil(prev.total / newLimit) }))
                       }}
                       className="px-2 py-1 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-blue-500"
                     >
@@ -341,37 +301,10 @@ const Invoices: React.FC = () => {
                   </div>
                 </div>
                 {pagination.pages > 1 && (
-                  <div className="flex space-x-2">
-                    <button
-                      onClick={() => handlePageChange(pagination.current - 1)}
-                      disabled={pagination.current === 1}
-                      className="px-3 py-2 text-sm bg-gray-200 text-gray-700 rounded-md hover:bg-gray-300 disabled:opacity-50 disabled:cursor-not-allowed"
-                    >
-                      Previous
-                    </button>
-                    {[...Array(pagination.pages)].map((_, index) => {
-                      const page = index + 1;
-                      return (
-                        <button
-                          key={page}
-                          onClick={() => handlePageChange(page)}
-                          className={`px-3 py-2 text-sm rounded-md ${
-                            page === pagination.current
-                              ? 'bg-blue-600 text-white'
-                              : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
-                          }`}
-                        >
-                          {page}
-                        </button>
-                      );
-                    })}
-                    <button
-                      onClick={() => handlePageChange(pagination.current + 1)}
-                      disabled={pagination.current === pagination.pages}
-                      className="px-3 py-2 text-sm bg-gray-200 text-gray-700 rounded-md hover:bg-gray-300 disabled:opacity-50 disabled:cursor-not-allowed"
-                    >
-                      Next
-                    </button>
+                  <div className="flex items-center gap-2">
+                    <button onClick={() => handlePageChange(pagination.current - 1)} disabled={pagination.current === 1} className="px-3 py-1.5 text-sm bg-gray-200 text-gray-700 rounded-md hover:bg-gray-300 disabled:opacity-50">Prev</button>
+                    <span className="text-sm text-gray-600">{pagination.current} / {pagination.pages}</span>
+                    <button onClick={() => handlePageChange(pagination.current + 1)} disabled={pagination.current === pagination.pages} className="px-3 py-1.5 text-sm bg-gray-200 text-gray-700 rounded-md hover:bg-gray-300 disabled:opacity-50">Next</button>
                   </div>
                 )}
               </div>
@@ -384,16 +317,8 @@ const Invoices: React.FC = () => {
           invoice={highlightedInvoice || selectedInvoice}
           isOpen={showDetailsModal}
           onClose={handleCloseModals}
-          onUpdatePayment={handleUpdatePayment}
           onEmailInvoice={handleEmailInvoice}
           emailSending={Boolean((highlightedInvoice || selectedInvoice)?._id && emailingInvoiceId === (highlightedInvoice || selectedInvoice)?._id)}
-        />
-
-        <PaymentUpdateModal
-          invoice={selectedInvoice}
-          isOpen={showPaymentModal}
-          onClose={handleCloseModals}
-          onSave={handlePaymentUpdate}
         />
 
         <SendEmailModal

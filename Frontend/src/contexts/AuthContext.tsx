@@ -43,7 +43,7 @@ interface AuthContextType {
   setIsAuthenticated: (isAuthenticated: boolean) => void
   addStaffMember: (staff: Omit<StaffMember, 'id'>) => Promise<StaffMember>
   toggleStaffStatus: (id: string) => Promise<void>
-  updateStaffMember: (id: string, data: { username?: string; password?: string }) => Promise<StaffMember>
+  updateStaffMember: (id: string, data: { username?: string; password?: string; role?: string }) => Promise<StaffMember>
   deleteStaffMember: (id: string) => Promise<void>
 }
 
@@ -87,37 +87,40 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
     const checkAuth = async () => {
       try {
-        // Check for saved user session
         const savedUser = localStorage.getItem('biztrack_user')
-        if (savedUser) {
-          setUser(JSON.parse(savedUser))
-          setIsAuthenticated(true)
-        }
+        const token = localStorage.getItem('biztrack_token')
 
-        // Fetch staff members from API
-        try {
-          const staff = await usersAPI.getAll()
-          // Convert MongoDB _id to id and format dateAdded
-          const formattedStaff: StaffMember[] = staff.map((s: any) => ({
-            id: s._id || s.id,
-            name: s.name,
-            email: s.email,
-            username: s.username,
-            role: s.role,
-            active: s.active,
-            dateAdded: s.dateAdded 
-              ? new Date(s.dateAdded).toISOString().split('T')[0]
-              : new Date().toISOString().split('T')[0],
-          }))
-          setStaffMembers(formattedStaff)
-        } catch (error) {
-          console.error('Failed to fetch staff members:', error)
-          // If API fails, keep empty array
-          setStaffMembers([])
+        if (savedUser && token) {
+          const parsedUser = JSON.parse(savedUser)
+          setUser(parsedUser)
+          setIsAuthenticated(true)
+
+          // Only owners can fetch the full staff list
+          if (parsedUser.role === 'owner') {
+            try {
+              const staff = await usersAPI.getAll()
+              const formattedStaff: StaffMember[] = staff.map((s: any) => ({
+                id: s._id || s.id,
+                name: s.name,
+                email: s.email,
+                username: s.username,
+                role: s.role,
+                active: s.active,
+                dateAdded: s.dateAdded
+                  ? new Date(s.dateAdded).toISOString().split('T')[0]
+                  : new Date().toISOString().split('T')[0],
+              }))
+              setStaffMembers(formattedStaff)
+            } catch (error) {
+              console.error('Failed to fetch staff members:', error)
+              setStaffMembers([])
+            }
+          }
         }
       } catch (error) {
         console.error('Auth check failed:', error)
         localStorage.removeItem('biztrack_user')
+        localStorage.removeItem('biztrack_token')
       } finally {
         setIsLoading(false)
         authChecked.current = true
@@ -154,23 +157,25 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         setIsAuthenticated(true)
         localStorage.setItem('biztrack_user', JSON.stringify(userObj))
         
-        // Refresh staff list after successful login
-        try {
-          const staff = await usersAPI.getAll()
-          const formattedStaff: StaffMember[] = staff.map((s: any) => ({
-            id: s._id || s.id,
-            name: s.name,
-            email: s.email,
-            username: s.username,
-            role: s.role,
-            active: s.active,
-            dateAdded: s.dateAdded 
-              ? new Date(s.dateAdded).toISOString().split('T')[0]
-              : new Date().toISOString().split('T')[0],
-          }))
-          setStaffMembers(formattedStaff)
-        } catch (error) {
-          console.error('Failed to refresh staff list:', error)
+        // Only owners need the staff list
+        if (userObj.role === 'owner') {
+          try {
+            const staff = await usersAPI.getAll()
+            const formattedStaff: StaffMember[] = staff.map((s: any) => ({
+              id: s._id || s.id,
+              name: s.name,
+              email: s.email,
+              username: s.username,
+              role: s.role,
+              active: s.active,
+              dateAdded: s.dateAdded 
+                ? new Date(s.dateAdded).toISOString().split('T')[0]
+                : new Date().toISOString().split('T')[0],
+            }))
+            setStaffMembers(formattedStaff)
+          } catch (error) {
+            console.error('Failed to refresh staff list:', error)
+          }
         }
 
         // Navigate based on role using the fresh userObj (not React state,
@@ -223,23 +228,25 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         setIsAuthenticated(true)
         localStorage.setItem('biztrack_user', JSON.stringify(userObj))
         
-        // Refresh staff list after successful login
-        try {
-          const staff = await usersAPI.getAll()
-          const formattedStaff: StaffMember[] = staff.map((s: any) => ({
-            id: s._id || s.id,
-            name: s.name,
-            email: s.email,
-            username: s.username,
-            role: s.role,
-            active: s.active,
-            dateAdded: s.dateAdded 
-              ? new Date(s.dateAdded).toISOString().split('T')[0]
-              : new Date().toISOString().split('T')[0],
-          }))
-          setStaffMembers(formattedStaff)
-        } catch (error) {
-          console.error('Failed to refresh staff list:', error)
+        // Only owners need the staff list
+        if (userObj.role === 'owner') {
+          try {
+            const staff = await usersAPI.getAll()
+            const formattedStaff: StaffMember[] = staff.map((s: any) => ({
+              id: s._id || s.id,
+              name: s.name,
+              email: s.email,
+              username: s.username,
+              role: s.role,
+              active: s.active,
+              dateAdded: s.dateAdded 
+                ? new Date(s.dateAdded).toISOString().split('T')[0]
+                : new Date().toISOString().split('T')[0],
+            }))
+            setStaffMembers(formattedStaff)
+          } catch (error) {
+            console.error('Failed to refresh staff list:', error)
+          }
         }
 
         // Navigate based on role using the fresh userObj (not React state)
@@ -363,7 +370,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   // =====================
   // UPDATE STAFF
   // =====================
-  const updateStaffMember = useCallback(async (id: string, data: { username?: string; password?: string }) => {
+  const updateStaffMember = useCallback(async (id: string, data: { username?: string; password?: string; role?: string }) => {
     try {
       // Update staff member via API
       const updatedStaff = await usersAPI.update(id, data)

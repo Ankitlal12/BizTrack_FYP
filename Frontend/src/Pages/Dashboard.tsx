@@ -284,11 +284,11 @@ const Dashboard = () => {
 
   return (
     <Layout>
-      <div className="space-y-6">
+      <div className="space-y-4 sm:space-y-6">
         {/* Header */}
         <div>
-          <h2 className="text-2xl font-semibold text-gray-800">Dashboard</h2>
-          <p className="text-gray-600 mt-1">Welcome back! Here's what's happening with your business today.</p>
+          <h2 className="text-xl sm:text-2xl font-semibold text-gray-800">Dashboard</h2>
+          <p className="text-gray-600 mt-1 text-sm sm:text-base">Welcome back! Here's what's happening with your business today.</p>
         </div>
 
         {/* Alert Section */}
@@ -414,7 +414,7 @@ const Dashboard = () => {
         </div>
 
         {/* Recent Activity Section */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6">
           {/* Recent Sales */}
           <div className="bg-white rounded-lg shadow-sm p-6">
             <div className="flex items-center justify-between mb-4">
@@ -519,7 +519,7 @@ const Dashboard = () => {
         </div>
 
         {/* Stock Summary and Sales Trend */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6">
           {/* Stock Summary */}
           <div className="bg-white rounded-lg shadow-sm p-5 h-full">
             <div className="flex justify-between items-center mb-4">

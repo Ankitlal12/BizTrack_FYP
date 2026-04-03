@@ -127,19 +127,19 @@ const SupplierPurchaseHistoryModal: React.FC<SupplierPurchaseHistoryModalProps> 
       <div className="bg-white rounded-lg shadow-xl w-full max-w-6xl max-h-[90vh] overflow-hidden flex flex-col">
 
         {/* Header */}
-        <div className="px-6 py-4 border-b border-gray-200 flex justify-between items-center bg-gradient-to-r from-teal-50 to-blue-50">
+        <div className="px-4 sm:px-6 py-4 border-b border-gray-200 flex justify-between items-center bg-gradient-to-r from-teal-50 to-blue-50">
           <div>
-            <h2 className="text-2xl font-bold text-gray-900">Purchase History</h2>
+            <h2 className="text-xl sm:text-2xl font-bold text-gray-900">Purchase History</h2>
             <p className="text-sm text-gray-600 mt-1">{supplierName}</p>
           </div>
-          <button onClick={onClose} className="p-2 hover:bg-gray-100 rounded-full transition-colors">
+          <button onClick={onClose} className="p-2 hover:bg-gray-100 rounded-full transition-colors" title="Close modal" aria-label="Close modal">
             <X className="w-5 h-5 text-gray-500" />
           </button>
         </div>
 
         {/* Financial summary */}
         {financialSummary && (
-          <div className="px-6 py-4 bg-gray-50 border-b border-gray-200">
+          <div className="px-4 sm:px-6 py-4 bg-gray-50 border-b border-gray-200">
             <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
               {[
                 { label: 'Total Purchased', value: formatCurrency(financialSummary.totalPurchased), sub: `${financialSummary.purchaseCount} purchase(s)`, icon: <ShoppingCart className="w-6 h-6 text-blue-600" />, bg: 'bg-blue-100', color: 'text-gray-900' },
@@ -150,7 +150,7 @@ const SupplierPurchaseHistoryModal: React.FC<SupplierPurchaseHistoryModalProps> 
                   <div className="flex items-center justify-between">
                     <div>
                       <p className="text-sm text-gray-600">{label}</p>
-                      <p className={`text-2xl font-bold mt-1 ${color}`}>{value}</p>
+                      <p className={`text-xl sm:text-2xl font-bold mt-1 ${color}`}>{value}</p>
                     </div>
                     <div className={`p-3 ${bg} rounded-full`}>{icon}</div>
                   </div>
@@ -182,7 +182,7 @@ const SupplierPurchaseHistoryModal: React.FC<SupplierPurchaseHistoryModalProps> 
         )}
 
         {/* Purchase list */}
-        <div className="flex-1 overflow-y-auto px-6 py-4">
+        <div className="flex-1 overflow-y-auto px-4 sm:px-6 py-4">
           {loading ? (
             <div className="flex justify-center items-center h-64">
               <div className="w-8 h-8 border-4 border-teal-500 border-t-transparent rounded-full animate-spin" />
@@ -201,13 +201,13 @@ const SupplierPurchaseHistoryModal: React.FC<SupplierPurchaseHistoryModalProps> 
                   <div className="p-4 cursor-pointer" onClick={() => toggleExpand(purchase._id)}>
                     <div className="flex items-center justify-between">
                       <div className="flex-1">
-                        <div className="flex items-center gap-3">
+                        <div className="flex flex-wrap items-center gap-2 sm:gap-3">
                           <h3 className="text-lg font-semibold text-gray-900">{purchase.purchaseNumber}</h3>
                           <span className={`px-2 py-1 text-xs font-medium rounded-full ${paymentStatusColor(purchase.paymentStatus)}`}>
                             {purchase.paymentStatus.toUpperCase()}
                           </span>
                         </div>
-                        <div className="flex items-center gap-4 mt-2 text-sm text-gray-600">
+                        <div className="flex flex-wrap items-center gap-3 sm:gap-4 mt-2 text-sm text-gray-600">
                           <div className="flex items-center gap-1"><Calendar className="w-4 h-4" /><span>{formatDate(purchase.createdAt)}</span></div>
                           <div className="flex items-center gap-1"><Package className="w-4 h-4" /><span>{purchase.items.length} item(s)</span></div>
                         </div>

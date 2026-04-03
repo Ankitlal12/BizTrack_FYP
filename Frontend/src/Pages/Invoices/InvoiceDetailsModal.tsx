@@ -18,8 +18,7 @@ interface InvoiceDetailsModalProps {
   invoice: Invoice | null;
   isOpen: boolean;
   onClose: () => void;
-  onUpdatePayment: (invoice: Invoice) => void;
-  onEmailInvoice: (invoice: Invoice) => void;
+  onEmailInvoice?: (invoice: Invoice) => void;
   emailSending?: boolean;
 }
 
@@ -27,7 +26,6 @@ const InvoiceDetailsModal: React.FC<InvoiceDetailsModalProps> = ({
   invoice,
   isOpen,
   onClose,
-  onUpdatePayment,
   onEmailInvoice,
   emailSending = false,
 }) => {
@@ -336,23 +334,17 @@ const InvoiceDetailsModal: React.FC<InvoiceDetailsModalProps> = ({
             >
               Print/PDF
             </button>
-            <button
-              onClick={() => onEmailInvoice(invoice)}
-              disabled={emailSending}
-              className="px-4 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700 transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
-            >
-              {emailSending ? 'Sending...' : 'Export'}
-            </button>
-          </div>
-          <div className="flex space-x-3">
-            {invoice.paymentStatus !== 'paid' && (
+            {onEmailInvoice && (
               <button
-                onClick={() => onUpdatePayment(invoice)}
-                className="px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 transition-colors"
+                onClick={() => onEmailInvoice(invoice)}
+                disabled={emailSending}
+                className="px-4 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700 transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
               >
-                Record Payment
+                {emailSending ? 'Sending...' : 'Export'}
               </button>
             )}
+          </div>
+          <div className="flex space-x-3">
             <button
               onClick={onClose}
               className="px-4 py-2 bg-gray-300 text-gray-700 rounded-md hover:bg-gray-400 transition-colors"

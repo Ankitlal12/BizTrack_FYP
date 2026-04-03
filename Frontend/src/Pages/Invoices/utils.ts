@@ -37,6 +37,8 @@ export const getPaymentStatusColor = (paymentStatus: string): string => {
       return 'bg-green-100 text-green-800';
     case 'partial':
       return 'bg-yellow-100 text-yellow-800';
+    case 'scheduled':
+      return 'bg-blue-100 text-blue-800';
     case 'unpaid':
       return 'bg-red-100 text-red-800';
     default:
@@ -114,6 +116,8 @@ export const getPaymentStatusLabel = (paymentStatus: string): string => {
       return 'Partially Paid';
     case 'paid':
       return 'Paid';
+    case 'scheduled':
+      return 'Scheduled';
     default:
       return paymentStatus;
   }
