@@ -250,13 +250,15 @@ const SalesDetails: React.FC<SalesDetailsProps> = ({ sale, onRecordPayment, onVi
             </div>
           )}
           <div className="flex justify-end space-x-2">
-            <button 
-              onClick={() => onViewInvoice && onViewInvoice(sale._id || sale.id)}
-              className="bg-blue-500 hover:bg-blue-600 text-white py-1 px-3 rounded text-sm flex items-center"
-            >
-              <FileTextIcon size={14} className="mr-1" />
-              View Invoice
-            </button>
+            {isOwner && (
+              <button 
+                onClick={() => onViewInvoice && onViewInvoice(sale._id || sale.id)}
+                className="bg-blue-500 hover:bg-blue-600 text-white py-1 px-3 rounded text-sm flex items-center"
+              >
+                <FileTextIcon size={14} className="mr-1" />
+                View Invoice
+              </button>
+            )}
             {sale.status !== 'completed' && (
               <button className="bg-teal-500 hover:bg-teal-600 text-white py-1 px-3 rounded text-sm">
                 {sale.status === 'pending' ? 'Process Sale' : 'Complete Sale'}

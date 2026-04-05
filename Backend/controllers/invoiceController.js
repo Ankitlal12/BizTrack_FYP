@@ -644,7 +644,7 @@ exports.recordInvoicePayment = async (req, res) => {
 
       await purchase.save();
 
-      invoice.paymentStatus = purchase.paymentStatus;
+      invoice.paymentStatus = purchase.paymentStatus === 'scheduled' ? 'partial' : purchase.paymentStatus;
       invoice.paidAmount = purchase.paidAmount;
       invoice.paymentMethod = lastMethod;
       invoice.status = purchase.paymentStatus === "paid" ? "paid" : "sent";
@@ -686,7 +686,7 @@ exports.recordInvoicePayment = async (req, res) => {
 
       await sale.save();
 
-      invoice.paymentStatus = sale.paymentStatus;
+      invoice.paymentStatus = sale.paymentStatus === 'scheduled' ? 'partial' : sale.paymentStatus;
       invoice.paidAmount = sale.paidAmount;
       invoice.paymentMethod = lastMethod;
       invoice.status = sale.paymentStatus === "paid" ? "paid" : "sent";

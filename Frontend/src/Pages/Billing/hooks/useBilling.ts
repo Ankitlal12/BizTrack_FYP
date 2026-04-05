@@ -103,6 +103,18 @@ export const useBilling = () => {
   // Filter products based on search (now handled by API, but keeping for local filtering if needed)
   const filteredProducts = productsInventory
 
+  const canCreateCustomer = user?.role === 'owner' || user?.role === 'manager'
+
+  const handleOpenCustomerForm = () => {
+    if (!canCreateCustomer) {
+      toast.error('Access denied', {
+        description: 'Only owner and manager can add new customers from billing.',
+      })
+      return
+    }
+    setShowCustomerForm(true)
+  }
+
   const addToCart = (product: Product) => {
     // Check if product has enough stock
     if (product.stock <= 0) {
@@ -181,6 +193,13 @@ export const useBilling = () => {
   }
 
   const handleSaveCustomer = async () => {
+    if (!canCreateCustomer) {
+      const message = 'Only owner and manager can add new customers from billing.'
+      setValidationErrors({ general: message })
+      toast.error('Access denied', { description: message })
+      return
+    }
+
     // Validate customer data
     const errors: ValidationErrors = {}
     if (!newCustomer.name.trim()) {
@@ -344,6 +363,7 @@ export const useBilling = () => {
     total,
     isLoadingCustomers,
     isLoadingProducts,
+    canCreateCustomer,
     // Actions
     setSelectedCustomer,
     setSearchCustomer,
@@ -352,6 +372,7 @@ export const useBilling = () => {
     setNotes,
     setNewCustomer,
     setValidationErrors,
+    handleOpenCustomerForm,
     addToCart,
     updateQuantity,
     removeItem,

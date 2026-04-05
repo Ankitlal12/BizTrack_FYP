@@ -31,11 +31,13 @@ interface CustomerModalProps {
 // ==================== HELPERS ====================
 
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+const PHONE_REGEX = /^\d{1,10}$/
 
 const validateCustomerForm = (formData: any): Record<string, string> => {
   const errors: Record<string, string> = {}
   if (!formData.name.trim()) errors.name = 'Customer name is required'
   if (!formData.phone.trim()) errors.phone = 'Phone number is required'
+  if (formData.phone && !PHONE_REGEX.test(formData.phone)) errors.phone = 'Phone number must be up to 10 digits only'
   if (formData.email && !EMAIL_REGEX.test(formData.email)) errors.email = 'Please enter a valid email address'
   return errors
 }
@@ -113,7 +115,15 @@ const CustomerModal: React.FC<CustomerModalProps> = ({ customer, onClose, onSucc
       <input
         type={type}
         value={(fieldKey.startsWith('address.') ? (formData.address as any)[fieldKey.split('.')[1]] : (formData as any)[fieldKey]) ?? ''}
-        onChange={e => handleInputChange(fieldKey, e.target.value)}
+        onChange={e => {
+          const value = fieldKey === 'phone'
+            ? e.target.value.replace(/\D/g, '').slice(0, 10)
+            : e.target.value
+          handleInputChange(fieldKey, value)
+        }}
+        maxLength={fieldKey === 'phone' ? 10 : undefined}
+        inputMode={fieldKey === 'phone' ? 'numeric' : undefined}
+        pattern={fieldKey === 'phone' ? '[0-9]*' : undefined}
         className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-transparent ${errors[fieldKey] ? 'border-red-300' : 'border-gray-300'}`}
         placeholder={placeholder}
       />

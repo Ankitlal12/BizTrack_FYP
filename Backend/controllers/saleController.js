@@ -3,7 +3,7 @@ const Sale = require("../models/Sale");
 const Inventory = require("../models/Inventory");
 const Notification = require("../models/Notification");
 const { generateInvoiceFromSale } = require("./invoiceController");
-const { getNepaliCurrentDateTime } = require("../utils/dateUtils");
+const { getNepaliCurrentDateTime, getNepaliDayRangeInUTC } = require("../utils/dateUtils");
 const { createNotification } = require("../utils/notificationHelper");
 
 // ==================== HELPERS ====================
@@ -105,8 +105,14 @@ exports.getAllSales = async (req, res) => {
 
     if (req.query.dateFrom || req.query.dateTo) {
       query.createdAt = {};
-      if (req.query.dateFrom) query.createdAt.$gte = new Date(req.query.dateFrom);
-      if (req.query.dateTo) query.createdAt.$lte = new Date(req.query.dateTo);
+      if (req.query.dateFrom) {
+        const fromRange = getNepaliDayRangeInUTC(req.query.dateFrom);
+        query.createdAt.$gte = fromRange ? fromRange.start : new Date(req.query.dateFrom);
+      }
+      if (req.query.dateTo) {
+        const toRange = getNepaliDayRangeInUTC(req.query.dateTo);
+        query.createdAt.$lte = toRange ? toRange.end : new Date(req.query.dateTo);
+      }
     }
 
     if (req.query.totalMin || req.query.totalMax) {
@@ -303,7 +309,8 @@ exports.recordPayment = async (req, res) => {
         const Invoice = require('../models/Invoice');
         const invoice = await Invoice.findOne({ relatedId: sale._id, type: 'sale' });
         if (invoice) {
-          invoice.paymentStatus = sale.paymentStatus;
+          // Map 'scheduled' → 'partial' since Invoice schema doesn't use 'scheduled'
+          invoice.paymentStatus = sale.paymentStatus === 'scheduled' ? 'partial' : sale.paymentStatus;
           invoice.paidAmount = sale.paidAmount;
           if (method) invoice.paymentMethod = method;
           invoice.status = sale.paymentStatus === "paid" ? "paid" : "sent";

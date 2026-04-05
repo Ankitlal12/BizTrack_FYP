@@ -42,6 +42,7 @@ interface CustomerFilters {
 
 const Customers: React.FC = () => {
   const { user } = useAuth();
+  const canCreateCustomer = user?.role === 'owner' || user?.role === 'manager';
   const navigate = useNavigate();
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [loading, setLoading] = useState(true);
@@ -145,7 +146,7 @@ const Customers: React.FC = () => {
                 : 'Manage your customer relationships and purchase history'}
             </p>
           </div>
-          {user?.role === 'owner' && (
+          {canCreateCustomer && (
             <button
               onClick={handleCreateCustomer}
               className="flex items-center gap-2 px-4 py-2 bg-teal-600 text-white rounded-lg hover:bg-teal-700"
@@ -279,12 +280,14 @@ const Customers: React.FC = () => {
           <div className="text-center py-12">
             <Users className="w-12 h-12 text-gray-400 mx-auto mb-4" />
             <p className="text-gray-500">No customers found</p>
-            <button
-              onClick={handleCreateCustomer}
-              className="mt-4 px-4 py-2 bg-teal-600 text-white rounded-lg hover:bg-teal-700"
-            >
-              Add Your First Customer
-            </button>
+            {canCreateCustomer && (
+              <button
+                onClick={handleCreateCustomer}
+                className="mt-4 px-4 py-2 bg-teal-600 text-white rounded-lg hover:bg-teal-700"
+              >
+                Add Your First Customer
+              </button>
+            )}
           </div>
         )}
 

@@ -16,10 +16,12 @@ interface SupplierModalProps {
 // ==================== HELPERS ====================
 
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+const PHONE_REGEX = /^\d{1,10}$/
 
 const validateSupplierForm = (formData: any): Record<string, string> => {
   const errors: Record<string, string> = {}
   if (!formData.name.trim()) errors.name = 'Supplier name is required'
+  if (formData.phone && !PHONE_REGEX.test(formData.phone)) errors.phone = 'Phone number must be up to 10 digits only'
   if (formData.email && !EMAIL_REGEX.test(formData.email)) errors.email = 'Please enter a valid email address'
   if (formData.averageLeadTimeDays < 1) errors.averageLeadTimeDays = 'Lead time must be at least 1 day'
   if (formData.rating < 1 || formData.rating > 5) errors.rating = 'Rating must be between 1 and 5'
@@ -97,7 +99,15 @@ const SupplierModal: React.FC<SupplierModalProps> = ({ supplier, onClose, onSucc
         <input
           type={type}
           value={val ?? ''}
-          onChange={e => handleInputChange(fieldKey, e.target.value)}
+          onChange={e => {
+            const value = fieldKey === 'phone'
+              ? e.target.value.replace(/\D/g, '').slice(0, 10)
+              : e.target.value
+            handleInputChange(fieldKey, value)
+          }}
+          maxLength={fieldKey === 'phone' ? 10 : undefined}
+          inputMode={fieldKey === 'phone' ? 'numeric' : undefined}
+          pattern={fieldKey === 'phone' ? '[0-9]*' : undefined}
           className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-transparent ${errors[fieldKey] ? 'border-red-300' : 'border-gray-300'}`}
           placeholder={placeholder}
         />

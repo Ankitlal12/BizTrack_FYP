@@ -1,6 +1,7 @@
 // ==================== IMPORTS ====================
 const Sale = require("../models/Sale");
 const Purchase = require("../models/Purchase");
+const { getNepaliDayRangeInUTC } = require("../utils/dateUtils");
 
 // ==================== HELPERS ====================
 
@@ -42,10 +43,12 @@ exports.getTransactions = async (req, res) => {
     if (req.query.dateFrom || req.query.dateTo) {
       const dateFilter = {};
       if (req.query.dateFrom) {
-        dateFilter.$gte = new Date(req.query.dateFrom);
+        const fromRange = getNepaliDayRangeInUTC(req.query.dateFrom);
+        dateFilter.$gte = fromRange ? fromRange.start : new Date(req.query.dateFrom);
       }
       if (req.query.dateTo) {
-        dateFilter.$lte = new Date(req.query.dateTo);
+        const toRange = getNepaliDayRangeInUTC(req.query.dateTo);
+        dateFilter.$lte = toRange ? toRange.end : new Date(req.query.dateTo);
       }
       saleQuery.createdAt = dateFilter;
       purchaseQuery.createdAt = dateFilter;

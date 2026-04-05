@@ -23,6 +23,7 @@ import { useAuth } from '../contexts/AuthContext';
 
 const Suppliers: React.FC = () => {
   const { user } = useAuth();
+  const canCreateSupplier = user?.role === 'owner' || user?.role === 'manager';
   const navigate = useNavigate();
   const [suppliers, setSuppliers] = useState<Supplier[]>([]);
   const [loading, setLoading] = useState(true);
@@ -137,7 +138,7 @@ const Suppliers: React.FC = () => {
                 : 'Manage your supplier relationships and contacts'}
             </p>
           </div>
-          {user?.role === 'owner' && (
+          {canCreateSupplier && (
             <button
               onClick={handleCreateSupplier}
               className="flex items-center gap-2 px-4 py-2 bg-teal-600 text-white rounded-lg hover:bg-teal-700"
@@ -303,12 +304,14 @@ const Suppliers: React.FC = () => {
           <div className="text-center py-12">
             <Users className="w-12 h-12 text-gray-400 mx-auto mb-4" />
             <p className="text-gray-500">No suppliers found</p>
-            <button
-              onClick={handleCreateSupplier}
-              className="mt-4 px-4 py-2 bg-teal-600 text-white rounded-lg hover:bg-teal-700"
-            >
-              Add Your First Supplier
-            </button>
+            {canCreateSupplier && (
+              <button
+                onClick={handleCreateSupplier}
+                className="mt-4 px-4 py-2 bg-teal-600 text-white rounded-lg hover:bg-teal-700"
+              >
+                Add Your First Supplier
+              </button>
+            )}
           </div>
         )}
 

@@ -47,12 +47,9 @@ const NotificationsTab: React.FC = () => {
         }),
         notificationArchiveAPI.getUnreadCount(),
       ])
-      // Handle both { notifications, total } shape and plain array (fallback)
-      const notifs = Array.isArray(response) ? response : (response as any).notifications ?? []
-      const total = Array.isArray(response) ? notifs.length : (response as any).total ?? notifs.length
-      setNotifications(notifs)
+      setNotifications(response.notifications || [])
       setUnreadCount(count.count)
-      setTotalNotifications(total)
+      setTotalNotifications(response.total || 0)
     } catch (error: any) {
       console.error('Failed to load notifications:', error)
       toast.error('Failed to load notifications', {
@@ -458,6 +455,8 @@ const NotificationsTab: React.FC = () => {
             <div className="flex items-center gap-2">
               <span className="text-sm text-gray-600">Per page:</span>
               <select
+                aria-label="Notifications per page"
+                title="Notifications per page"
                 value={itemsPerPage}
                 onChange={(e) => handleItemsPerPageChange(Number(e.target.value))}
                 className="px-3 py-1.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-teal-500"

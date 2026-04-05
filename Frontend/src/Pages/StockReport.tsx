@@ -14,7 +14,12 @@ import DatePresets from '../components/DatePresets';
 
 const COLORS = ['#0d9488', '#3b82f6', '#8b5cf6', '#f59e0b', '#ef4444', '#10b981'];
 
-const toLocalDate = (d: Date) => d.toLocaleDateString('en-CA');
+const toLocalDate = (d: Date) => {
+  const year = d.getFullYear();
+  const month = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+};
 
 interface StockItem {
   _id: string;
@@ -53,6 +58,14 @@ interface TurnoverItem {
   turnoverRate: number;
 }
 
+interface TopSoldItem {
+  name: string;
+  sku: string;
+  category: string;
+  soldQty: number;
+  revenue: number;
+}
+
 const StockReport: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [inventory, setInventory] = useState<StockItem[]>([]);
@@ -74,11 +87,33 @@ const StockReport: React.FC = () => {
   const [categoryBreakdown, setCategoryBreakdown] = useState<CategoryStock[]>([]);
   const [deadStock, setDeadStock] = useState<DeadStockItem[]>([]);
   const [turnoverData, setTurnoverData] = useState<TurnoverItem[]>([]);
-  const [topValueItems, setTopValueItems] = useState<any[]>([]);
+  const [topValueItems, setTopValueItems] = useState<TopSoldItem[]>([]);
 
   useEffect(() => {
     loadData();
   }, [dateFrom, dateTo]);
+
+  const fetchAllSalesInRange = async (baseParams: URLSearchParams) => {
+    const allSales: any[] = [];
+    let currentPage = 1;
+    const pageLimit = 500;
+
+    while (true) {
+      const params = new URLSearchParams(baseParams.toString());
+      params.set('page', String(currentPage));
+      params.set('limit', String(pageLimit));
+
+      const response = await salesAPI.getAll(params.toString());
+      const pageSales = response?.sales || [];
+      allSales.push(...pageSales);
+
+      const totalPages = response?.pagination?.pages || 1;
+      if (currentPage >= totalPages) break;
+      currentPage += 1;
+    }
+
+    return allSales;
+  };
 
   const loadData = async () => {
     try {
@@ -90,13 +125,12 @@ const StockReport: React.FC = () => {
       params.append('dateFrom', startDate.toISOString());
       params.append('dateTo', endDate.toISOString());
 
-      const [inventoryResponse, salesResponse] = await Promise.all([
+      const [inventoryResponse, sales] = await Promise.all([
         inventoryAPI.getAll(),
-        salesAPI.getAll(params.toString()),
+        fetchAllSalesInRange(params),
       ]);
 
       const inv: StockItem[] = inventoryResponse || [];
-      const sales = salesResponse.sales || [];
 
       setInventory(inv);
       calculateMetrics(inv, sales);
@@ -110,50 +144,79 @@ const StockReport: React.FC = () => {
   };
 
   const calculateMetrics = (inv: StockItem[], sales: any[]) => {
-    // Aggregate total units sold per inventory item over last 30 days
-    const soldMap = new Map<string, number>();
+    const inventoryById = new Map<string, StockItem>();
+    const inventoryByName = new Map<string, StockItem>();
+    inv.forEach(item => {
+      if (item._id) inventoryById.set(item._id.toString(), item);
+      if (item.name) inventoryByName.set(item.name, item);
+    });
+
+    // Aggregate period sales by inventory item
+    const soldMap = new Map<string, { soldQty: number; revenue: number; cogs: number }>();
     sales.forEach(sale => {
       sale.items?.forEach((item: any) => {
         const id = item.inventoryId?._id?.toString() || item.inventoryId?.toString() || item.name;
-        soldMap.set(id, (soldMap.get(id) || 0) + item.quantity);
+        const invItem = inventoryById.get(id) || inventoryByName.get(item.name);
+        const quantity = Number(item.quantity || 0);
+        const price = Number(item.price || 0);
+        const unitCost = Number(invItem?.cost || 0);
+        const existing = soldMap.get(id) || { soldQty: 0, revenue: 0, cogs: 0 };
+        soldMap.set(id, {
+          soldQty: existing.soldQty + quantity,
+          revenue: existing.revenue + (price * quantity),
+          cogs: existing.cogs + (unitCost * quantity),
+        });
       });
     });
 
-    // Summary metrics
-    let costVal = 0, sellVal = 0, units = 0, lowStock = 0, outOfStock = 0;
+    // Current stock alerts (snapshot)
+    let lowStock = 0, outOfStock = 0;
     inv.forEach(item => {
-      costVal += item.cost * item.stock;
-      sellVal += item.price * item.stock;
-      units += item.stock;
       if (item.stock <= 0) outOfStock++;
       else if (item.stock <= item.reorderLevel) lowStock++;
     });
+
+    // Summary metrics (selected period only)
+    let costVal = 0, sellVal = 0, units = 0;
+    soldMap.forEach(s => {
+      costVal += s.cogs;
+      sellVal += s.revenue;
+      units += s.soldQty;
+    });
+
     setTotalStockCostValue(costVal);
     setTotalStockSellValue(sellVal);
     setTotalUnits(units);
     setLowStockCount(lowStock);
     setOutOfStockCount(outOfStock);
 
-    // Category breakdown
+    // Category breakdown (selected period sales)
     const catMap = new Map<string, CategoryStock>();
-    inv.forEach(item => {
-      const cat = item.category || 'Uncategorized';
-      const existing = catMap.get(cat) || { name: cat, itemCount: 0, totalUnits: 0, costValue: 0, sellValue: 0 };
+    soldMap.forEach((stats, key) => {
+      const item = inventoryById.get(key) || inventoryByName.get(key);
+      const cat = item?.category || 'Uncategorized';
+      const existing = catMap.get(cat) || {
+        name: cat,
+        itemCount: 0,
+        totalUnits: 0,
+        costValue: 0,
+        sellValue: 0,
+      };
       catMap.set(cat, {
         name: cat,
         itemCount: existing.itemCount + 1,
-        totalUnits: existing.totalUnits + item.stock,
-        costValue: existing.costValue + item.cost * item.stock,
-        sellValue: existing.sellValue + item.price * item.stock,
+        totalUnits: existing.totalUnits + stats.soldQty,
+        costValue: existing.costValue + stats.cogs,
+        sellValue: existing.sellValue + stats.revenue,
       });
     });
     setCategoryBreakdown(Array.from(catMap.values()).sort((a, b) => b.costValue - a.costValue));
 
-    // Dead stock: items with stock > 0 and zero sales in last 30 days
+    // Dead stock: items with stock > 0 and zero sales in selected period
     const dead: DeadStockItem[] = inv
       .filter(item => {
         if (item.stock <= 0) return false;
-        const sold = soldMap.get(item._id?.toString()) || soldMap.get(item.name) || 0;
+        const sold = soldMap.get(item._id?.toString())?.soldQty || soldMap.get(item.name)?.soldQty || 0;
         return sold === 0;
       })
       .map(item => ({
@@ -172,7 +235,7 @@ const StockReport: React.FC = () => {
     const turnover: TurnoverItem[] = inv
       .filter(item => item.stock > 0)
       .map(item => {
-        const sold = soldMap.get(item._id?.toString()) || soldMap.get(item.name) || 0;
+        const sold = soldMap.get(item._id?.toString())?.soldQty || soldMap.get(item.name)?.soldQty || 0;
         return {
           name: item.name,
           sku: item.sku,
@@ -185,10 +248,20 @@ const StockReport: React.FC = () => {
       .slice(0, 10);
     setTurnoverData(turnover);
 
-    // Top items by stock value
+    // Top sold items by revenue in selected period
     const topVal = inv
-      .map(item => ({ name: item.name, sku: item.sku, category: item.category, stock: item.stock, costValue: item.cost * item.stock }))
-      .sort((a, b) => b.costValue - a.costValue)
+      .map(item => {
+        const salesStats = soldMap.get(item._id?.toString()) || soldMap.get(item.name);
+        return {
+          name: item.name,
+          sku: item.sku,
+          category: item.category,
+          soldQty: salesStats?.soldQty || 0,
+          revenue: salesStats?.revenue || 0,
+        };
+      })
+      .filter(item => item.soldQty > 0)
+      .sort((a, b) => b.revenue - a.revenue)
       .slice(0, 10);
     setTopValueItems(topVal);
   };
@@ -261,6 +334,8 @@ const StockReport: React.FC = () => {
               <div className="flex items-center gap-2 ml-2">
                 <input
                   type="date"
+                  aria-label="Stock report start date"
+                  title="Stock report start date"
                   value={dateFrom}
                   max={dateTo}
                   onChange={e => setDateFrom(e.target.value)}
@@ -269,6 +344,8 @@ const StockReport: React.FC = () => {
                 <span className="text-gray-400 text-sm">to</span>
                 <input
                   type="date"
+                  aria-label="Stock report end date"
+                  title="Stock report end date"
                   value={dateTo}
                   min={dateFrom}
                   max={toLocalDate(new Date())}
@@ -285,40 +362,40 @@ const StockReport: React.FC = () => {
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
           <div className="bg-white p-5 rounded-lg shadow-sm border">
             <div className="flex items-center justify-between mb-2">
-              <span className="text-sm font-medium text-gray-600">Stock Cost Value</span>
+              <span className="text-sm font-medium text-gray-600">COGS (Period)</span>
               <DollarSign className="w-5 h-5 text-teal-600" />
             </div>
             <p className="text-2xl font-bold text-gray-900">₹{totalStockCostValue.toFixed(0)}</p>
-            <p className="text-xs text-gray-500 mt-1">At cost price</p>
+            <p className="text-xs text-gray-500 mt-1">Cost of sold items in selected period</p>
           </div>
 
           <div className="bg-white p-5 rounded-lg shadow-sm border">
             <div className="flex items-center justify-between mb-2">
-              <span className="text-sm font-medium text-gray-600">Stock Sell Value</span>
+              <span className="text-sm font-medium text-gray-600">Revenue (Period)</span>
               <BarChart2 className="w-5 h-5 text-blue-600" />
             </div>
             <p className="text-2xl font-bold text-gray-900">₹{totalStockSellValue.toFixed(0)}</p>
-            <p className="text-xs text-gray-500 mt-1">At selling price</p>
+            <p className="text-xs text-gray-500 mt-1">Sales value in selected period</p>
           </div>
 
           <div className="bg-white p-5 rounded-lg shadow-sm border">
             <div className="flex items-center justify-between mb-2">
-              <span className="text-sm font-medium text-gray-600">Potential Profit</span>
+              <span className="text-sm font-medium text-gray-600">Gross Profit (Period)</span>
               <Warehouse className="w-5 h-5 text-green-600" />
             </div>
             <p className={`text-2xl font-bold ${potentialProfit >= 0 ? 'text-green-700' : 'text-red-700'}`}>
               ₹{potentialProfit.toFixed(0)}
             </p>
-            <p className="text-xs text-gray-500 mt-1">If all stock sold</p>
+            <p className="text-xs text-gray-500 mt-1">Revenue minus COGS for selected period</p>
           </div>
 
           <div className="bg-white p-5 rounded-lg shadow-sm border">
             <div className="flex items-center justify-between mb-2">
-              <span className="text-sm font-medium text-gray-600">Total Units</span>
+              <span className="text-sm font-medium text-gray-600">Units Sold (Period)</span>
               <Package className="w-5 h-5 text-purple-600" />
             </div>
             <p className="text-2xl font-bold text-gray-900">{totalUnits.toLocaleString()}</p>
-            <p className="text-xs text-gray-500 mt-1">Across {inventory.length} products</p>
+            <p className="text-xs text-gray-500 mt-1">Sold in selected date range</p>
           </div>
 
           <div className="bg-white p-5 rounded-lg shadow-sm border">
@@ -350,9 +427,9 @@ const StockReport: React.FC = () => {
                   <tr>
                     <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">Category</th>
                     <th className="px-3 py-2 text-right text-xs font-medium text-gray-500 uppercase">Items</th>
-                    <th className="px-3 py-2 text-right text-xs font-medium text-gray-500 uppercase">Units</th>
-                    <th className="px-3 py-2 text-right text-xs font-medium text-gray-500 uppercase">Cost Value</th>
-                    <th className="px-3 py-2 text-right text-xs font-medium text-gray-500 uppercase">Sell Value</th>
+                    <th className="px-3 py-2 text-right text-xs font-medium text-gray-500 uppercase">Units Sold</th>
+                    <th className="px-3 py-2 text-right text-xs font-medium text-gray-500 uppercase">COGS</th>
+                    <th className="px-3 py-2 text-right text-xs font-medium text-gray-500 uppercase">Revenue</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-100">
@@ -365,11 +442,18 @@ const StockReport: React.FC = () => {
                       <td className="px-3 py-2 text-right font-medium text-teal-700">₹{cat.sellValue.toFixed(0)}</td>
                     </tr>
                   ))}
+                  {categoryBreakdown.length === 0 && (
+                    <tr>
+                      <td colSpan={5} className="px-3 py-6 text-center text-gray-500">
+                        No sales in the selected date range
+                      </td>
+                    </tr>
+                  )}
                 </tbody>
                 <tfoot className="bg-gray-50 border-t font-semibold">
                   <tr>
                     <td className="px-3 py-2 text-gray-700">Total</td>
-                    <td className="px-3 py-2 text-right text-gray-700">{inventory.length}</td>
+                    <td className="px-3 py-2 text-right text-gray-700">{categoryBreakdown.reduce((s, c) => s + c.itemCount, 0)}</td>
                     <td className="px-3 py-2 text-right text-gray-700">{totalUnits}</td>
                     <td className="px-3 py-2 text-right text-gray-800">₹{totalStockCostValue.toFixed(0)}</td>
                     <td className="px-3 py-2 text-right text-teal-800">₹{totalStockSellValue.toFixed(0)}</td>
@@ -385,7 +469,7 @@ const StockReport: React.FC = () => {
             <ResponsiveContainer width="100%" height={280}>
               <PieChart>
                 <Pie
-                  data={categoryBreakdown.map(c => ({ name: c.name, value: c.costValue }))}
+                  data={categoryBreakdown.map(c => ({ name: c.name, value: c.sellValue }))}
                   cx="40%"
                   cy="50%"
                   outerRadius={90}
@@ -488,16 +572,19 @@ const StockReport: React.FC = () => {
 
         {/* Top Items by Stock Value */}
         <div className="bg-white p-6 rounded-lg shadow-sm border">
-          <h3 className="text-lg font-semibold text-gray-900 mb-4">Top 10 Items by Stock Value</h3>
+          <h3 className="text-lg font-semibold text-gray-900 mb-4">Top 10 Sold Items by Revenue ({dateFrom === dateTo ? dateFrom : `${dateFrom} – ${dateTo}`})</h3>
           <ResponsiveContainer width="100%" height={280}>
             <BarChart data={topValueItems} layout="vertical">
               <CartesianGrid strokeDasharray="3 3" />
               <XAxis type="number" tick={{ fontSize: 11 }} tickFormatter={v => `₹${Number(v).toLocaleString()}`} />
               <YAxis dataKey="name" type="category" width={130} tick={{ fontSize: 11 }} />
               <Tooltip formatter={(v: any) => `₹${Number(v).toFixed(2)}`} />
-              <Bar dataKey="costValue" fill="#0d9488" name="Stock Value (₹)" radius={[0, 4, 4, 0]} />
+              <Bar dataKey="revenue" fill="#0d9488" name="Revenue (₹)" radius={[0, 4, 4, 0]} />
             </BarChart>
           </ResponsiveContainer>
+          {topValueItems.length === 0 && (
+            <div className="text-center text-sm text-gray-500 -mt-3 pb-1">No sold items in selected date range</div>
+          )}
         </div>
 
       </div>

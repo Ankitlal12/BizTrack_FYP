@@ -5,6 +5,7 @@ import { ArrowDownIcon, ArrowUpIcon, CalendarIcon, PackageIcon } from 'lucide-re
 import { Transaction } from './types'
 import { invoicesAPI } from '../../services/api'
 import { formatNepaliDateTime } from '../../utils/dateUtils'
+import { useAuth } from '../../contexts/AuthContext'
 
 interface Props {
   transaction: Transaction
@@ -26,6 +27,8 @@ const paymentStatusBadge = (status: string) => {
 
 const TransactionDetails: React.FC<Props> = ({ transaction }) => {
   const navigate = useNavigate()
+  const { user } = useAuth()
+  const isOwner = user?.role === 'owner'
 
   const handleViewInvoice = async () => {
     try {
@@ -211,12 +214,14 @@ const TransactionDetails: React.FC<Props> = ({ transaction }) => {
             {transaction.type === 'sale' ? 'Invoice' : 'Purchase Order'}{' '}
             <span className="font-medium">{transaction.reference}</span>
           </p>
-          <button
-            onClick={handleViewInvoice}
-            className="bg-teal-500 hover:bg-teal-600 text-white py-1 px-3 rounded text-sm ml-4 shrink-0"
-          >
-            View Invoice
-          </button>
+          {isOwner && (
+            <button
+              onClick={handleViewInvoice}
+              className="bg-teal-500 hover:bg-teal-600 text-white py-1 px-3 rounded text-sm ml-4 shrink-0"
+            >
+              View Invoice
+            </button>
+          )}
         </div>
       )}
     </div>

@@ -8,6 +8,7 @@ interface CustomerSelectionProps {
   filteredCustomers: Customer[]
   onSelectCustomer: (customer: Customer) => void
   onNewCustomerClick: () => void
+  canCreateCustomer: boolean
   validationError?: string
 }
 
@@ -17,6 +18,7 @@ const CustomerSelection: React.FC<CustomerSelectionProps> = ({
   filteredCustomers,
   onSelectCustomer,
   onNewCustomerClick,
+  canCreateCustomer,
   validationError,
 }) => {
   return (
@@ -35,13 +37,15 @@ const CustomerSelection: React.FC<CustomerSelectionProps> = ({
             onChange={e => onSearchChange(e.target.value)}
           />
         </div>
-        <button
-          onClick={onNewCustomerClick}
-          className="flex items-center gap-1.5 px-4 py-2.5 bg-teal-600 hover:bg-teal-700 active:bg-teal-800 text-white text-sm font-semibold rounded-xl transition-colors whitespace-nowrap shadow-sm"
-        >
-          <UserPlus className="w-4 h-4" />
-          New
-        </button>
+        {canCreateCustomer && (
+          <button
+            onClick={onNewCustomerClick}
+            className="flex items-center gap-1.5 px-4 py-2.5 bg-teal-600 hover:bg-teal-700 active:bg-teal-800 text-white text-sm font-semibold rounded-xl transition-colors whitespace-nowrap shadow-sm"
+          >
+            <UserPlus className="w-4 h-4" />
+            New
+          </button>
+        )}
       </div>
 
       {validationError && (
@@ -58,12 +62,14 @@ const CustomerSelection: React.FC<CustomerSelectionProps> = ({
             <p className="text-sm font-medium text-gray-500">
               {searchCustomer ? 'No customers match your search' : 'No customers yet'}
             </p>
-            <button
-              onClick={onNewCustomerClick}
-              className="mt-2 text-xs text-teal-600 hover:text-teal-700 font-medium hover:underline"
-            >
-              + Add first customer
-            </button>
+            {canCreateCustomer && (
+              <button
+                onClick={onNewCustomerClick}
+                className="mt-2 text-xs text-teal-600 hover:text-teal-700 font-medium hover:underline"
+              >
+                + Add first customer
+              </button>
+            )}
           </div>
         ) : (
           <div className="divide-y divide-gray-100 max-h-48 overflow-y-auto">

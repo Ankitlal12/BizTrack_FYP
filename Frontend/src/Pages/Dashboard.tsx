@@ -102,9 +102,9 @@ const Dashboard = () => {
         purchasesAPI.getKhaltiBalance().catch(() => ({ khaltiIn: 0, khaltiOut: 0, balance: 0 })),
       ])
 
-      // Calculate inventory stats
+      // Calculate inventory stats (cost basis to match Inventory page summary)
       const totalInventoryValue = inventory.reduce((sum: number, item: any) => 
-        sum + (item.price * item.stock), 0
+        sum + ((Number(item.cost) || 0) * (Number(item.stock) || 0)), 0
       )
       const lowStockItems = inventory.filter((item: any) => 
         item.stock > 0 && item.stock < 20
@@ -319,7 +319,7 @@ const Dashboard = () => {
             icon={Package}
             color="bg-blue-500"
             onClick={() => navigate('/inventory')}
-            subtitle={`${stats.totalItems} items in stock`}
+            subtitle={`${stats.totalItems} items in stock (cost basis)`}
           />
           <StatCard
             title="Total Sales"

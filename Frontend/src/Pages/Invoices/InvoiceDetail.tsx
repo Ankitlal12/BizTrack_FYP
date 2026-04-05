@@ -2,8 +2,10 @@ import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import Layout from '../../layout/Layout';
 import InvoiceDetailsModal from './InvoiceDetailsModal';
+import SendEmailModal from './SendEmailModal';
 import { Invoice } from './types';
 import { invoicesAPI } from '../../services/api';
+import { toast } from 'sonner';
 
 const InvoiceDetail: React.FC = () => {
   const { id } = useParams<{ id: string }>();
@@ -11,6 +13,8 @@ const InvoiceDetail: React.FC = () => {
   const [invoice, setInvoice] = useState<Invoice | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [showEmailModal, setShowEmailModal] = useState(false);
+  const [emailingInvoiceId, setEmailingInvoiceId] = useState<string | null>(null);
 
   useEffect(() => {
     if (id) {
@@ -35,6 +39,27 @@ const InvoiceDetail: React.FC = () => {
 
   const handleClose = () => {
     navigate('/invoices');
+  };
+
+  const handleEmailInvoice = () => {
+    if (!invoice) return;
+    setShowEmailModal(true);
+  };
+
+  const handleSendEmail = async (email: string) => {
+    if (!invoice) return;
+
+    try {
+      setEmailingInvoiceId(invoice._id);
+      await invoicesAPI.sendEmail(invoice._id, { email });
+      toast.success(`Invoice sent to ${email}`);
+    } catch (err: any) {
+      const message = err?.message || 'Failed to send invoice email';
+      toast.error(message);
+      throw err;
+    } finally {
+      setEmailingInvoiceId(null);
+    }
   };
 
   if (loading) {
@@ -85,6 +110,16 @@ const InvoiceDetail: React.FC = () => {
           invoice={invoice}
           isOpen={true}
           onClose={handleClose}
+          onEmailInvoice={handleEmailInvoice}
+          emailSending={Boolean(invoice?._id && emailingInvoiceId === invoice?._id)}
+        />
+
+        <SendEmailModal
+          invoice={invoice}
+          isOpen={showEmailModal}
+          onClose={() => setShowEmailModal(false)}
+          onSend={handleSendEmail}
+          isSending={emailingInvoiceId === invoice?._id}
         />
       </div>
     </Layout>

@@ -295,12 +295,13 @@ export const notificationsAPI = {
 
 // Notification Archive API (Settings Page - Permanent, all notifications)
 export const notificationArchiveAPI = {
-  getAll: (params?: { read?: boolean; limit?: number }) => {
+  getAll: (params?: { read?: boolean; limit?: number; skip?: number }) => {
     const queryParams = new URLSearchParams();
     if (params?.read !== undefined) queryParams.append('read', params.read.toString());
     if (params?.limit !== undefined) queryParams.append('limit', params.limit.toString());
+    if (params?.skip !== undefined) queryParams.append('skip', params.skip.toString());
     const query = queryParams.toString();
-    return apiRequest<any[]>(`/notifications/archive${query ? `?${query}` : ''}`);
+    return apiRequest<{ notifications: any[]; total: number }>(`/notifications/archive${query ? `?${query}` : ''}`);
   },
   getUnreadCount: () => apiRequest<{ count: number }>('/notifications/archive/unread/count'),
   getById: (id: string) => apiRequest<any>(`/notifications/archive/${id}`),

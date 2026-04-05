@@ -1,6 +1,7 @@
 // ==================== CONSTANTS ====================
 
 const NEPAL_TIMEZONE = 'Asia/Kathmandu';
+const NEPAL_OFFSET_MINUTES = 5 * 60 + 45;
 
 // ==================== DATE UTILITIES ====================
 
@@ -42,9 +43,34 @@ const convertToNepaliTime = (utcDate) => {
   return new Date(date.toLocaleString("en-US", { timeZone: NEPAL_TIMEZONE }));
 };
 
+/**
+ * Convert a local Nepal calendar day (YYYY-MM-DD) into UTC range.
+ * @param {string} dateString
+ * @returns {{start: Date, end: Date}|null}
+ */
+const getNepaliDayRangeInUTC = (dateString) => {
+  if (!dateString || typeof dateString !== 'string') return null;
+
+  const dayPart = dateString.split('T')[0];
+  const [year, month, day] = dayPart.split('-').map(Number);
+
+  if (!year || !month || !day) return null;
+
+  const offsetMs = NEPAL_OFFSET_MINUTES * 60 * 1000;
+  const startUtcMs = Date.UTC(year, month - 1, day, 0, 0, 0, 0) - offsetMs;
+  const endUtcMs = Date.UTC(year, month - 1, day, 23, 59, 59, 999) - offsetMs;
+
+  return {
+    start: new Date(startUtcMs),
+    end: new Date(endUtcMs),
+  };
+};
+
 module.exports = {
   NEPAL_TIMEZONE,
+  NEPAL_OFFSET_MINUTES,
   getNepaliCurrentDateTime,
   formatNepaliDateTime,
   convertToNepaliTime,
+  getNepaliDayRangeInUTC,
 };

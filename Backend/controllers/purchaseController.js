@@ -3,7 +3,7 @@ const Purchase = require("../models/Purchase");
 const Inventory = require("../models/Inventory");
 const Notification = require("../models/Notification");
 const { generateInvoiceFromPurchase } = require("./invoiceController");
-const { getNepaliCurrentDateTime } = require("../utils/dateUtils");
+const { getNepaliCurrentDateTime, getNepaliDayRangeInUTC } = require("../utils/dateUtils");
 const { createNotification } = require("../utils/notificationHelper");
 const { initiateKhaltiPayment, verifyKhaltiPayment } = require("../utils/khaltiService");
 
@@ -151,10 +151,12 @@ exports.getAllPurchases = async (req, res) => {
     if (req.query.dateFrom || req.query.dateTo) {
       query.createdAt = {};
       if (req.query.dateFrom) {
-        query.createdAt.$gte = new Date(req.query.dateFrom);
+        const fromRange = getNepaliDayRangeInUTC(req.query.dateFrom);
+        query.createdAt.$gte = fromRange ? fromRange.start : new Date(req.query.dateFrom);
       }
       if (req.query.dateTo) {
-        query.createdAt.$lte = new Date(req.query.dateTo);
+        const toRange = getNepaliDayRangeInUTC(req.query.dateTo);
+        query.createdAt.$lte = toRange ? toRange.end : new Date(req.query.dateTo);
       }
     }
     
@@ -708,12 +710,13 @@ exports.recordPayment = async (req, res) => {
         const Invoice = require('../models/Invoice');
         const invoice = await Invoice.findOne({ relatedId: purchase._id, type: 'purchase' });
         if (invoice) {
-          invoice.paymentStatus = purchase.paymentStatus;
+          // Map 'scheduled' → 'partial' since Invoice schema doesn't use 'scheduled'
+          invoice.paymentStatus = purchase.paymentStatus === 'scheduled' ? 'partial' : purchase.paymentStatus;
           invoice.paidAmount = purchase.paidAmount;
           if (method) invoice.paymentMethod = method;
           if (purchase.paymentStatus === "paid") {
             invoice.status = "paid";
-          } else if (purchase.paymentStatus === "partial") {
+          } else if (purchase.paymentStatus === "partial" || purchase.paymentStatus === "scheduled") {
             invoice.status = "sent";
           }
           await invoice.save();
