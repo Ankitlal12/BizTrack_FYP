@@ -1,7 +1,345 @@
 // ==================== IMPORTS ====================
 const mongoose = require("mongoose");
+const nodemailer = require("nodemailer");
 const Notification = require("../models/Notification");
 const NotificationArchive = require("../models/NotificationArchive");
+const Inventory = require("../models/Inventory");
+const Purchase = require("../models/Purchase");
+const Sale = require("../models/Sale");
+const User = require("../models/User");
+const { getNepaliDayRangeInUTC } = require("./dateUtils");
+
+const OWNER_ALERT_TYPES = new Set([
+  "purchase",
+  "low_stock",
+  "out_of_stock",
+  "payment_received",
+  "payment_made",
+  "payment_scheduled",
+  "installment_due",
+  "delivery_received",
+  "reorder_needed",
+  "reorder_created",
+  "reorder_approved",
+  "auto_reorder",
+]);
+
+const createEmailTransporter = async () => {
+  if (process.env.EMAIL_SERVICE && process.env.EMAIL_USER && process.env.EMAIL_PASSWORD) {
+    return nodemailer.createTransport({
+      service: process.env.EMAIL_SERVICE,
+      auth: {
+        user: process.env.EMAIL_USER,
+        pass: process.env.EMAIL_PASSWORD,
+      },
+    });
+  }
+
+  const testAccount = await nodemailer.createTestAccount();
+  return nodemailer.createTransport({
+    host: "smtp.ethereal.email",
+    port: 587,
+    secure: false,
+    auth: {
+      user: testAccount.user,
+      pass: testAccount.pass,
+    },
+  });
+};
+
+const shouldEmailOwners = (type) => OWNER_ALERT_TYPES.has(type);
+
+const buildOwnerAlertEmailHtml = (notification) => {
+  const details = notification.message ? `<p style="margin: 0 0 14px; color: #4b5563; line-height: 1.6;">${notification.message}</p>` : "";
+
+  return `
+    <!DOCTYPE html>
+    <html>
+    <head>
+      <style>
+        body { font-family: Arial, sans-serif; background-color: #f4f4f4; margin: 0; padding: 0; }
+        .container { max-width: 640px; margin: 24px auto; background: #ffffff; border-radius: 12px; overflow: hidden; box-shadow: 0 8px 24px rgba(0,0,0,0.08); }
+        .header { background: linear-gradient(135deg, #111827 0%, #374151 100%); padding: 28px 32px; color: #ffffff; }
+        .content { padding: 32px; }
+        .badge { display: inline-block; background: #f3f4f6; color: #111827; border-radius: 999px; padding: 6px 12px; font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.04em; }
+        .card { background: #f9fafb; border: 1px solid #e5e7eb; border-radius: 10px; padding: 18px; margin: 18px 0; }
+        .title { margin: 12px 0 10px; color: #111827; font-size: 22px; }
+        .footer { padding: 18px 32px 28px; color: #6b7280; font-size: 12px; border-top: 1px solid #e5e7eb; }
+        .cta { display: inline-block; margin-top: 12px; padding: 10px 16px; background: #111827; color: #ffffff; text-decoration: none; border-radius: 8px; font-size: 14px; }
+      </style>
+    </head>
+    <body>
+      <div class="container">
+        <div class="header">
+          <div class="badge">BizTrack Alert</div>
+          <h1 class="title" style="color:#ffffff; margin: 14px 0 0;">${notification.title}</h1>
+        </div>
+        <div class="content">
+          <p style="margin: 0 0 14px; color: #111827; font-size: 16px; font-weight: 600;">This needs your attention.</p>
+          ${details}
+          <div class="card">
+            <p style="margin: 0; color: #6b7280; font-size: 13px; text-transform: uppercase; letter-spacing: 0.04em;">Alert type</p>
+            <p style="margin: 6px 0 0; color: #111827; font-size: 15px; font-weight: 600;">${notification.type}</p>
+          </div>
+          <p style="margin: 0; color: #6b7280; line-height: 1.6;">Open BizTrack to review the item, purchase, or payment details and take action if needed.</p>
+        </div>
+        <div class="footer">
+          <p style="margin: 0;">This message was generated automatically by BizTrack.</p>
+        </div>
+      </div>
+    </body>
+    </html>
+  `;
+};
+
+const buildDailySummaryEmailHtml = ({ summaryDate, stockSummary, notificationCounts, purchaseSummary, saleSummary, profitSummary, recentAlerts }) => {
+  const lowStockRows = stockSummary.lowStockItems.length > 0
+    ? stockSummary.lowStockItems.map((item) => `
+        <tr>
+          <td style="padding: 10px 0; border-bottom: 1px solid #e5e7eb; color: #111827; font-weight: 600;">${item.name}</td>
+          <td style="padding: 10px 0; border-bottom: 1px solid #e5e7eb; color: #6b7280; text-align: right;">${item.stock}</td>
+          <td style="padding: 10px 0; border-bottom: 1px solid #e5e7eb; color: #6b7280; text-align: right;">${item.reorderLevel}</td>
+        </tr>
+      `).join("")
+    : `<tr><td colspan="3" style="padding: 12px 0; color: #6b7280;">No low-stock items right now.</td></tr>`;
+
+  const recentAlertRows = recentAlerts.length > 0
+    ? recentAlerts.map((alert) => `
+        <tr>
+          <td style="padding: 10px 0; border-bottom: 1px solid #e5e7eb;">
+            <div style="font-weight: 600; color: #111827;">${alert.title}</div>
+            <div style="color: #6b7280; font-size: 13px; margin-top: 4px;">${alert.message}</div>
+          </td>
+        </tr>
+      `).join("")
+    : `<tr><td style="padding: 12px 0; color: #6b7280;">No notifications were generated today.</td></tr>`;
+
+  return `
+    <!DOCTYPE html>
+    <html>
+    <head>
+      <style>
+        body { font-family: Arial, sans-serif; background-color: #f4f4f4; margin: 0; padding: 0; }
+        .container { max-width: 720px; margin: 24px auto; background: #ffffff; border-radius: 12px; overflow: hidden; box-shadow: 0 8px 24px rgba(0,0,0,0.08); }
+        .header { background: linear-gradient(135deg, #111827 0%, #374151 100%); padding: 28px 32px; color: #ffffff; }
+        .content { padding: 32px; }
+        .grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; margin: 18px 0 24px; }
+        .card { background: #f9fafb; border: 1px solid #e5e7eb; border-radius: 10px; padding: 16px; }
+        .label { color: #6b7280; font-size: 12px; text-transform: uppercase; letter-spacing: 0.04em; }
+        .value { color: #111827; font-size: 24px; font-weight: 700; margin-top: 8px; }
+        .section { margin-top: 26px; }
+        .section-title { margin: 0 0 12px; color: #111827; font-size: 18px; }
+        .table { width: 100%; border-collapse: collapse; }
+        .table th { text-align: left; font-size: 12px; color: #6b7280; font-weight: 700; text-transform: uppercase; letter-spacing: 0.04em; padding: 0 0 10px; }
+        .footer { padding: 18px 32px 28px; color: #6b7280; font-size: 12px; border-top: 1px solid #e5e7eb; }
+        @media (max-width: 640px) { .grid { grid-template-columns: 1fr; } }
+      </style>
+    </head>
+    <body>
+      <div class="container">
+        <div class="header">
+          <div style="display:inline-block;background:#f3f4f6;color:#111827;border-radius:999px;padding:6px 12px;font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:0.04em;">Daily Summary</div>
+          <h1 style="margin:14px 0 0;font-size:28px;color:#ffffff;">BizTrack Owner Digest</h1>
+          <p style="margin:8px 0 0;color:#e5e7eb;">${summaryDate}</p>
+        </div>
+        <div class="content">
+          <p style="margin:0;color:#111827;line-height:1.6;">Here is a quick overview of today's stock and purchase activity.</p>
+
+          <div class="grid">
+            <div class="card">
+              <div class="label">Low stock items</div>
+              <div class="value">${stockSummary.lowStockCount}</div>
+            </div>
+            <div class="card">
+              <div class="label">Out of stock items</div>
+              <div class="value">${stockSummary.outOfStockCount}</div>
+            </div>
+            <div class="card">
+              <div class="label">Today’s purchase total</div>
+              <div class="value">Rs ${purchaseSummary.totalAmount.toFixed(2)}</div>
+            </div>
+            <div class="card">
+              <div class="label">Today’s sales total</div>
+              <div class="value">Rs ${saleSummary.totalAmount.toFixed(2)}</div>
+            </div>
+          </div>
+
+          <div class="section">
+            <h2 class="section-title">Profit snapshot</h2>
+            <div class="card">
+              <div class="label">Today's gross profit</div>
+              <div class="value">Rs ${profitSummary.amount.toFixed(2)}</div>
+              <p style="margin:10px 0 0;color:#6b7280;line-height:1.6;">Profit is calculated as today's sales total minus today's purchase total.</p>
+              <p style="margin:8px 0 0;color:#6b7280;line-height:1.6;">${profitSummary.marginLabel}</p>
+            </div>
+          </div>
+
+          <div class="section">
+            <h2 class="section-title">Low stock items</h2>
+            <div class="card">
+              <table class="table">
+                <thead>
+                  <tr>
+                    <th>Item</th>
+                    <th style="text-align:right;">Stock</th>
+                    <th style="text-align:right;">Reorder Level</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  ${lowStockRows}
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          <div class="section">
+            <h2 class="section-title">Current stock risk</h2>
+            <div class="card">
+              <p style="margin:0;color:#111827;font-weight:600;">${stockSummary.lowStockCount + stockSummary.outOfStockCount === 0 ? "No stock risk detected right now." : `There are ${stockSummary.lowStockCount + stockSummary.outOfStockCount} item(s) that need attention.`}</p>
+              <p style="margin:10px 0 0;color:#6b7280;line-height:1.6;">${stockSummary.lowStockCount} item(s) are at or below reorder level, and ${stockSummary.outOfStockCount} item(s) are fully out of stock.</p>
+            </div>
+          </div>
+
+          <div class="section">
+            <h2 class="section-title">Today's totals</h2>
+            <div class="grid" style="margin-top:0;">
+              <div class="card">
+                <div class="label">Purchase count</div>
+                <div class="value">${purchaseSummary.count}</div>
+              </div>
+              <div class="card">
+                <div class="label">Sales count</div>
+                <div class="value">${saleSummary.count}</div>
+              </div>
+            </div>
+          </div>
+
+          <div class="section">
+            <h2 class="section-title">Recent alerts</h2>
+            <table style="width:100%;border-collapse:collapse;">${recentAlertRows}</table>
+          </div>
+        </div>
+        <div class="footer">
+          <p style="margin:0;">This message was generated automatically by BizTrack.</p>
+        </div>
+      </div>
+    </body>
+    </html>
+  `;
+};
+
+const sendOwnerAlertEmails = async (notification) => {
+  if (!shouldEmailOwners(notification.type)) return;
+
+  const owners = await User.find({ role: "owner", active: true }).select("name email");
+  const recipients = owners.map((owner) => owner.email).filter(Boolean);
+  if (recipients.length === 0) return;
+
+  const transporter = await createEmailTransporter();
+  const info = await transporter.sendMail({
+    from: process.env.EMAIL_USER || "noreply@biztrack.com",
+    to: recipients,
+    subject: `[BizTrack] ${notification.title}`,
+    text: `${notification.title}\n\n${notification.message}\n\nOpen BizTrack to review this alert.`,
+    html: buildOwnerAlertEmailHtml(notification),
+  });
+
+  if (!process.env.EMAIL_SERVICE) {
+    const previewUrl = nodemailer.getTestMessageUrl(info);
+    if (previewUrl) console.log("📧 Owner alert preview:", previewUrl);
+  }
+};
+
+const sendDailyOwnerSummaryEmail = async () => {
+  const summaryDate = new Date().toLocaleDateString("en-CA", { timeZone: "Asia/Kathmandu" });
+  const dateRange = getNepaliDayRangeInUTC(summaryDate);
+  if (!dateRange) {
+    throw new Error("Failed to calculate Nepali day range for daily summary");
+  }
+
+  const [owners, todaysNotifications, inventoryItems, todayPurchases, todaySales] = await Promise.all([
+    User.find({ role: "owner", active: true }).select("name email"),
+    NotificationArchive.find({ createdAt: { $gte: dateRange.start, $lte: dateRange.end } })
+      .sort({ createdAt: -1 })
+      .limit(8),
+    Inventory.find({}).select("name sku stock reorderLevel"),
+    Purchase.find({ createdAt: { $gte: dateRange.start, $lte: dateRange.end } }).select("total"),
+    Sale.find({ createdAt: { $gte: dateRange.start, $lte: dateRange.end } }).select("total"),
+  ]);
+
+  const recipients = owners.map((owner) => owner.email).filter(Boolean);
+  if (recipients.length === 0) return { sent: 0, skipped: true };
+
+  const lowStockItems = inventoryItems
+    .filter((item) => item.stock > 0 && item.stock <= item.reorderLevel)
+    .sort((a, b) => a.stock - b.stock)
+    .map((item) => ({
+      name: item.name,
+      stock: item.stock,
+      reorderLevel: item.reorderLevel,
+    }));
+  const outOfStockCount = inventoryItems.filter((item) => item.stock <= 0).length;
+  const lowStockCount = lowStockItems.length;
+
+  const purchaseSummary = {
+    count: todayPurchases.length,
+    totalAmount: todayPurchases.reduce((sum, purchase) => sum + (purchase.total || 0), 0),
+  };
+
+  const saleSummary = {
+    count: todaySales.length,
+    totalAmount: todaySales.reduce((sum, sale) => sum + (sale.total || 0), 0),
+  };
+
+  const profitAmount = saleSummary.totalAmount - purchaseSummary.totalAmount;
+  const profitSummary = {
+    amount: profitAmount,
+    marginLabel: saleSummary.totalAmount > 0
+      ? `Profit margin: ${((profitAmount / saleSummary.totalAmount) * 100).toFixed(2)}%`
+      : "Profit margin: not available because today's sales total is zero.",
+  };
+
+  const notificationCounts = {
+    purchase: todaysNotifications.filter((notification) => notification.type === "purchase").length,
+    stock: todaysNotifications.filter((notification) => notification.type === "low_stock" || notification.type === "out_of_stock").length,
+  };
+
+  const recentAlerts = todaysNotifications.slice(0, 5).map((notification) => ({
+    title: notification.title,
+    message: notification.message,
+  }));
+
+  const transporter = await createEmailTransporter();
+  const info = await transporter.sendMail({
+    from: process.env.EMAIL_USER || "noreply@biztrack.com",
+    to: recipients,
+    subject: `[BizTrack] Daily Summary - ${summaryDate}`,
+    text: [
+      `BizTrack Daily Summary (${summaryDate})`,
+      `Low stock items: ${lowStockCount}`,
+      `Out of stock items: ${outOfStockCount}`,
+      `Purchase alerts today: ${notificationCounts.purchase}`,
+      `Stock alerts today: ${notificationCounts.stock}`,
+      `Recent alerts: ${recentAlerts.length}`,
+    ].join("\n"),
+    html: buildDailySummaryEmailHtml({
+      summaryDate,
+      stockSummary: { lowStockCount, outOfStockCount, lowStockItems },
+      notificationCounts,
+      purchaseSummary,
+      saleSummary,
+      profitSummary,
+      recentAlerts,
+    }),
+  });
+
+  if (!process.env.EMAIL_SERVICE) {
+    const previewUrl = nodemailer.getTestMessageUrl(info);
+    if (previewUrl) console.log("📧 Daily summary preview:", previewUrl);
+  }
+
+  return { sent: recipients.length, summaryDate };
+};
 
 // ==================== NOTIFICATION LIFECYCLE ====================
 
@@ -19,6 +357,10 @@ const createNotification = async (notificationData) => {
       Notification.create({ ...notificationData, _id: sharedId }),
       NotificationArchive.create({ ...notificationData, _id: sharedId }),
     ]);
+
+    sendOwnerAlertEmails(tempNotification).catch((error) => {
+      console.error("❌ Failed to send owner alert email:", error);
+    });
 
     console.log(`✅ Notification created: ${notificationData.type} - ${notificationData.title} (ID: ${sharedId})`);
     return { temp: tempNotification, archive: archiveNotification };
@@ -65,4 +407,5 @@ module.exports = {
   createNotification,
   dismissFromLayoutBar,
   permanentlyDeleteNotification,
+  sendDailyOwnerSummaryEmail,
 };

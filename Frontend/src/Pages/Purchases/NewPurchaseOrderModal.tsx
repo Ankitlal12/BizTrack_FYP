@@ -165,6 +165,8 @@ const NewPurchaseOrderModal: React.FC<NewPurchaseOrderModalProps> = ({
   const calculateSubtotal = () => {
     return items.reduce((sum, item) => sum + item.total, 0)
   }
+  const todayDate = new Date().toISOString().split('T')[0]
+  const isPastDate = (dateStr: string) => !!dateStr && dateStr < todayDate
 
   // Installment helpers
   const isFutureDate = (dateStr: string) => {
@@ -228,6 +230,11 @@ const NewPurchaseOrderModal: React.FC<NewPurchaseOrderModalProps> = ({
     })
     
     const subtotal = calculateSubtotal()
+
+    if (expectedDeliveryDate && expectedDeliveryDate < todayDate) {
+      validationErrors.expectedDeliveryDate = 'Expected delivery date cannot be in the past'
+      hasErrors = true
+    }
     
     // Validate installment amounts
     const totalAllocated = allocatedTotal()
@@ -239,6 +246,10 @@ const NewPurchaseOrderModal: React.FC<NewPurchaseOrderModalProps> = ({
     activeInstallments.forEach((inst, idx) => {
       if (inst.amount <= 0) {
         validationErrors[`inst_${inst.id}`] = `Installment ${idx + 1} must have a valid amount`
+        hasErrors = true
+      }
+      if (inst.method === 'khalti' && isPastDate(inst.dueDate)) {
+        validationErrors[`inst_${inst.id}_dueDate`] = `Installment ${idx + 1}: Khalti due date cannot be in the past`
         hasErrors = true
       }
     })
@@ -410,7 +421,11 @@ const NewPurchaseOrderModal: React.FC<NewPurchaseOrderModalProps> = ({
                 className="w-full border border-gray-300 rounded-lg py-2 px-4 focus:outline-none focus:ring-2 focus:ring-teal-500"
                 value={expectedDeliveryDate}
                 onChange={(e) => setExpectedDeliveryDate(e.target.value)}
+                min={todayDate}
               />
+              {errors.expectedDeliveryDate && (
+                <p className="mt-1 text-xs text-red-600">{errors.expectedDeliveryDate}</p>
+              )}
             </div>
           </div>
           
@@ -479,7 +494,11 @@ const NewPurchaseOrderModal: React.FC<NewPurchaseOrderModalProps> = ({
                       className="w-full border border-gray-300 rounded py-1.5 px-2 text-sm focus:outline-none focus:ring-1 focus:ring-teal-500"
                       value={inst.dueDate}
                       onChange={(e) => updateInstallment(inst.id, 'dueDate', e.target.value)}
+                      min={inst.method === 'khalti' ? todayDate : undefined}
                     />
+                    {errors[`inst_${inst.id}_dueDate`] && (
+                      <p className="text-red-500 text-xs mt-1">{errors[`inst_${inst.id}_dueDate`]}</p>
+                    )}
                   </div>
                   {/* Method — always Khalti */}
                   <div className="col-span-1 flex items-end pb-1.5">

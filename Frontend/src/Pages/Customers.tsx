@@ -9,6 +9,8 @@ import {
   Search, 
   Edit, 
   UserX,
+  UserCheck,
+  Trash2,
   Phone,
   Mail,
   MapPin,
@@ -48,6 +50,8 @@ const Customers: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
   const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null);
+  const [customerActionTarget, setCustomerActionTarget] = useState<Customer | null>(null)
+  const [customerActionType, setCustomerActionType] = useState<'deactivate' | 'activate' | 'delete' | null>(null)
   const [showPurchaseHistory, setShowPurchaseHistory] = useState(false);
   const [selectedCustomerForHistory, setSelectedCustomerForHistory] = useState<{ id: string; name: string } | null>(null);
   const [filters, setFilters] = useState<CustomerFilters>({});
@@ -104,17 +108,41 @@ const Customers: React.FC = () => {
   };
 
   const handleDeactivateCustomer = async (customer: Customer) => {
-    if (!confirm(`Are you sure you want to deactivate ${customer.name}?`)) {
-      return;
-    }
+    setCustomerActionTarget(customer)
+    setCustomerActionType('deactivate')
+  };
+
+  const handleActivateCustomer = (customer: Customer) => {
+    setCustomerActionTarget(customer)
+    setCustomerActionType('activate')
+  };
+
+  const handleDeleteCustomer = (customer: Customer) => {
+    setCustomerActionTarget(customer)
+    setCustomerActionType('delete')
+  };
+
+  const confirmCustomerAction = async () => {
+    if (!customerActionTarget || !customerActionType) return
 
     try {
-      await customersAPI.delete(customer._id);
-      toast.success('Customer deactivated successfully');
+      if (customerActionType === 'deactivate') {
+        await customersAPI.delete(customerActionTarget._id)
+        toast.success('Customer deactivated successfully')
+      } else if (customerActionType === 'activate') {
+        await customersAPI.activate(customerActionTarget._id)
+        toast.success('Customer activated successfully')
+      } else {
+        await customersAPI.permanentDelete(customerActionTarget._id)
+        toast.success('Customer permanently deleted')
+      }
+
+      setCustomerActionTarget(null)
+      setCustomerActionType(null)
       loadCustomers();
     } catch (error: any) {
-      console.error('Error deactivating customer:', error);
-      toast.error(error.message || 'Failed to deactivate customer');
+      console.error('Error updating customer status:', error);
+      toast.error(error.message || 'Failed to process customer action');
     }
   };
 
@@ -265,10 +293,23 @@ const Customers: React.FC = () => {
                       <UserX className="w-4 h-4" />
                     </button>
                   )}
-                  {user?.role === 'manager' && (
-                    <div className="flex-1 text-center text-sm text-gray-500 py-2">
-                      View only
-                    </div>
+                  {user?.role === 'owner' && !customer.isActive && (
+                    <button
+                      onClick={() => handleActivateCustomer(customer)}
+                      className="flex items-center justify-center gap-2 px-3 py-2 border border-green-300 text-green-700 rounded-lg hover:bg-green-50"
+                      title="Activate"
+                    >
+                      <UserCheck className="w-4 h-4" />
+                    </button>
+                  )}
+                  {user?.role === 'owner' && (
+                    <button
+                      onClick={() => handleDeleteCustomer(customer)}
+                      className="flex items-center justify-center gap-2 px-3 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50"
+                      title="Delete Permanently"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </button>
                   )}
                 </div>
               </div>
@@ -338,6 +379,44 @@ const Customers: React.FC = () => {
             setSelectedCustomerForHistory(null);
           }}
         />
+      )}
+
+      {customerActionTarget && customerActionType && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-xl shadow-xl w-full max-w-md p-6">
+            <h3 className="text-lg font-semibold text-gray-900">
+              {customerActionType === 'deactivate' && 'Deactivate Customer'}
+              {customerActionType === 'activate' && 'Activate Customer'}
+              {customerActionType === 'delete' && 'Delete Customer Permanently'}
+            </h3>
+            <p className="text-sm text-gray-600 mt-2">
+              {customerActionType === 'deactivate' && `Deactivate ${customerActionTarget.name}. They will still be visible in history, but disabled for normal customer operations.`}
+              {customerActionType === 'activate' && `Activate ${customerActionTarget.name} so they can be used again in customer operations.`}
+              {customerActionType === 'delete' && `Permanently delete ${customerActionTarget.name}. This cannot be undone.`}
+            </p>
+            <div className="mt-6 flex justify-end gap-3">
+              <button
+                type="button"
+                onClick={() => {
+                  setCustomerActionTarget(null)
+                  setCustomerActionType(null)
+                }}
+                className="px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={confirmCustomerAction}
+                className={`px-4 py-2 text-white rounded-lg ${customerActionType === 'activate' ? 'bg-green-600 hover:bg-green-700' : customerActionType === 'deactivate' ? 'bg-orange-600 hover:bg-orange-700' : 'bg-red-600 hover:bg-red-700'}`}
+              >
+                {customerActionType === 'deactivate' && 'Deactivate Customer'}
+                {customerActionType === 'activate' && 'Activate Customer'}
+                {customerActionType === 'delete' && 'Delete Permanently'}
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </Layout>
   );

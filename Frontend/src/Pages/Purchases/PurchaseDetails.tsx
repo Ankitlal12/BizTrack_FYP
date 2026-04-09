@@ -10,9 +10,6 @@ import { useAuth } from '../../contexts/AuthContext'
 
 interface PurchaseDetailsProps {
   purchase: Purchase
-  editingPaymentStatus?: string | null
-  onPaymentStatusChange?: (purchaseId: string, newStatus: string) => void
-  onEditPaymentStatus?: (purchaseKey: string | null) => void
   onRecordPayment?: () => void
   onViewInvoice?: (purchaseId: string) => void
   onMarkReceived?: (purchaseId: string) => void
@@ -20,9 +17,6 @@ interface PurchaseDetailsProps {
 
 const PurchaseDetails: React.FC<PurchaseDetailsProps> = ({
   purchase,
-  editingPaymentStatus,
-  onPaymentStatusChange,
-  onEditPaymentStatus,
   onRecordPayment,
   onViewInvoice,
   onMarkReceived,
@@ -30,7 +24,7 @@ const PurchaseDetails: React.FC<PurchaseDetailsProps> = ({
   const navigate = useNavigate()
   const { user } = useAuth()
   const isOwner = user?.role === 'owner'
-  const purchaseKey = getPurchaseKey(purchase)
+  const canManagePurchases = user?.role === 'manager'
   const paymentStatusValue = purchase.paymentStatus || 'unpaid'
   const paidAmount = purchase.paidAmount || 0
   const scheduledAmount = purchase.scheduledAmount || 0
@@ -270,7 +264,7 @@ const PurchaseDetails: React.FC<PurchaseDetailsProps> = ({
                           {payment.notes || '-'}
                         </td>
                         <td className="py-2 px-3 text-xs">
-                          {payment.status === 'scheduled' && (
+                          {payment.status === 'scheduled' && canManagePurchases && (
                             <button
                               onClick={() => handlePayInstallment(index, payment.amount)}
                               className="inline-flex items-center gap-1 px-2 py-1 text-xs bg-purple-600 text-white rounded hover:bg-purple-700 transition-colors whitespace-nowrap"
@@ -336,7 +330,7 @@ const PurchaseDetails: React.FC<PurchaseDetailsProps> = ({
               </button>
             )}
             {purchase.status !== 'received' &&
-              purchase.status !== 'cancelled' && (
+              purchase.status !== 'cancelled' && canManagePurchases && (
                 <button
                   onClick={() => onMarkReceived && onMarkReceived(purchase._id || purchase.purchaseNumber)}
                   className="bg-teal-500 hover:bg-teal-600 text-white py-1 px-3 rounded text-sm"

@@ -13,6 +13,39 @@ const KhaltiPaymentSuccess = () => {
   const [saleData, setSaleData] = useState<any>(null);
   const hasVerified = useRef(false);
 
+  const finalizeWithFallback = async (reason: string) => {
+    const pidx = searchParams.get('pidx');
+    const transactionId = searchParams.get('transaction_id');
+    const pendingSaleData = localStorage.getItem('biztrack_pending_sale');
+
+    if (!pendingSaleData || !pidx) {
+      throw new Error('Fallback payment callback requires pending sale data and pidx');
+    }
+
+    const saleInfo = JSON.parse(pendingSaleData);
+    const fallbackBillData = {
+      ...saleInfo,
+      khaltiPayment: {
+        pidx,
+        transactionId: transactionId || `fallback-${Date.now()}`,
+        status: 'pending_verification',
+      },
+      notes: `${saleInfo.notes || ''}${saleInfo.notes ? ' | ' : ''}Khalti fallback callback used: ${reason}`,
+    };
+
+    const createdSale = await billingAPI.createBill(fallbackBillData);
+    localStorage.removeItem('biztrack_pending_sale');
+
+    setStatus('success');
+    setMessage('Khalti verification failed, but sale was completed in fallback mode. Please verify transaction later.');
+    setSaleData(createdSale);
+    toast.success('Payment recorded in fallback mode');
+
+    setTimeout(() => {
+      navigate('/billing', { replace: true });
+    }, 3000);
+  };
+
   useEffect(() => {
     if (hasVerified.current) return;
     hasVerified.current = true;
@@ -40,11 +73,7 @@ const KhaltiPaymentSuccess = () => {
       const verificationResult = await billingAPI.verifyKhaltiPayment(pidx);
 
       if (!verificationResult.success) {
-        setStatus('failed');
-        setMessage(verificationResult.message || 'Payment verification failed');
-        toast.error('Payment verification failed', {
-          description: verificationResult.message,
-        });
+        await finalizeWithFallback(verificationResult.message || 'verification response unsuccessful');
         return;
       }
 
@@ -88,11 +117,15 @@ const KhaltiPaymentSuccess = () => {
       }, 3000);
     } catch (error: any) {
       console.error('Payment verification error:', error);
-      setStatus('failed');
-      setMessage(error.message || 'Failed to verify payment');
-      toast.error('Payment verification failed', {
-        description: error.message,
-      });
+      try {
+        await finalizeWithFallback(error.message || 'verification request failed');
+      } catch (fallbackError: any) {
+        setStatus('failed');
+        setMessage(fallbackError.message || error.message || 'Failed to verify payment');
+        toast.error('Payment verification failed', {
+          description: fallbackError.message || error.message,
+        });
+      }
     }
   };
 

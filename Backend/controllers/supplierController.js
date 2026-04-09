@@ -411,3 +411,70 @@ exports.getSupplierPurchaseHistory = async (req, res) => {
     });
   }
 };
+
+/**
+ * Reactivate supplier
+ */
+exports.activateSupplier = async (req, res) => {
+  try {
+    const supplier = await Supplier.findByIdAndUpdate(
+      req.params.id,
+      { isActive: true },
+      { new: true }
+    );
+
+    if (!supplier) {
+      return res.status(404).json({ error: 'Supplier not found' });
+    }
+
+    res.json({
+      data: supplier,
+      message: 'Supplier activated successfully'
+    });
+  } catch (error) {
+    console.error('Error activating supplier:', error);
+    res.status(500).json({
+      error: 'Failed to activate supplier',
+      details: error.message
+    });
+  }
+};
+
+/**
+ * Permanently delete supplier
+ */
+exports.hardDeleteSupplier = async (req, res) => {
+  try {
+    const supplierId = req.params.id;
+    const supplier = await Supplier.findById(supplierId);
+
+    if (!supplier) {
+      return res.status(404).json({ error: 'Supplier not found' });
+    }
+
+    const purchaseHistoryCount = await Purchase.countDocuments({ supplierName: supplier.name });
+    if (purchaseHistoryCount > 0) {
+      return res.status(400).json({
+        error: 'Cannot permanently delete supplier with purchase history',
+        details: `This supplier has ${purchaseHistoryCount} purchase record(s). Deactivate it instead.`
+      });
+    }
+
+    await Inventory.updateMany(
+      { preferredSupplierId: supplierId },
+      { $set: { preferredSupplierId: null } }
+    );
+
+    await Supplier.findByIdAndDelete(supplierId);
+
+    res.json({
+      message: 'Supplier permanently deleted successfully'
+    });
+  } catch (error) {
+    console.error('Error permanently deleting supplier:', error);
+    res.status(500).json({
+      error: 'Failed to permanently delete supplier',
+      details: error.message
+    });
+  }
+};

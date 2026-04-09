@@ -589,6 +589,10 @@ exports.recordInvoicePayment = async (req, res) => {
       const paymentDate = p.date ? new Date(p.date) : new Date();
       const paymentDateOnly = new Date(paymentDate);
       paymentDateOnly.setHours(0, 0, 0, 0);
+      const method = (p.method || "cash").toLowerCase();
+      if (method === "khalti" && paymentDateOnly < currentDate) {
+        throw new Error("Khalti payment date cannot be in the past.");
+      }
       const isScheduled = paymentDateOnly > currentDate;
       return {
         amount: parseFloat(p.amount),

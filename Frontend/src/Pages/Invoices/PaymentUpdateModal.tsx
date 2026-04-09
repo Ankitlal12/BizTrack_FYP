@@ -79,6 +79,7 @@ const PaymentUpdateModal: React.FC<PaymentUpdateModalProps> = ({
   const paidAmount = invoice.paidAmount || 0;
   const scheduledAmount = invoice.scheduledAmount || 0;
   const remaining = Math.max(0, invoice.total - paidAmount - scheduledAmount);
+  const today = todayNPT();
 
   const addInstallment = () => {
     const newId = Math.max(...installments.map(i => i.id)) + 1;
@@ -106,6 +107,10 @@ const PaymentUpdateModal: React.FC<PaymentUpdateModalProps> = ({
       if (amt > remaining) {
         setError(`Amount (${formatCurrency(amt)}) exceeds remaining balance (${formatCurrency(remaining)})`);
         setAmount(remaining.toFixed(2));
+        return;
+      }
+      if (date < today) {
+        setError('Khalti payment date cannot be in the past');
         return;
       }
 
@@ -159,6 +164,7 @@ const PaymentUpdateModal: React.FC<PaymentUpdateModalProps> = ({
           setError(`Installment ${i + 1}: amount must be greater than 0`); return;
         }
         if (!inst.date) { setError(`Installment ${i + 1}: date is required`); return; }
+        if (inst.date < today) { setError(`Installment ${i + 1}: Khalti payment date cannot be in the past`); return; }
       }
 
       setLoading(true);
@@ -189,7 +195,7 @@ const PaymentUpdateModal: React.FC<PaymentUpdateModalProps> = ({
             <h2 className="text-xl font-bold text-gray-900">Record Payment</h2>
             <p className="text-sm text-gray-500 mt-0.5">{invoice.invoiceNumber}</p>
           </div>
-          <button onClick={onClose} disabled={loading} className="text-gray-400 hover:text-gray-600">
+          <button onClick={onClose} disabled={loading} title="Close payment modal" className="text-gray-400 hover:text-gray-600">
             <XIcon size={24} />
           </button>
         </div>
@@ -334,6 +340,8 @@ const PaymentUpdateModal: React.FC<PaymentUpdateModalProps> = ({
                       type="date"
                       value={date}
                       onChange={e => setDate(e.target.value)}
+                      min={today}
+                      title="Payment date"
                       className="w-full border border-gray-300 rounded-lg py-2 px-3 focus:outline-none focus:ring-2 focus:ring-blue-500"
                       required
                       disabled={loading}
@@ -390,7 +398,7 @@ const PaymentUpdateModal: React.FC<PaymentUpdateModalProps> = ({
                         <div className="flex items-center justify-between">
                           <span className="text-xs font-medium text-gray-600">#{idx + 1}</span>
                           {installments.length > 1 && (
-                            <button type="button" onClick={() => removeInstallment(inst.id)} disabled={loading}>
+                            <button type="button" onClick={() => removeInstallment(inst.id)} title={`Remove installment ${idx + 1}`} disabled={loading}>
                               <TrashIcon size={14} className="text-red-400 hover:text-red-600" />
                             </button>
                           )}
@@ -428,6 +436,8 @@ const PaymentUpdateModal: React.FC<PaymentUpdateModalProps> = ({
                               type="date"
                               value={inst.date}
                               onChange={e => updateInstallment(inst.id, 'date', e.target.value)}
+                              min={today}
+                              title={`Installment ${idx + 1} date`}
                               className="w-full border border-gray-300 rounded py-1.5 px-2 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500"
                               disabled={loading}
                             />

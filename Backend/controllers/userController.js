@@ -8,7 +8,9 @@ const { OAuth2Client } = require("google-auth-library");
 const { generateToken } = require("../utils/jwt");
 const { getNepaliCurrentDateTime } = require("../utils/dateUtils");
 const { createNotification } = require("../utils/notificationHelper");
-const { generateOTP, getOTPExpiration, verifyOTP, sendOTPEmail } = require("../utils/otpService");
+const { generateOTP, getOTPExpiration, verifyOTP, sendOTPEmail, sendCredentialsEmail } = require("../utils/otpService");
+
+const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 // ==================== CONSTANTS ====================
 const GOOGLE_CLIENT_ID = process.env.GOOGLE_CLIENT_ID || "905396434192-03aqn8vkab2knh33brep80bfvmh3ojik.apps.googleusercontent.com";
@@ -78,18 +80,38 @@ const recordLoginHistory = async (user, req, method, success) => {
 // Create a new user (staff member)
 exports.createUser = async (req, res) => {
   try {
-    const { name, email, username, password, role } = req.body;
+    const { name, email, username, password, role, sendCredentialsEmail: shouldSendCredentials } = req.body;
+
+    const trimmedName = (name || "").trim();
+    const normalizedEmail = (email || "").trim().toLowerCase();
+    const trimmedUsername = (username || "").trim();
 
     // Validate required fields
-    if (!name || !email || !username || !password) {
+    if (!trimmedName || !normalizedEmail || !trimmedUsername || !password) {
       return res.status(400).json({ 
         error: "Name, email, username, and password are required" 
       });
     }
 
+    if (!EMAIL_REGEX.test(normalizedEmail)) {
+      return res.status(400).json({ error: "Invalid email format" });
+    }
+
+    if (normalizedEmail.endsWith('.con') || normalizedEmail.endsWith('.cmo')) {
+      return res.status(400).json({ error: "Email domain looks invalid. Did you mean .com?" });
+    }
+
+    if (normalizedEmail.includes('@gmail.') && !normalizedEmail.endsWith('@gmail.com')) {
+      return res.status(400).json({ error: "Gmail address must end with @gmail.com" });
+    }
+
+    if (password.length < 6) {
+      return res.status(400).json({ error: "Password must be at least 6 characters long" });
+    }
+
     // Check if user with email or username already exists
     const existingUser = await User.findOne({
-      $or: [{ email }, { username }]
+      $or: [{ email: normalizedEmail }, { username: trimmedUsername }]
     });
 
     if (existingUser) {
@@ -104,28 +126,48 @@ exports.createUser = async (req, res) => {
 
     // Create user
     const user = await User.create({
-      name,
-      email,
-      username,
+      name: trimmedName,
+      email: normalizedEmail,
+      username: trimmedUsername,
       password: hashedPassword,
       role: role || 'staff',
       active: true,
       dateAdded: new Date(),
     });
 
+    let credentialEmailSent = false;
+    if (shouldSendCredentials) {
+      const emailResult = await sendCredentialsEmail(
+        normalizedEmail,
+        trimmedName,
+        trimmedUsername,
+        password,
+        role || 'staff'
+      );
+      credentialEmailSent = !!emailResult.success;
+
+      if (!credentialEmailSent) {
+        await User.findByIdAndDelete(user._id);
+        return res.status(500).json({
+          error: "User was not created because credential email could not be sent. Please verify email settings and try again.",
+        });
+      }
+    }
+
     // Create notification for new staff member
     try {
       await createNotification({
         type: "system",
         title: "New Staff Member Added",
-        message: `${name} has been added as a ${role || 'staff'} member.`,
+        message: `${trimmedName} has been added as a ${role || 'staff'} member.`,
         relatedId: user._id,
         relatedModel: "User",
         metadata: {
-          userName: name,
-          email: email,
+          userName: trimmedName,
+          email: normalizedEmail,
           role: role || 'staff',
-          username: username,
+          username: trimmedUsername,
+          credentialEmailSent,
         },
       });
     } catch (notifError) {
@@ -137,7 +179,10 @@ exports.createUser = async (req, res) => {
     const userResponse = user.toObject();
     delete userResponse.password;
 
-    res.status(201).json(userResponse);
+    res.status(201).json({
+      ...userResponse,
+      credentialEmailSent,
+    });
   } catch (err) {
     res.status(400).json({ error: err.message });
   }

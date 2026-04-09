@@ -61,7 +61,6 @@ const buildNavStructure = (role: string): NavEntry[] => {
       stockControlGroup('owner'),
       { name: 'Sales',               path: '/sales',        icon: <FiShoppingCart size={20} /> },
       { name: 'Purchases',           path: '/purchases',    icon: <CiDeliveryTruck size={20} /> },
-      { name: 'Billing',             path: '/billing',      icon: <LuShoppingBag size={20} /> },
       { name: 'Invoices',            path: '/invoices',     icon: <FiFileText size={20} /> },
       contactsGroup,
       { name: 'Transaction History', path: '/transactions', icon: <FaHistory size={20} /> },

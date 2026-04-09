@@ -1,14 +1,13 @@
 const express = require("express");
 const { authenticate, authorize } = require("../middleware/auth");
-const { OWNER_ONLY } = require("../config/roles");
+const { OWNER_MANAGER } = require("../config/roles");
 const notificationController = require("../controllers/notificationController");
 
 const router = express.Router();
 
-// All notification routes require authentication + owner role
-// (notifications are only shown to owners in the UI)
+// Notification routes are accessible by owner + manager
 router.use(authenticate);
-router.use(authorize(...OWNER_ONLY));
+router.use(authorize(...OWNER_MANAGER));
 
 // Named routes before /:id
 router.get("/",                  notificationController.getAllNotifications);

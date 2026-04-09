@@ -10,6 +10,8 @@ import {
   Search, 
   Edit, 
   UserX,
+  UserCheck,
+  Trash2,
   Phone,
   Mail,
   MapPin,
@@ -29,6 +31,9 @@ const Suppliers: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
   const [selectedSupplier, setSelectedSupplier] = useState<Supplier | null>(null);
+  const [supplierToDeactivate, setSupplierToDeactivate] = useState<Supplier | null>(null);
+  const [supplierActionTarget, setSupplierActionTarget] = useState<Supplier | null>(null);
+  const [supplierActionType, setSupplierActionType] = useState<'activate' | 'delete' | null>(null);
   const [showPurchaseHistory, setShowPurchaseHistory] = useState(false);
   const [selectedSupplierForHistory, setSelectedSupplierForHistory] = useState<{ id: string; name: string } | null>(null);
   const [filters, setFilters] = useState<SupplierFilters>({});
@@ -86,19 +91,66 @@ const Suppliers: React.FC = () => {
   };
 
   const handleDeactivateSupplier = async (supplier: Supplier) => {
-    if (!confirm(`Are you sure you want to deactivate ${supplier.name}?`)) {
-      return;
-    }
+    setSupplierToDeactivate(supplier)
+  };
+
+  const confirmDeactivateSupplier = async () => {
+    if (!supplierToDeactivate) return
 
     try {
-      await suppliersAPI.delete(supplier._id);
+      await suppliersAPI.delete(supplierToDeactivate._id);
       toast.success('Supplier deactivated successfully');
+      setSupplierToDeactivate(null)
       loadSuppliers();
     } catch (error: any) {
       console.error('Error deactivating supplier:', error);
       toast.error(error.message || 'Failed to deactivate supplier');
     }
   };
+
+  const handleActivateSupplier = (supplier: Supplier) => {
+    setSupplierActionTarget(supplier)
+    setSupplierActionType('activate')
+  }
+
+  const handleDeleteSupplier = (supplier: Supplier) => {
+    setSupplierActionTarget(supplier)
+    setSupplierActionType('delete')
+  }
+
+  const confirmSupplierAction = async () => {
+    if (!supplierActionTarget || !supplierActionType) return
+
+    try {
+      if (supplierActionType === 'activate') {
+        await suppliersAPI.activate(supplierActionTarget._id)
+        toast.success('Supplier activated successfully')
+      } else {
+        await suppliersAPI.permanentDelete(supplierActionTarget._id)
+        toast.success('Supplier permanently deleted')
+      }
+
+      setSupplierActionTarget(null)
+      setSupplierActionType(null)
+      loadSuppliers()
+    } catch (error: any) {
+      toast.error(error.message || 'Failed to process supplier action')
+    }
+  }
+
+  const handleQuickRatingUpdate = async (supplier: Supplier, rating: number) => {
+    if (user?.role !== 'owner') return
+
+    try {
+      await suppliersAPI.update(supplier._id, { rating })
+      setSuppliers((prev) =>
+        prev.map((s) => (s._id === supplier._id ? { ...s, rating } : s))
+      )
+      toast.success(`Rating updated to ${rating}/5 for ${supplier.name}`)
+    } catch (error: any) {
+      toast.error(error.message || 'Failed to update supplier rating')
+    }
+  }
 
   const getStatusColor = (isActive: boolean) => {
     return isActive 
@@ -248,7 +300,25 @@ const Suppliers: React.FC = () => {
                 <div className="flex items-center gap-2 mb-4">
                   <span className="text-sm text-gray-600">Rating:</span>
                   <div className="flex items-center gap-1">
-                    {renderStars(supplier.rating)}
+                    {user?.role === 'owner'
+                      ? Array.from({ length: 5 }, (_, i) => {
+                          const starValue = i + 1
+                          return (
+                            <button
+                              key={starValue}
+                              type="button"
+                              onClick={() => handleQuickRatingUpdate(supplier, starValue)}
+                              className="focus:outline-none"
+                              title={`Set rating to ${starValue}/5`}
+                            >
+                              <Star
+                                className={`w-4 h-4 ${i < supplier.rating ? 'text-yellow-400 fill-current' : 'text-gray-300'}`}
+                              />
+                            </button>
+                          )
+                        })
+                      : renderStars(supplier.rating)
+                    }
                     <span className="text-sm text-gray-600 ml-1">({supplier.rating}/5)</span>
                   </div>
                 </div>
@@ -289,10 +359,23 @@ const Suppliers: React.FC = () => {
                       <UserX className="w-4 h-4" />
                     </button>
                   )}
-                  {user?.role === 'manager' && (
-                    <div className="flex-1 text-center text-sm text-gray-500 py-2">
-                      View only
-                    </div>
+                  {user?.role === 'owner' && !supplier.isActive && (
+                    <button
+                      onClick={() => handleActivateSupplier(supplier)}
+                      className="flex items-center justify-center gap-2 px-3 py-2 border border-green-300 text-green-700 rounded-lg hover:bg-green-50"
+                      title="Activate"
+                    >
+                      <UserCheck className="w-4 h-4" />
+                    </button>
+                  )}
+                  {user?.role === 'owner' && (
+                    <button
+                      onClick={() => handleDeleteSupplier(supplier)}
+                      className="flex items-center justify-center gap-2 px-3 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50"
+                      title="Delete Permanently"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </button>
                   )}
                 </div>
               </div>
@@ -365,6 +448,69 @@ const Suppliers: React.FC = () => {
             setSelectedSupplierForHistory(null);
           }}
         />
+      )}
+
+      {/* Deactivate Confirmation Modal */}
+      {supplierToDeactivate && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-xl shadow-xl w-full max-w-md p-6">
+            <h3 className="text-lg font-semibold text-gray-900">Deactivate Supplier</h3>
+            <p className="text-sm text-gray-600 mt-2">
+              You are about to deactivate <span className="font-semibold">{supplierToDeactivate.name}</span>.
+              This supplier will no longer be available for new purchase operations until reactivated.
+            </p>
+            <div className="mt-6 flex justify-end gap-3">
+              <button
+                type="button"
+                onClick={() => setSupplierToDeactivate(null)}
+                className="px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={confirmDeactivateSupplier}
+                className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700"
+              >
+                Deactivate Supplier
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {supplierActionTarget && supplierActionType && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-xl shadow-xl w-full max-w-md p-6">
+            <h3 className="text-lg font-semibold text-gray-900">
+              {supplierActionType === 'activate' ? 'Activate Supplier' : 'Delete Supplier Permanently'}
+            </h3>
+            <p className="text-sm text-gray-600 mt-2">
+              {supplierActionType === 'activate'
+                ? `Activate ${supplierActionTarget.name} so it can be used again for purchasing and supplier operations.`
+                : `Permanently delete ${supplierActionTarget.name}. This cannot be undone.`}
+            </p>
+            <div className="mt-6 flex justify-end gap-3">
+              <button
+                type="button"
+                onClick={() => {
+                  setSupplierActionTarget(null)
+                  setSupplierActionType(null)
+                }}
+                className="px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={confirmSupplierAction}
+                className={`px-4 py-2 text-white rounded-lg ${supplierActionType === 'activate' ? 'bg-green-600 hover:bg-green-700' : 'bg-red-600 hover:bg-red-700'}`}
+              >
+                {supplierActionType === 'activate' ? 'Activate Supplier' : 'Delete Permanently'}
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </Layout>
   );

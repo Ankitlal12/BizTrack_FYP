@@ -4,6 +4,7 @@ const cors = require("cors");
 const mongoose = require("mongoose");
 const connectDB = require("./config/db");
 const { processAllScheduledPayments, processDeliveries } = require("./services/paymentScheduler");
+const { sendDailyOwnerSummaryEmail } = require("./utils/notificationHelper");
 
 // ==================== APP SETUP ====================
 const app = express();
@@ -107,6 +108,37 @@ app.listen(PORT, () => {
   
   // Initialize payment scheduler
   console.log("🔧 Initializing payment scheduler...");
+
+  const scheduleDailyOwnerSummary = () => {
+    const DAILY_SUMMARY_HOUR = 19;
+    const DAILY_SUMMARY_MINUTE = 30;
+    const TIMEZONE = "Asia/Kathmandu";
+
+    const getDelayUntilNextRun = () => {
+      const nowNepal = new Date(new Date().toLocaleString("en-US", { timeZone: TIMEZONE }));
+      const nextRun = new Date(nowNepal);
+      nextRun.setHours(DAILY_SUMMARY_HOUR, DAILY_SUMMARY_MINUTE, 0, 0);
+
+      if (nextRun <= nowNepal) {
+        nextRun.setDate(nextRun.getDate() + 1);
+      }
+
+      return nextRun.getTime() - nowNepal.getTime();
+    };
+
+    const runDailySummary = async () => {
+      try {
+        console.log(`📧 Running daily owner summary at ${new Date().toISOString()}`);
+        await sendDailyOwnerSummaryEmail();
+      } catch (error) {
+        console.error("❌ Error sending daily owner summary:", error);
+      } finally {
+        setTimeout(runDailySummary, 24 * 60 * 60 * 1000);
+      }
+    };
+
+    setTimeout(runDailySummary, getDelayUntilNextRun());
+  };
   
   // Run payment processor every hour
   setInterval(async () => {
@@ -138,6 +170,8 @@ app.listen(PORT, () => {
       console.error("❌ Error in initial processor:", error);
     }
   }, 10000); // Run after 10 seconds to let server fully initialize
+
+  scheduleDailyOwnerSummary();
   
   // console.log("✅ Payment scheduler & delivery processor initialized successfully");
 });

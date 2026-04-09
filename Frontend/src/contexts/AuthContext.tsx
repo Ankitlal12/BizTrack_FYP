@@ -29,6 +29,7 @@ export interface StaffMember extends User {
   password?: string
   active: boolean
   dateAdded: string
+  sendCredentialsEmail?: boolean
 }
 
 interface AuthContextType {
@@ -302,6 +303,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         password: staff.password,
         role: staff.role,
         active: staff.active !== undefined ? staff.active : true,
+        sendCredentialsEmail: !!staff.sendCredentialsEmail,
       })
 
       // Convert MongoDB _id to id and format dateAdded

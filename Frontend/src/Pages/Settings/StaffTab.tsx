@@ -17,6 +17,7 @@ type NewStaff = {
   password: string
   confirmPassword: string
   role: string
+  sendCredentialsEmail: boolean
 }
 
 type StaffTabProps = {
@@ -41,6 +42,7 @@ const StaffTab: React.FC<StaffTabProps> = ({
     password: '',
     confirmPassword: '',
     role: 'staff',
+    sendCredentialsEmail: false,
   })
   const [formErrors, setFormErrors] = useState<Record<string, string>>({})
   const [isSubmitting, setIsSubmitting] = useState(false)
@@ -61,6 +63,31 @@ const StaffTab: React.FC<StaffTabProps> = ({
   const [isDeleting, setIsDeleting] = useState(false)
   const [editError, setEditError] = useState('')
   const [editSuccess, setEditSuccess] = useState(false)
+
+  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+
+  const validateEmail = (email: string) => {
+    const normalized = email.trim().toLowerCase()
+
+    if (!normalized) {
+      return 'Email is required'
+    }
+
+    if (!emailRegex.test(normalized)) {
+      return 'Enter a valid email address'
+    }
+
+    // Catch common typos such as gmail.con
+    if (normalized.endsWith('.con') || normalized.endsWith('.cmo')) {
+      return 'Email domain looks invalid. Did you mean .com?'
+    }
+
+    if (normalized.includes('@gmail.') && !normalized.endsWith('@gmail.com')) {
+      return 'Gmail address must end with @gmail.com'
+    }
+
+    return ''
+  }
 
   const getRoleBadgeClass = (role: string) => {
     switch (role) {
@@ -206,11 +233,19 @@ const StaffTab: React.FC<StaffTabProps> = ({
     e.preventDefault()
     setSubmitError('')
     setSubmitSuccess(false)
+    setFormErrors({})
 
     const errors: Record<string, string> = {}
-    if (!newStaff.name) errors.name = 'Name is required'
-    if (!newStaff.email) errors.email = 'Email is required'
-    if (!newStaff.username) errors.username = 'Username is required'
+    const trimmedName = newStaff.name.trim()
+    const trimmedEmail = newStaff.email.trim().toLowerCase()
+    const trimmedUsername = newStaff.username.trim()
+
+    if (!trimmedName) errors.name = 'Name is required'
+
+    const emailError = validateEmail(trimmedEmail)
+    if (emailError) errors.email = emailError
+
+    if (!trimmedUsername) errors.username = 'Username is required'
     if (!newStaff.password) errors.password = 'Password is required'
     if (newStaff.password.length < 6) {
       errors.password = 'Password must be at least 6 characters'
@@ -227,13 +262,14 @@ const StaffTab: React.FC<StaffTabProps> = ({
     setIsSubmitting(true)
     try {
       await addStaffMember({
-        name: newStaff.name,
-        email: newStaff.email,
-        username: newStaff.username,
+        name: trimmedName,
+        email: trimmedEmail,
+        username: trimmedUsername,
         password: newStaff.password,
         role: newStaff.role,
         active: true,
         dateAdded: new Date().toISOString().split('T')[0],
+        sendCredentialsEmail: newStaff.sendCredentialsEmail,
       })
 
       setNewStaff({
@@ -243,6 +279,7 @@ const StaffTab: React.FC<StaffTabProps> = ({
         password: '',
         confirmPassword: '',
         role: 'staff',
+        sendCredentialsEmail: false,
       })
       setFormErrors({})
       setSubmitSuccess(true)
@@ -395,10 +432,11 @@ const StaffTab: React.FC<StaffTabProps> = ({
         <form onSubmit={handleAddStaff} className="max-w-2xl space-y-6">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
+              <label htmlFor="staff-full-name" className="block text-sm font-medium text-gray-700 mb-1">
                 Full Name
               </label>
               <input
+                id="staff-full-name"
                 type="text"
                 className={`w-full border ${
                   formErrors.name ? 'border-red-500' : 'border-gray-300'
@@ -416,10 +454,11 @@ const StaffTab: React.FC<StaffTabProps> = ({
               )}
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
+              <label htmlFor="staff-email" className="block text-sm font-medium text-gray-700 mb-1">
                 Email
               </label>
               <input
+                id="staff-email"
                 type="email"
                 className={`w-full border ${
                   formErrors.email ? 'border-red-500' : 'border-gray-300'
@@ -431,6 +470,13 @@ const StaffTab: React.FC<StaffTabProps> = ({
                     email: e.target.value,
                   })
                 }
+                onBlur={(e) => {
+                  const emailError = validateEmail(e.target.value)
+                  setFormErrors((prev) => ({
+                    ...prev,
+                    email: emailError,
+                  }))
+                }}
               />
               {formErrors.email && (
                 <p className="mt-1 text-sm text-red-600">{formErrors.email}</p>
@@ -439,10 +485,11 @@ const StaffTab: React.FC<StaffTabProps> = ({
           </div>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
+              <label htmlFor="staff-username" className="block text-sm font-medium text-gray-700 mb-1">
                 Username
               </label>
               <input
+                id="staff-username"
                 type="text"
                 className={`w-full border ${
                   formErrors.username ? 'border-red-500' : 'border-gray-300'
@@ -462,10 +509,11 @@ const StaffTab: React.FC<StaffTabProps> = ({
               )}
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
+              <label htmlFor="staff-role" className="block text-sm font-medium text-gray-700 mb-1">
                 Role
               </label>
               <select
+                id="staff-role"
                 className="w-full border border-gray-300 rounded-lg py-2 px-4"
                 value={newStaff.role}
                 onChange={(e) =>
@@ -482,10 +530,11 @@ const StaffTab: React.FC<StaffTabProps> = ({
           </div>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
+              <label htmlFor="staff-password" className="block text-sm font-medium text-gray-700 mb-1">
                 Password
               </label>
               <input
+                id="staff-password"
                 type="password"
                 className={`w-full border ${
                   formErrors.password ? 'border-red-500' : 'border-gray-300'
@@ -505,10 +554,11 @@ const StaffTab: React.FC<StaffTabProps> = ({
               )}
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
+              <label htmlFor="staff-confirm-password" className="block text-sm font-medium text-gray-700 mb-1">
                 Confirm Password
               </label>
               <input
+                id="staff-confirm-password"
                 type="password"
                 className={`w-full border ${
                   formErrors.confirmPassword
@@ -536,6 +586,13 @@ const StaffTab: React.FC<StaffTabProps> = ({
               name="send-credentials"
               type="checkbox"
               className="h-4 w-4 text-teal-600 focus:ring-teal-500 border-gray-300 rounded"
+              checked={newStaff.sendCredentialsEmail}
+              onChange={(e) =>
+                setNewStaff({
+                  ...newStaff,
+                  sendCredentialsEmail: e.target.checked,
+                })
+              }
             />
             <label
               htmlFor="send-credentials"
@@ -568,6 +625,7 @@ const StaffTab: React.FC<StaffTabProps> = ({
                 <button
                   onClick={handleCloseEditModal}
                   className="text-gray-400 hover:text-gray-600"
+                  title="Close edit modal"
                 >
                   <svg
                     className="w-6 h-6"
@@ -599,10 +657,11 @@ const StaffTab: React.FC<StaffTabProps> = ({
 
               <form onSubmit={handleUpdateStaff} className="space-y-4">
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                  <label htmlFor="edit-staff-username" className="block text-sm font-medium text-gray-700 mb-1">
                     Username
                   </label>
                   <input
+                    id="edit-staff-username"
                     type="text"
                     className={`w-full border ${
                       editFormErrors.username ? 'border-red-500' : 'border-gray-300'
@@ -621,10 +680,11 @@ const StaffTab: React.FC<StaffTabProps> = ({
                 {/* Role — only shown for non-owner accounts */}
                 {editingStaff.role !== 'owner' && (
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                    <label htmlFor="edit-staff-role" className="block text-sm font-medium text-gray-700 mb-1">
                       Role
                     </label>
                     <select
+                      id="edit-staff-role"
                       className="w-full border border-gray-300 rounded-lg py-2 px-4 focus:outline-none focus:ring-2 focus:ring-teal-500"
                       value={editFormData.role}
                       onChange={(e) =>
@@ -643,10 +703,11 @@ const StaffTab: React.FC<StaffTabProps> = ({
                 )}
 
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                  <label htmlFor="edit-staff-password" className="block text-sm font-medium text-gray-700 mb-1">
                     New Password (leave blank to keep current password)
                   </label>
                   <input
+                    id="edit-staff-password"
                     type="password"
                     className={`w-full border ${
                       editFormErrors.password ? 'border-red-500' : 'border-gray-300'
@@ -664,10 +725,11 @@ const StaffTab: React.FC<StaffTabProps> = ({
 
                 {editFormData.password && (
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                    <label htmlFor="edit-staff-confirm-password" className="block text-sm font-medium text-gray-700 mb-1">
                       Confirm New Password
                     </label>
                     <input
+                      id="edit-staff-confirm-password"
                       type="password"
                       className={`w-full border ${
                         editFormErrors.confirmPassword ? 'border-red-500' : 'border-gray-300'

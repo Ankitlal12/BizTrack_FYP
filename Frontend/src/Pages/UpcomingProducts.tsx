@@ -95,31 +95,6 @@ const UpcomingProducts: React.FC = () => {
     }
   }
 
-  const handleProcessDeliveries = async () => {
-    try {
-      const token = localStorage.getItem('token')
-      const response = await fetch('http://localhost:5000/api/purchases/process-deliveries', {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json',
-        },
-      })
-      const data = await response.json()
-      
-      if (data.success) {
-        toast.success(data.message)
-        // Reload the upcoming products list
-        await loadUpcoming()
-      } else {
-        toast.error(data.error || 'Failed to process deliveries')
-      }
-    } catch (err: any) {
-      console.error('Failed to process deliveries:', err)
-      toast.error('Failed to process deliveries')
-    }
-  }
-
   useEffect(() => {
     loadUpcoming()
   }, [])
@@ -165,14 +140,6 @@ const UpcomingProducts: React.FC = () => {
             </div>
           </div>
           <div className="flex gap-2">
-            <button
-              onClick={handleProcessDeliveries}
-              className="flex items-center gap-2 px-4 py-2 bg-blue-500 hover:bg-blue-600 text-white rounded-lg text-sm"
-              title="Manually process deliveries that are due today"
-            >
-              <Package size={16} />
-              Process Due Deliveries
-            </button>
             <button
               onClick={loadUpcoming}
               className="flex items-center gap-2 px-4 py-2 bg-teal-500 hover:bg-teal-600 text-white rounded-lg text-sm"

@@ -3,6 +3,7 @@ const { authenticate, authorize } = require("../middleware/auth");
 const { OWNER_MANAGER, OWNER_ONLY } = require("../config/roles");
 const {
   getAllCustomers, getCustomerById, createCustomer, updateCustomer, deleteCustomer,
+  activateCustomer, hardDeleteCustomer,
   getCustomerPurchaseHistory, getCustomerRetentionAnalytics,
 } = require("../controllers/customerController");
 
@@ -20,6 +21,8 @@ router.put("/:id",                       updateCustomer);
 router.get("/:id/purchase-history",      getCustomerPurchaseHistory);
 
 // Delete — owner only
+router.patch("/:id/activate",              authorize(...OWNER_ONLY), activateCustomer);
+router.delete("/:id/permanent",            authorize(...OWNER_ONLY), hardDeleteCustomer);
 router.delete("/:id",                    authorize(...OWNER_ONLY), deleteCustomer);
 
 module.exports = router;

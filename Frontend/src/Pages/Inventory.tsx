@@ -51,6 +51,8 @@ const Inventory = () => {
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc')
   const [inventoryItems, setInventoryItems] = useState<InventoryItem[]>([])
   const [isLoading, setIsLoading] = useState(false)
+  const [showExpiredAlert, setShowExpiredAlert] = useState(true)
+  const [showExpiringSoonAlert, setShowExpiringSoonAlert] = useState(true)
   
   // Pagination state
   const [pagination, setPagination] = useState({
@@ -81,6 +83,21 @@ const Inventory = () => {
   }, [inventoryItems])
 
   const { expiringSoon, expired } = classifyExpiryItems(inventoryItems)
+
+  const handleClearExpiryNotifications = async () => {
+    try {
+      const result = await notificationsAPI.deleteAllExpiry()
+      setShowExpiredAlert(false)
+      setShowExpiringSoonAlert(false)
+      toast.success('Expiry notifications cleared', {
+        description: `Removed ${result.totalDeleted} notification(s)`
+      })
+    } catch (error: any) {
+      toast.error('Failed to clear notifications', {
+        description: error.message
+      })
+    }
+  }
 
   const loadInventory = async () => {
     setIsLoading(true)
@@ -347,7 +364,7 @@ const Inventory = () => {
         </div>
 
         {/* Expiry Alerts */}
-        {expired.length > 0 && (
+        {expired.length > 0 && showExpiredAlert && (
           <div className="bg-red-50 border-l-4 border-red-500 p-4 rounded-lg shadow-sm">
             <div className="flex items-center justify-between">
               <div className="flex items-center">
@@ -366,18 +383,7 @@ const Inventory = () => {
                 </div>
               </div>
               <button
-                onClick={async () => {
-                  try {
-                    const result = await notificationsAPI.deleteAllExpiry()
-                    toast.success('Expiry notifications cleared', {
-                      description: `Removed ${result.totalDeleted} notification(s)`
-                    })
-                  } catch (error: any) {
-                    toast.error('Failed to clear notifications', {
-                      description: error.message
-                    })
-                  }
-                }}
+                onClick={handleClearExpiryNotifications}
                 className="ml-4 px-3 py-1.5 text-sm bg-red-600 hover:bg-red-700 text-white rounded transition-colors"
                 title="Clear all expiry notifications from notification bell"
               >
@@ -387,7 +393,7 @@ const Inventory = () => {
           </div>
         )}
 
-        {expiringSoon.length > 0 && (
+        {expiringSoon.length > 0 && showExpiringSoonAlert && (
           <div className="bg-orange-50 border-l-4 border-orange-500 p-4 rounded-lg shadow-sm">
             <div className="flex items-center justify-between">
               <div className="flex items-center">
@@ -406,18 +412,7 @@ const Inventory = () => {
                 </div>
               </div>
               <button
-                onClick={async () => {
-                  try {
-                    const result = await notificationsAPI.deleteAllExpiry()
-                    toast.success('Expiry notifications cleared', {
-                      description: `Removed ${result.totalDeleted} notification(s)`
-                    })
-                  } catch (error: any) {
-                    toast.error('Failed to clear notifications', {
-                      description: error.message
-                    })
-                  }
-                }}
+                onClick={handleClearExpiryNotifications}
                 className="ml-4 px-3 py-1.5 text-sm bg-orange-600 hover:bg-orange-700 text-white rounded transition-colors"
                 title="Clear all expiry notifications from notification bell"
               >
@@ -494,6 +489,7 @@ const Inventory = () => {
                 <div className="flex items-center gap-2">
                   <label className="text-sm text-gray-600">Per page:</label>
                   <select
+                    title="Rows per page"
                     value={pagination.limit}
                     onChange={(e) => {
                       const newLimit = parseInt(e.target.value)

@@ -149,6 +149,9 @@ export const purchasesAPI = {
   getSuppliers: () => apiRequest<any>('/purchases/suppliers'),
   // Upcoming (pending) deliveries
   getUpcoming: () => apiRequest<any>('/purchases/upcoming'),
+  processDeliveries: () => apiRequest<any>('/purchases/process-deliveries', {
+    method: 'POST',
+  }),
   // Khalti payment endpoints for purchases
   initiateKhaltiPayment: (data: { purchaseId?: string; amount?: number; purchaseOrderId?: string; supplierName?: string; supplierPhone?: string }) =>
     apiRequest<any>('/purchases/khalti/initiate', {
@@ -248,7 +251,7 @@ export const usersAPI = {
     method: 'PUT',
     body: JSON.stringify({ active }),
   }),
-  update: (id: string, data: { username?: string; password?: string }) => apiRequest<any>(`/users/${id}`, {
+  update: (id: string, data: { username?: string; password?: string; role?: string }) => apiRequest<any>(`/users/${id}`, {
     method: 'PUT',
     body: JSON.stringify(data),
   }),
@@ -392,7 +395,7 @@ export const tokenManager = {
 export const userAPI = {
   login: (credentials: { username: string; password: string }) => 
     usersAPI.login(credentials.username, credentials.password),
-  updateUser: (id: string, data: { username?: string; password?: string }) => 
+  updateUser: (id: string, data: { username?: string; password?: string; role?: string }) => 
     usersAPI.update(id, data),
   getById: (id: string) => usersAPI.getById(id),
   getAll: () => usersAPI.getAll(),
@@ -513,7 +516,13 @@ export const suppliersAPI = {
     method: 'PUT',
     body: JSON.stringify(data),
   }),
+  activate: (id: string) => apiRequest<any>(`/suppliers/${id}/activate`, {
+    method: 'PATCH',
+  }),
   delete: (id: string) => apiRequest<{ message: string }>(`/suppliers/${id}`, {
+    method: 'DELETE',
+  }),
+  permanentDelete: (id: string) => apiRequest<{ message: string }>(`/suppliers/${id}/permanent`, {
     method: 'DELETE',
   }),
   getProducts: (id: string) => apiRequest<any>(`/suppliers/${id}/products`),
@@ -546,7 +555,13 @@ export const customersAPI = {
     method: 'PUT',
     body: JSON.stringify(data),
   }),
+  activate: (id: string) => apiRequest<any>(`/customers/${id}/activate`, {
+    method: 'PATCH',
+  }),
   delete: (id: string) => apiRequest<{ message: string }>(`/customers/${id}`, {
+    method: 'DELETE',
+  }),
+  permanentDelete: (id: string) => apiRequest<{ message: string }>(`/customers/${id}/permanent`, {
     method: 'DELETE',
   }),
   getPurchaseHistory: (id: string, params?: string) => {

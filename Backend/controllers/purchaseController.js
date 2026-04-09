@@ -11,6 +11,11 @@ const { initiateKhaltiPayment, verifyKhaltiPayment } = require("../utils/khaltiS
 
 // ==================== HELPERS ====================
 
+const toNepalDayStart = (date) => {
+  const nptDate = new Date(new Date(date).toLocaleString('en-US', { timeZone: 'Asia/Kathmandu' }));
+  return new Date(nptDate.getFullYear(), nptDate.getMonth(), nptDate.getDate());
+};
+
 // Check stock level and fire low-stock / out-of-stock notifications
 const checkAndCreateStockNotification = async (item) => {
   try {
@@ -250,8 +255,10 @@ exports.createPurchase = async (req, res) => {
     const todayNPT = new Date(nowNPT.getFullYear(), nowNPT.getMonth(), nowNPT.getDate());
     let deliveryDateNPT = null;
     if (deliveryDate) {
-      const d = new Date(deliveryDate.toLocaleString('en-US', { timeZone: 'Asia/Kathmandu' }));
-      deliveryDateNPT = new Date(d.getFullYear(), d.getMonth(), d.getDate());
+      deliveryDateNPT = toNepalDayStart(deliveryDate);
+      if (deliveryDateNPT < todayNPT) {
+        return res.status(400).json({ error: "Expected delivery date cannot be in the past." });
+      }
     }
     const isFutureDelivery = deliveryDateNPT && deliveryDateNPT > todayNPT;
 
@@ -381,6 +388,14 @@ exports.createPurchase = async (req, res) => {
       if (!inst.amount || inst.amount <= 0) continue;
       const dueDate = inst.dueDate ? new Date(inst.dueDate) : null;
       const isScheduled = dueDate && dueDate > todayEnd;
+
+      if ((inst.method || '').toLowerCase() === 'khalti' && dueDate) {
+        const dueDateOnly = toNepalDayStart(dueDate);
+        if (dueDateOnly < todayNPT) {
+          return res.status(400).json({ error: 'Khalti payment due date cannot be in the past.' });
+        }
+      }
+
       payments.push({
         amount: inst.amount,
         date: isScheduled ? dueDate : (dueDate || getNepaliCurrentDateTime()),
@@ -481,6 +496,37 @@ exports.updatePurchase = async (req, res) => {
     const oldPurchase = await Purchase.findById(req.params.id);
     if (!oldPurchase) {
       return res.status(404).json({ error: "Purchase not found" });
+    }
+
+    if (req.body.expectedDeliveryDate) {
+      const nowNPT = new Date(new Date().toLocaleString('en-US', { timeZone: 'Asia/Kathmandu' }));
+      const todayNPT = new Date(nowNPT.getFullYear(), nowNPT.getMonth(), nowNPT.getDate());
+      const expectedDeliveryNPT = toNepalDayStart(req.body.expectedDeliveryDate);
+      if (expectedDeliveryNPT < todayNPT) {
+        return res.status(400).json({ error: "Expected delivery date cannot be in the past." });
+      }
+    }
+
+    const paymentStatusRank = {
+      unpaid: 0,
+      partial: 1,
+      scheduled: 2,
+      paid: 3,
+    };
+
+    if (req.body.paymentStatus) {
+      const currentRank = paymentStatusRank[oldPurchase.paymentStatus || 'unpaid'];
+      const nextRank = paymentStatusRank[req.body.paymentStatus];
+
+      if (nextRank === undefined) {
+        return res.status(400).json({ error: "Invalid payment status" });
+      }
+
+      if (nextRank < currentRank) {
+        return res.status(400).json({
+          error: "Payment status cannot be downgraded manually. Use payment entry actions instead.",
+        });
+      }
     }
 
     const purchase = await Purchase.findByIdAndUpdate(
@@ -643,6 +689,9 @@ exports.recordPayment = async (req, res) => {
     // Check if the payment date is in the future (any date after today)
     // Even 1 day in the future should be scheduled
     const isScheduledPayment = paymentDateOnly > currentDate;
+    if ((method || "").toLowerCase() === "khalti" && paymentDateOnly < currentDate) {
+      return res.status(400).json({ error: "Khalti payment date cannot be in the past." });
+    }
     
     const oldPaymentStatus = purchase.paymentStatus;
     

@@ -57,6 +57,7 @@ const PaymentEntryModal: React.FC<PaymentEntryModalProps> = ({
   const [isSubmitting, setIsSubmitting] = useState(false)
 
   const remainingBalance = totalAmount - (paidAmount || 0)
+  const today = todayNPT()
 
   // Reset form when modal opens
   useEffect(() => {
@@ -114,6 +115,9 @@ const PaymentEntryModal: React.FC<PaymentEntryModalProps> = ({
       if (n > remainingBalance) return `Installment ${i + 1}: Amount exceeds remaining balance`
       if (!inst.date) return `Installment ${i + 1}: Date is required`
       if (!inst.method) return `Installment ${i + 1}: Payment method is required`
+      if (inst.method === 'khalti' && inst.date < today) {
+        return `Installment ${i + 1}: Khalti payment date cannot be in the past`
+      }
     }
     return null
   }
@@ -128,6 +132,10 @@ const PaymentEntryModal: React.FC<PaymentEntryModalProps> = ({
       if (!n || n <= 0) { toast.error('Please enter a valid payment amount'); return }
       if (n > remainingBalance) { toast.error(`Cannot exceed remaining balance of Rs ${remainingBalance.toFixed(2)}`); return }
       if (amountError) { toast.error('Please fix validation errors'); return }
+      if (method === 'khalti' && date < today) {
+        toast.error('Khalti payment date cannot be in the past')
+        return
+      }
 
       setIsSubmitting(true)
       try {
@@ -167,7 +175,7 @@ const PaymentEntryModal: React.FC<PaymentEntryModalProps> = ({
         {/* Modal header */}
         <div className="flex items-center justify-between p-6 border-b">
           <h2 className="text-xl font-semibold text-gray-800">{title}</h2>
-          <button onClick={() => !isSubmitting && onClose()} disabled={isSubmitting} className="text-gray-400 hover:text-gray-600 disabled:opacity-50">
+          <button onClick={() => !isSubmitting && onClose()} disabled={isSubmitting} title="Close payment modal" className="text-gray-400 hover:text-gray-600 disabled:opacity-50">
             <XIcon size={24} />
           </button>
         </div>
@@ -217,7 +225,7 @@ const PaymentEntryModal: React.FC<PaymentEntryModalProps> = ({
               {paymentMethods.length > 1 ? (
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">Payment Method <span className="text-red-500">*</span></label>
-                  <select value={method} onChange={e => setMethod(e.target.value)} className="w-full border border-gray-300 rounded-lg py-2 px-4 focus:outline-none focus:ring-2 focus:ring-teal-500" required disabled={isSubmitting}>
+                  <select value={method} onChange={e => setMethod(e.target.value)} title="Payment method" className="w-full border border-gray-300 rounded-lg py-2 px-4 focus:outline-none focus:ring-2 focus:ring-teal-500" required disabled={isSubmitting}>
                     {paymentMethods.map(pm => <option key={pm} value={pm}>{formatMethod(pm)}</option>)}
                   </select>
                 </div>
@@ -237,7 +245,7 @@ const PaymentEntryModal: React.FC<PaymentEntryModalProps> = ({
 
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Payment Date <span className="text-red-500">*</span></label>
-                <input type="date" value={date} onChange={e => setDate(e.target.value)} className="w-full border border-gray-300 rounded-lg py-2 px-4 focus:outline-none focus:ring-2 focus:ring-teal-500" required disabled={isSubmitting} />
+                <input type="date" value={date} onChange={e => setDate(e.target.value)} min={method === 'khalti' ? today : undefined} title="Payment date" className="w-full border border-gray-300 rounded-lg py-2 px-4 focus:outline-none focus:ring-2 focus:ring-teal-500" required disabled={isSubmitting} />
                 <p className="text-xs text-gray-500 mt-1">Future dates will be marked as "scheduled"</p>
               </div>
 
@@ -264,7 +272,7 @@ const PaymentEntryModal: React.FC<PaymentEntryModalProps> = ({
                       <div className="flex items-center justify-between">
                         <h4 className="text-sm font-medium text-gray-700">Installment {index + 1}</h4>
                         {installments.length > 1 && (
-                          <button type="button" onClick={() => removeInstallment(index)} className="text-red-500 hover:text-red-700" disabled={isSubmitting}>
+                          <button type="button" onClick={() => removeInstallment(index)} title={`Remove installment ${index + 1}`} className="text-red-500 hover:text-red-700" disabled={isSubmitting}>
                             <TrashIcon size={16} />
                           </button>
                         )}
@@ -277,12 +285,12 @@ const PaymentEntryModal: React.FC<PaymentEntryModalProps> = ({
                         </div>
                         <div>
                           <label className="block text-xs font-medium text-gray-600 mb-1">Date <span className="text-red-500">*</span></label>
-                          <input type="date" required value={inst.date} onChange={e => updateInstallment(index, 'date', e.target.value)} className="w-full border border-gray-300 rounded py-1.5 px-3 text-sm focus:outline-none focus:ring-2 focus:ring-teal-500" disabled={isSubmitting} />
+                          <input type="date" required value={inst.date} onChange={e => updateInstallment(index, 'date', e.target.value)} min={inst.method === 'khalti' ? today : undefined} title={`Installment ${index + 1} date`} className="w-full border border-gray-300 rounded py-1.5 px-3 text-sm focus:outline-none focus:ring-2 focus:ring-teal-500" disabled={isSubmitting} />
                         </div>
                       </div>
                       <div>
                         <label className="block text-xs font-medium text-gray-600 mb-1">Method <span className="text-red-500">*</span></label>
-                        <select value={inst.method} onChange={e => updateInstallment(index, 'method', e.target.value)} className="w-full border border-gray-300 rounded py-1.5 px-3 text-sm focus:outline-none focus:ring-2 focus:ring-teal-500" required disabled={isSubmitting}>
+                        <select value={inst.method} onChange={e => updateInstallment(index, 'method', e.target.value)} title={`Installment ${index + 1} payment method`} className="w-full border border-gray-300 rounded py-1.5 px-3 text-sm focus:outline-none focus:ring-2 focus:ring-teal-500" required disabled={isSubmitting}>
                           {paymentMethods.map(pm => <option key={pm} value={pm}>{formatMethod(pm)}</option>)}
                         </select>
                       </div>
@@ -326,6 +334,7 @@ const PaymentEntryModal: React.FC<PaymentEntryModalProps> = ({
                   const n = parseFloat(amount)
                   if (!n || n <= 0) { toast.error('Please enter a valid payment amount'); return }
                   if (n > remainingBalance) { toast.error(`Cannot exceed remaining balance of Rs ${remainingBalance.toFixed(2)}`); return }
+                  if (date < today) { toast.error('Khalti payment date cannot be in the past'); return }
                   setIsSubmitting(true)
                   try { await onKhaltiPay(n) } catch (err: any) { toast.error(err?.message || 'Failed to initiate Khalti payment'); setIsSubmitting(false) }
                 }}

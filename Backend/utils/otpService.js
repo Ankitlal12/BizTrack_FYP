@@ -143,6 +143,80 @@ const sendOTPEmail = async (email, otp, userName) => {
   }
 };
 
+/**
+ * Send new account credentials email
+ * @param {string} email
+ * @param {string} userName
+ * @param {string} username
+ * @param {string} password
+ * @param {string} role
+ * @returns {Promise<{ success: boolean, message: string, previewUrl?: string }>}
+ */
+const sendCredentialsEmail = async (email, userName, username, password, role = 'staff') => {
+  try {
+    const transporter = await createTransporter();
+
+    const mailOptions = {
+      from: process.env.EMAIL_USER || 'noreply@biztrack.com',
+      to: email,
+      subject: 'Welcome to BizTrack - Your Login Credentials',
+      html: `
+        <!DOCTYPE html>
+        <html>
+        <head>
+          <style>
+            body { font-family: Arial, sans-serif; background-color: #f4f4f4; margin: 0; padding: 0; }
+            .container { max-width: 600px; margin: 20px auto; background: white; border-radius: 10px; overflow: hidden; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
+            .header { background: linear-gradient(135deg, #14b8a6 0%, #0d9488 100%); padding: 30px; text-align: center; }
+            .header h1 { color: white; margin: 0; font-size: 28px; }
+            .content { padding: 32px 28px; }
+            .credential-box { background: #f0fdfa; border: 1px solid #99f6e4; border-radius: 8px; padding: 18px; margin: 18px 0; }
+            .row { margin: 8px 0; color: #1f2937; }
+            .label { font-weight: bold; display: inline-block; min-width: 90px; }
+            .warning { background: #fef3c7; border-left: 4px solid #f59e0b; padding: 12px; margin-top: 16px; border-radius: 4px; }
+            .footer { background: #f9fafb; padding: 18px; text-align: center; color: #6b7280; font-size: 12px; }
+          </style>
+        </head>
+        <body>
+          <div class="container">
+            <div class="header"><h1>Welcome to BizTrack</h1></div>
+            <div class="content">
+              <h2 style="margin-top:0;color:#111827;">Hi ${userName},</h2>
+              <p style="color:#4b5563;line-height:1.6;">Your account has been created. You can now sign in using these credentials:</p>
+
+              <div class="credential-box">
+                <div class="row"><span class="label">Username:</span> ${username}</div>
+                <div class="row"><span class="label">Password:</span> ${password}</div>
+                <div class="row"><span class="label">Role:</span> ${role}</div>
+              </div>
+
+              <div class="warning">
+                <strong>Security tip:</strong> Please change your password after your first login.
+              </div>
+            </div>
+            <div class="footer">
+              <p>© ${new Date().getFullYear()} BizTrack - Inventory & Business Management System</p>
+            </div>
+          </div>
+        </body>
+        </html>
+      `,
+      text: `Welcome to BizTrack\n\nHello ${userName},\n\nYour account has been created.\nUsername: ${username}\nPassword: ${password}\nRole: ${role}\n\nPlease change your password after first login.`,
+    };
+
+    const info = await transporter.sendMail(mailOptions);
+    console.log('✅ Credential email sent to:', email, '| Message ID:', info.messageId);
+
+    const previewUrl = !process.env.EMAIL_SERVICE ? nodemailer.getTestMessageUrl(info) : undefined;
+    if (previewUrl) console.log('📧 Preview email at:', previewUrl);
+
+    return { success: true, message: 'Credential email sent successfully', previewUrl };
+  } catch (error) {
+    console.error('❌ Error sending credential email:', error);
+    return { success: false, message: 'Failed to send credential email', error: error.message };
+  }
+};
+
 // ==================== SMS SENDING (stub) ====================
 
 /**
@@ -169,5 +243,6 @@ module.exports = {
   getOTPExpiration,
   verifyOTP,
   sendOTPEmail,
+  sendCredentialsEmail,
   sendOTPSMS,
 };

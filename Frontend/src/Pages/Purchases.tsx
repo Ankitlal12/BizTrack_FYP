@@ -5,6 +5,7 @@ import { useNavigate } from 'react-router-dom'
 import { toast } from 'sonner'
 import Layout from '../layout/Layout'
 import { purchasesAPI, invoicesAPI } from '../services/api'
+import { useAuth } from '../contexts/AuthContext'
 import { Purchase } from './Purchases/types'
 import { buildPurchasesQueryString } from './Purchases/utils'
 import PurchaseFilters from './Purchases/PurchaseFilters'
@@ -14,6 +15,8 @@ import PaymentEntryModal from '../components/PaymentEntryModal'
 
 const Purchases: React.FC = () => {
   const navigate = useNavigate()
+  const { user } = useAuth()
+  const canManagePurchases = user?.role === 'manager'
   const [searchTerm, setSearchTerm] = useState('')
   const [sortField, setSortField] = useState('date')
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('desc')
@@ -29,7 +32,6 @@ const Purchases: React.FC = () => {
   const [quantityMax, setQuantityMax] = useState('')
   const [expandedPurchase, setExpandedPurchase] = useState<string | null>(null)
   const [showNewPurchaseModal, setShowNewPurchaseModal] = useState(false)
-  const [editingPaymentStatus, setEditingPaymentStatus] = useState<string | null>(null)
   const [purchases, setPurchases] = useState<Purchase[]>([])
   const [pagination, setPagination] = useState({
     current: 1,
@@ -112,6 +114,11 @@ const Purchases: React.FC = () => {
   }
 
   const handleAddPurchase = async (newPurchase: Purchase) => {
+    if (!canManagePurchases) {
+      toast.error('Only managers can create purchases')
+      return
+    }
+
     try {
       const created = await purchasesAPI.create(newPurchase)
       toast.success('Purchase order created')
@@ -125,29 +132,12 @@ const Purchases: React.FC = () => {
     }
   }
 
-  const updatePaymentStatus = async (purchaseId: string, newStatus: string) => {
-    try {
-      const updatedPurchase = await purchasesAPI.update(purchaseId, {
-        paymentStatus: newStatus,
-      })
-      setPurchases((prev) =>
-        prev.map((purchase) =>
-          (purchase._id || purchase.purchaseNumber) === purchaseId
-            ? { ...purchase, ...updatedPurchase }
-            : purchase,
-        ),
-      )
-      setEditingPaymentStatus(null)
-      toast.success('Payment status updated')
-    } catch (error: any) {
-      console.error('Failed to update payment status:', error)
-      toast.error('Failed to update payment status', {
-        description: error?.message || 'Please try again.',
-      })
-    }
-  }
-
   const handleKhaltiPay = async (amount: number) => {
+    if (!canManagePurchases) {
+      toast.error('Only managers can process purchase payments')
+      return
+    }
+
     if (!selectedPurchase?._id) {
       toast.error('No purchase selected')
       return
@@ -174,11 +164,21 @@ const Purchases: React.FC = () => {
   }
 
   const handleRecordPayment = (purchase: Purchase) => {
+    if (!canManagePurchases) {
+      toast.error('Only managers can record payments')
+      return
+    }
+
     setSelectedPurchase(purchase)
     setShowPaymentModal(true)
   }
 
   const handleSavePayment = async (paymentData: { amount: number; date: string; method: string; notes?: string }) => {
+    if (!canManagePurchases) {
+      toast.error('Only managers can save payments')
+      return
+    }
+
     if (!selectedPurchase?._id) {
       toast.error('No purchase selected')
       return
@@ -202,6 +202,11 @@ const Purchases: React.FC = () => {
   }
 
   const handleMarkReceived = async (purchaseId: string) => {
+    if (!canManagePurchases) {
+      toast.error('Only managers can mark purchases as received')
+      return
+    }
+
     try {
       const updated = await purchasesAPI.update(purchaseId, { status: 'received' })
       setPurchases((prev) =>
@@ -274,13 +279,15 @@ const Purchases: React.FC = () => {
               </svg>
               Refresh
             </button>
-            <button
-              className="bg-teal-500 hover:bg-teal-600 text-white py-2 px-4 rounded-lg flex items-center"
-              onClick={() => setShowNewPurchaseModal(true)}
-            >
-              <PlusIcon size={18} className="mr-1" />
-              New Purchase Order
-            </button>
+            {canManagePurchases && (
+              <button
+                className="bg-teal-500 hover:bg-teal-600 text-white py-2 px-4 rounded-lg flex items-center"
+                onClick={() => setShowNewPurchaseModal(true)}
+              >
+                <PlusIcon size={18} className="mr-1" />
+                New Purchase Order
+              </button>
+            )}
           </div>
         </div>
         <div className="bg-white rounded-lg shadow-sm">
@@ -319,14 +326,11 @@ const Purchases: React.FC = () => {
             sortField={sortField}
             sortDirection={sortDirection}
             expandedPurchase={expandedPurchase}
-            editingPaymentStatus={editingPaymentStatus}
             onSort={handleSort}
             onToggleExpand={toggleExpandPurchase}
-            onPaymentStatusChange={updatePaymentStatus}
-            onEditPaymentStatus={setEditingPaymentStatus}
-            onRecordPayment={handleRecordPayment}
+            onRecordPayment={canManagePurchases ? handleRecordPayment : undefined}
             onViewInvoice={handleViewInvoice}
-            onMarkReceived={handleMarkReceived}
+            onMarkReceived={canManagePurchases ? handleMarkReceived : undefined}
           />
           {isLoading && (
             <div className="p-6 text-center text-gray-500">
@@ -351,6 +355,7 @@ const Purchases: React.FC = () => {
                 <div className="flex items-center gap-2">
                   <label className="text-sm text-gray-600">Per page:</label>
                   <select
+                    title="Rows per page"
                     value={pagination.limit}
                     onChange={(e) => {
                       const newLimit = parseInt(e.target.value)

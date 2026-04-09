@@ -103,12 +103,12 @@ export const useBilling = () => {
   // Filter products based on search (now handled by API, but keeping for local filtering if needed)
   const filteredProducts = productsInventory
 
-  const canCreateCustomer = user?.role === 'owner' || user?.role === 'manager'
+  const canCreateCustomer = user?.role === 'owner' || user?.role === 'manager' || user?.role === 'staff'
 
   const handleOpenCustomerForm = () => {
     if (!canCreateCustomer) {
       toast.error('Access denied', {
-        description: 'Only owner and manager can add new customers from billing.',
+        description: 'You do not have permission to add customers from billing.',
       })
       return
     }
@@ -194,7 +194,7 @@ export const useBilling = () => {
 
   const handleSaveCustomer = async () => {
     if (!canCreateCustomer) {
-      const message = 'Only owner and manager can add new customers from billing.'
+      const message = 'You do not have permission to add customers from billing.'
       setValidationErrors({ general: message })
       toast.error('Access denied', { description: message })
       return

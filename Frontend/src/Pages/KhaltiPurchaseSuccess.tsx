@@ -13,6 +13,67 @@ const KhaltiPurchaseSuccess = () => {
   const [purchaseData, setPurchaseData] = useState<any>(null)
   const hasVerified = useRef(false)
 
+  const fallbackExistingPurchasePayment = async (context: any, pidx: string, reason: string) => {
+    if (!context?.purchaseId || !context?.amount) {
+      throw new Error('Missing purchase payment context for fallback callback')
+    }
+
+    const updatedPurchase = await purchasesAPI.recordPayment(context.purchaseId, {
+      amount: context.amount,
+      date: new Date().toISOString(),
+      method: 'khalti',
+      notes: `Khalti fallback callback used (pidx: ${pidx}). Reason: ${reason}`,
+    })
+
+    localStorage.removeItem('biztrack_khalti_purchase')
+    setStatus('success')
+    setMessage('Khalti verification failed, but payment was recorded in fallback mode. Please verify transaction later.')
+    setPurchaseData({
+      purchaseNumber: updatedPurchase.purchaseNumber || context.purchaseNumber || '',
+      total: context.amount || 0,
+    })
+    toast.success('Purchase payment recorded in fallback mode')
+    setTimeout(() => navigate('/purchases', { replace: true }), 3000)
+  }
+
+  const fallbackNewPurchaseCreation = async (pidx: string, reason: string) => {
+    const pendingData = localStorage.getItem('biztrack_pending_purchase')
+    if (!pendingData) {
+      throw new Error('Purchase data not found for fallback callback')
+    }
+
+    const purchaseOrder = JSON.parse(pendingData)
+    const updatedInstallments = (purchaseOrder.paymentInstallments || []).map((inst: any) =>
+      inst.method === 'khalti'
+        ? {
+            ...inst,
+            status: 'completed',
+            khaltiPidx: pidx,
+            khaltiTransactionId: `fallback-${Date.now()}`,
+            notes: `${inst.notes || ''}${inst.notes ? ' | ' : ''}Fallback callback used: ${reason}`,
+          }
+        : inst
+    )
+
+    const createdPurchase = await purchasesAPI.create({
+      ...purchaseOrder,
+      paymentInstallments: updatedInstallments,
+      khaltiPayment: {
+        pidx,
+        transactionId: `fallback-${Date.now()}`,
+        status: 'pending_verification',
+      },
+      notes: `${purchaseOrder.notes || ''}${purchaseOrder.notes ? ' | ' : ''}Khalti fallback callback used: ${reason}`,
+    })
+
+    localStorage.removeItem('biztrack_pending_purchase')
+    setStatus('success')
+    setMessage('Khalti verification failed, but purchase was created in fallback mode. Please verify transaction later.')
+    setPurchaseData(createdPurchase)
+    toast.success('Purchase created in fallback mode')
+    setTimeout(() => navigate('/purchases', { replace: true }), 3000)
+  }
+
   useEffect(() => {
     if (hasVerified.current) return
     hasVerified.current = true
@@ -45,9 +106,7 @@ const KhaltiPurchaseSuccess = () => {
         localStorage.removeItem('biztrack_khalti_installment')
 
         if (!verificationResult.success) {
-          setStatus('failed')
-          setMessage(verificationResult.message || 'Installment payment verification failed')
-          toast.error('Payment verification failed')
+          await fallbackExistingPurchasePayment(installmentContext, pidx, verificationResult.message || 'installment verification unsuccessful')
           return
         }
 
@@ -68,9 +127,11 @@ const KhaltiPurchaseSuccess = () => {
         context?.purchaseId ? { purchaseId: context.purchaseId, amount: context.amount } : undefined
       )
       if (!verificationResult.success) {
-        setStatus('failed')
-        setMessage(verificationResult.message || 'Payment verification failed')
-        toast.error('Payment verification failed')
+        if (context?.purchaseId) {
+          await fallbackExistingPurchasePayment(context, pidx, verificationResult.message || 'payment verification unsuccessful')
+        } else {
+          await fallbackNewPurchaseCreation(pidx, verificationResult.message || 'purchase verification unsuccessful')
+        }
         return
       }
 
@@ -125,9 +186,25 @@ const KhaltiPurchaseSuccess = () => {
       setTimeout(() => navigate('/purchases', { replace: true }), 3000)
     } catch (error: any) {
       console.error('Purchase payment verification error:', error)
-      setStatus('failed')
-      setMessage(error.message || 'Failed to verify payment')
-      toast.error('Payment verification failed', { description: error.message })
+      try {
+        const pidx = searchParams.get('pidx')
+        const storedContext = localStorage.getItem('biztrack_khalti_purchase')
+        const context = storedContext ? JSON.parse(storedContext) : null
+
+        if (!pidx) {
+          throw error
+        }
+
+        if (context?.purchaseId) {
+          await fallbackExistingPurchasePayment(context, pidx, error.message || 'verification request failed')
+        } else {
+          await fallbackNewPurchaseCreation(pidx, error.message || 'verification request failed')
+        }
+      } catch (fallbackError: any) {
+        setStatus('failed')
+        setMessage(fallbackError.message || error.message || 'Failed to verify payment')
+        toast.error('Payment verification failed', { description: fallbackError.message || error.message })
+      }
     }
   }
 

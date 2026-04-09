@@ -18,8 +18,8 @@ import {
   Users, 
   AlertTriangle,
   FileText,
-  ArrowRight,
-  Truck
+  Truck,
+  RefreshCw
 } from 'lucide-react'
 import {
   LineChart,
@@ -113,16 +113,18 @@ const Dashboard = () => {
         item.stock === 0
       ).length
 
-      // Prepare stock items for Stock Summary
+      // Prepare stock items for Stock Summary (highest stock first)
       const stockItemsData = inventory
         .map((item: any) => ({
           id: item._id,
           name: item.name,
           quantity: item.stock,
-          threshold: item.reorderPoint || 10,
-          status: item.stock === 0 ? 'critical' : item.stock < 20 ? 'low' : 'good'
+          threshold: item.reorderPoint || item.reorderLevel || 10,
+          stockValue: (Number(item.cost) || 0) * (Number(item.stock) || 0),
+          status: item.stock >= 100 ? 'high' : item.stock >= 30 ? 'good' : 'medium'
         }))
-        .filter((item: any) => item.status !== 'good')
+        .filter((item: any) => (item.quantity || 0) > 0)
+        .sort((a: any, b: any) => (b.quantity || 0) - (a.quantity || 0))
         .slice(0, 10)
 
       // Calculate sales total
@@ -227,48 +229,50 @@ const Dashboard = () => {
       sales: Math.round(monthlySalesMap[month.key])
     }))
     
-    console.log('Monthly Sales Data for Chart:', chartData)
     return chartData
+  }
+
+  const getStockBarWidthClass = (quantity: number, maxQuantity: number) => {
+    const ratio = maxQuantity > 0 ? quantity / maxQuantity : 0
+    if (ratio >= 0.9) return 'w-full'
+    if (ratio >= 0.75) return 'w-4/5'
+    if (ratio >= 0.6) return 'w-3/5'
+    if (ratio >= 0.45) return 'w-1/2'
+    if (ratio >= 0.3) return 'w-2/5'
+    return 'w-1/4'
   }
 
   const StatCard = ({ 
     title, 
     value, 
     icon: Icon, 
-    color, 
     onClick,
     subtitle 
   }: { 
     title: string
     value: string | number
     icon: any
-    color: string
     onClick?: () => void
     subtitle?: string
   }) => (
     <div
       onClick={onClick}
-      className={`bg-white rounded-lg shadow-sm p-6 ${
-        onClick ? 'cursor-pointer hover:shadow-md transition-shadow' : ''
+      className={`rounded-xl border border-gray-200 bg-white p-5 shadow-sm ${
+        onClick ? 'cursor-pointer transition-colors hover:border-gray-300 hover:bg-gray-50' : ''
       }`}
     >
-      <div className="flex items-center justify-between">
+      <div className="flex items-start justify-between gap-3">
         <div className="flex-1">
-          <p className="text-sm font-medium text-gray-600">{title}</p>
-          <p className="text-2xl font-bold text-gray-900 mt-2">{value}</p>
+          <p className="text-xs font-medium uppercase tracking-wide text-gray-500">{title}</p>
+          <p className="mt-2 text-2xl font-semibold text-gray-900">{value}</p>
           {subtitle && (
-            <p className="text-xs text-gray-500 mt-1">{subtitle}</p>
+            <p className="mt-1 text-xs text-gray-500">{subtitle}</p>
           )}
         </div>
-        <div className={`p-3 rounded-full ${color}`}>
-          <Icon className="w-6 h-6 text-white" />
+        <div className="rounded-lg border border-gray-200 bg-gray-50 p-2.5">
+          <Icon className="h-4 w-4 text-gray-600" />
         </div>
       </div>
-      {onClick && (
-        <div className="mt-4 flex items-center text-sm text-blue-600 hover:text-blue-700">
-          View Details <ArrowRight className="w-4 h-4 ml-1" />
-        </div>
-      )}
     </div>
   )
 
@@ -284,26 +288,33 @@ const Dashboard = () => {
 
   return (
     <Layout>
-      <div className="space-y-4 sm:space-y-6">
-        {/* Header */}
-        <div>
-          <h2 className="text-xl sm:text-2xl font-semibold text-gray-800">Dashboard</h2>
-          <p className="text-gray-600 mt-1 text-sm sm:text-base">Welcome back! Here's what's happening with your business today.</p>
+      <div className="space-y-5 sm:space-y-6">
+        <div className="rounded-2xl border border-gray-200 bg-white px-5 py-4 sm:flex sm:items-center sm:justify-between">
+          <div>
+            <h2 className="text-2xl font-semibold tracking-tight text-gray-900">Business Dashboard</h2>
+            <p className="mt-1 text-sm text-gray-600">A clean snapshot of operations, cash flow, and activity.</p>
+          </div>
+          <button
+            onClick={loadDashboardData}
+            className="mt-3 inline-flex items-center gap-2 self-start rounded-lg border border-gray-300 bg-white px-3.5 py-2 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-50 sm:mt-0"
+          >
+            <RefreshCw className="h-4 w-4" />
+            Refresh
+          </button>
         </div>
 
-        {/* Alert Section */}
         {(stats.lowStockItems > 0 || stats.outOfStockItems > 0) && (
-          <div className="bg-orange-50 border-l-4 border-orange-500 p-4 rounded-lg">
-            <div className="flex items-center">
-              <AlertTriangle className="w-5 h-5 text-orange-500 mr-3" />
+          <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3">
+            <div className="flex items-center gap-3">
+              <AlertTriangle className="h-4 w-4 text-amber-600" />
               <div className="flex-1">
-                <p className="text-sm font-medium text-orange-800">
+                <p className="text-sm font-medium text-amber-800">
                   Inventory Alert: {stats.outOfStockItems} out of stock, {stats.lowStockItems} low stock items
                 </p>
               </div>
               <button
                 onClick={() => navigate('/low-stock')}
-                className="text-sm text-orange-700 hover:text-orange-800 font-medium"
+                className="text-sm font-medium text-amber-700 hover:text-amber-900"
               >
                 View Details →
               </button>
@@ -311,13 +322,11 @@ const Dashboard = () => {
           </div>
         )}
 
-        {/* Key Metrics Grid */}
-        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-5 lg:grid-cols-3 gap-6">
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
           <StatCard
             title="Total Inventory Value"
             value={`Rs ${stats.totalInventoryValue.toLocaleString()}`}
             icon={Package}
-            color="bg-blue-500"
             onClick={() => navigate('/inventory')}
             subtitle={`${stats.totalItems} items in stock (cost basis)`}
           />
@@ -325,7 +334,6 @@ const Dashboard = () => {
             title="Total Sales"
             value={`Rs ${stats.totalSales.toLocaleString()}`}
             icon={TrendingUp}
-            color="bg-green-500"
             onClick={() => navigate('/sales')}
             subtitle="All time revenue"
           />
@@ -333,7 +341,6 @@ const Dashboard = () => {
             title="Total Purchases Paid"
             value={`Rs ${stats.totalPurchases.toLocaleString()}`}
             icon={ShoppingCart}
-            color="bg-purple-500"
             onClick={() => navigate('/purchases')}
             subtitle="Actual cash paid out"
           />
@@ -341,87 +348,111 @@ const Dashboard = () => {
             title="Pending Invoices"
             value={stats.pendingInvoices}
             icon={FileText}
-            color="bg-orange-500"
             onClick={() => navigate('/invoices')}
             subtitle="Requires attention"
-          />
-          <StatCard
-            title="Total Transactions"
-            value={stats.totalTransactions}
-            icon={DollarSign}
-            color="bg-teal-500"
-            onClick={() => navigate('/transactions')}
-            subtitle="Sales + purchases records"
-          />
-        </div>
-
-        {/* Khalti Wallet Balance */}
-        <div className="bg-white rounded-lg shadow-sm p-6">
-          <div className="flex items-center gap-3 mb-4">
-            <div className="w-8 h-8 rounded-full bg-purple-600 flex items-center justify-center">
-              <span className="text-white text-xs font-bold">K</span>
-            </div>
-            <h3 className="text-lg font-semibold text-gray-800">Khalti Wallet Balance</h3>
-          </div>
-          <div className="grid grid-cols-3 gap-4">
-            <div className="text-center p-4 bg-green-50 rounded-lg">
-              <p className="text-xs text-gray-500 mb-1">Collected (Sales)</p>
-              <p className="text-xl font-bold text-green-600">Rs {stats.khaltiIn.toLocaleString()}</p>
-            </div>
-            <div className="text-center p-4 bg-red-50 rounded-lg">
-              <p className="text-xs text-gray-500 mb-1">Paid Out (Purchases)</p>
-              <p className="text-xl font-bold text-red-600">Rs {stats.khaltiOut.toLocaleString()}</p>
-            </div>
-            <div className={`text-center p-4 rounded-lg ${stats.khaltiBalance >= 0 ? 'bg-teal-50' : 'bg-orange-50'}`}>
-              <p className="text-xs text-gray-500 mb-1">Net Balance</p>
-              <p className={`text-xl font-bold ${stats.khaltiBalance >= 0 ? 'text-teal-600' : 'text-orange-600'}`}>
-                Rs {stats.khaltiBalance.toLocaleString()}
-              </p>
-            </div>
-          </div>
-        </div>
-
-        {/* Secondary Metrics */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-          <StatCard
-            title="Total Items in Inventory"
-            value={stats.totalItems}
-            icon={Package}
-            color="bg-blue-500"
-            onClick={() => navigate('/inventory')}
-          />
-          <StatCard
-            title="Out of Stock"
-            value={stats.outOfStockItems}
-            icon={AlertTriangle}
-            color="bg-red-500"
-            onClick={() => navigate('/inventory')}
           />
           <StatCard
             title="Total Customers"
             value={stats.totalCustomers}
             icon={Users}
-            color="bg-teal-500"
             onClick={() => navigate('/customers')}
+            subtitle="Active customer records"
           />
           <StatCard
             title="Total Suppliers"
             value={stats.totalSuppliers}
             icon={Truck}
-            color="bg-indigo-500"
             onClick={() => navigate('/suppliers')}
+            subtitle="Vendor records"
           />
         </div>
 
-        {/* Recent Activity Section */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6">
-          {/* Recent Sales */}
-          <div className="bg-white rounded-lg shadow-sm p-6">
+        <div className="grid grid-cols-1 gap-5 xl:grid-cols-3">
+          <div className="rounded-xl border border-gray-200 bg-white p-5 xl:col-span-2">
+            <div className="mb-4 flex items-end justify-between">
+              <div>
+                <h3 className="text-base font-semibold text-gray-900">Sales Trend</h3>
+                <p className="text-xs text-gray-500">Last 7 months performance</p>
+              </div>
+              <p className="text-sm font-medium text-gray-700">Total: Rs {stats.totalSales.toLocaleString()}</p>
+            </div>
+            <div className="h-72">
+              {stats.monthlySalesData.length > 0 ? (
+                <ResponsiveContainer width="100%" height="100%">
+                  <LineChart
+                    data={stats.monthlySalesData}
+                    margin={{ top: 10, right: 10, left: 0, bottom: 0 }}
+                  >
+                    <CartesianGrid strokeDasharray="2 4" stroke="#e5e7eb" />
+                    <XAxis
+                      dataKey="name"
+                      tick={{ fontSize: 11, fill: '#6b7280' }}
+                      tickLine={false}
+                      axisLine={{ stroke: '#e5e7eb' }}
+                    />
+                    <YAxis
+                      tick={{ fontSize: 11, fill: '#6b7280' }}
+                      tickLine={false}
+                      axisLine={false}
+                      tickFormatter={(value) => `${value > 1000 ? (value/1000).toFixed(1) + 'k' : value}`}
+                    />
+                    <Tooltip
+                      formatter={(value: any) => [`Rs ${Number(value).toLocaleString()}`, 'Sales']}
+                      contentStyle={{
+                        borderRadius: '10px',
+                        border: '1px solid #e5e7eb',
+                        boxShadow: '0 8px 20px rgba(0,0,0,0.07)',
+                      }}
+                    />
+                    <Line
+                      type="monotone"
+                      dataKey="sales"
+                      name="Sales"
+                      stroke="#0f766e"
+                      strokeWidth={2.5}
+                      dot={{ r: 3, fill: '#0f766e', strokeWidth: 0 }}
+                      activeDot={{ r: 5, fill: '#115e59' }}
+                    />
+                  </LineChart>
+                </ResponsiveContainer>
+              ) : (
+                <div className="flex h-full items-center justify-center rounded-lg border border-dashed border-gray-300 text-sm text-gray-500">
+                  No sales data available yet
+                </div>
+              )}
+            </div>
+          </div>
+
+          <div className="rounded-xl border border-gray-200 bg-white p-5">
+            <h3 className="text-base font-semibold text-gray-900">Cash Snapshot</h3>
+            <div className="mt-4 space-y-3 text-sm">
+              <div className="flex items-center justify-between rounded-lg bg-gray-50 px-3 py-2.5">
+                <span className="text-gray-600">Khalti In</span>
+                <span className="font-semibold text-gray-900">Rs {stats.khaltiIn.toLocaleString()}</span>
+              </div>
+              <div className="flex items-center justify-between rounded-lg bg-gray-50 px-3 py-2.5">
+                <span className="text-gray-600">Khalti Out</span>
+                <span className="font-semibold text-gray-900">Rs {stats.khaltiOut.toLocaleString()}</span>
+              </div>
+              <div className="flex items-center justify-between rounded-lg bg-gray-900 px-3 py-2.5 text-white">
+                <span className="text-gray-200">Net Khalti Balance</span>
+                <span className="font-semibold">Rs {stats.khaltiBalance.toLocaleString()}</span>
+              </div>
+              <div className="flex items-center justify-between rounded-lg bg-gray-50 px-3 py-2.5">
+                <span className="text-gray-600">Transactions</span>
+                <span className="font-semibold text-gray-900">{stats.totalTransactions}</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 gap-5 lg:grid-cols-2">
+          <div className="rounded-xl border border-gray-200 bg-white p-5">
             <div className="flex items-center justify-between mb-4">
-              <h3 className="text-lg font-semibold text-gray-800">Recent Sales</h3>
+              <h3 className="text-base font-semibold text-gray-900">Recent Sales</h3>
               <button
                 onClick={() => navigate('/sales')}
-                className="text-sm text-blue-600 hover:text-blue-700 font-medium"
+                className="text-sm font-medium text-gray-600 hover:text-gray-900"
               >
                 View All →
               </button>
@@ -431,7 +462,7 @@ const Dashboard = () => {
                 stats.recentSales.map((sale: any, index: number) => (
                   <div
                     key={sale._id || index}
-                    className="flex items-center justify-between p-3 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors cursor-pointer"
+                    className="flex cursor-pointer items-center justify-between rounded-lg border border-gray-200 bg-white p-3 transition-colors hover:bg-gray-50"
                     onClick={() => sale.invoiceId ? navigate(`/invoices/${sale.invoiceId}`) : navigate('/sales')}
                     title={sale.invoiceId ? 'View Invoice' : 'View Sales'}
                   >
@@ -448,7 +479,7 @@ const Dashboard = () => {
                         Rs {sale.total?.toLocaleString() || 0}
                       </p>
                       <p className={`text-xs ${
-                        sale.paymentStatus === 'paid' ? 'text-green-600' : 'text-orange-600'
+                        sale.paymentStatus === 'paid' ? 'text-teal-700' : 'text-amber-700'
                       }`}>
                         {sale.paymentStatus || 'pending'}
                       </p>
@@ -466,13 +497,12 @@ const Dashboard = () => {
             </div>
           </div>
 
-          {/* Recent Purchases */}
-          <div className="bg-white rounded-lg shadow-sm p-6">
+          <div className="rounded-xl border border-gray-200 bg-white p-5">
             <div className="flex items-center justify-between mb-4">
-              <h3 className="text-lg font-semibold text-gray-800">Recent Purchases</h3>
+              <h3 className="text-base font-semibold text-gray-900">Recent Purchases</h3>
               <button
                 onClick={() => navigate('/purchases')}
-                className="text-sm text-blue-600 hover:text-blue-700 font-medium"
+                className="text-sm font-medium text-gray-600 hover:text-gray-900"
               >
                 View All →
               </button>
@@ -482,7 +512,7 @@ const Dashboard = () => {
                 stats.recentPurchases.map((purchase: any, index: number) => (
                   <div
                     key={purchase._id || index}
-                    className="flex items-center justify-between p-3 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors cursor-pointer"
+                    className="flex cursor-pointer items-center justify-between rounded-lg border border-gray-200 bg-white p-3 transition-colors hover:bg-gray-50"
                     onClick={() => purchase.invoiceId ? navigate(`/invoices/${purchase.invoiceId}`) : navigate('/purchases')}
                     title={purchase.invoiceId ? 'View Invoice' : 'View Purchases'}
                   >
@@ -499,7 +529,7 @@ const Dashboard = () => {
                         Rs {purchase.total?.toLocaleString() || 0}
                       </p>
                       <p className={`text-xs ${
-                        purchase.paymentStatus === 'paid' ? 'text-green-600' : 'text-orange-600'
+                        purchase.paymentStatus === 'paid' ? 'text-teal-700' : 'text-amber-700'
                       }`}>
                         {purchase.paymentStatus || 'pending'}
                       </p>
@@ -518,233 +548,80 @@ const Dashboard = () => {
           </div>
         </div>
 
-        {/* Stock Summary and Sales Trend */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6">
-          {/* Stock Summary */}
-          <div className="bg-white rounded-lg shadow-sm p-5 h-full">
-            <div className="flex justify-between items-center mb-4">
-              <h2 className="text-lg font-semibold text-gray-800">Stock Summary</h2>
+        <div className="grid grid-cols-1 gap-5">
+          <div className="rounded-xl border border-gray-200 bg-white p-5">
+            <div className="mb-4 flex items-center justify-between">
+              <h2 className="text-base font-semibold text-gray-900">Top Stocked Items</h2>
               <span className="text-sm text-gray-500">
-                Total Items: {stats.totalItems}
+                Highest quantity in inventory
               </span>
             </div>
-            {stats.stockItems.length > 0 && (
-              <div className="bg-amber-50 border-l-4 border-amber-500 p-3 mb-4 rounded">
-                <div className="flex items-center">
-                  <AlertTriangle className="text-amber-500 mr-2" size={18} />
-                  <p className="text-sm text-amber-700">
-                    {stats.stockItems.length} {stats.stockItems.length === 1 ? 'item' : 'items'} below
-                    recommended stock level
-                  </p>
-                </div>
-              </div>
-            )}
             <div className="space-y-3 max-h-80 overflow-y-auto pr-1">
               {stats.stockItems.length > 0 ? (
                 stats.stockItems.map((item: any) => (
                   <div
                     key={item.id}
-                    className={`p-3 rounded-lg border cursor-pointer hover:shadow-md transition-shadow ${
-                      item.status === 'critical' 
-                        ? 'border-red-200 bg-red-50' 
-                        : item.status === 'low' 
-                        ? 'border-amber-200 bg-amber-50' 
-                        : 'border-gray-200'
-                    }`}
+                    className="cursor-pointer rounded-lg border border-gray-200 p-3 transition-colors hover:bg-gray-50"
                     onClick={() => navigate('/inventory?highlight=' + item.id)}
                   >
                     <div className="flex justify-between items-center">
                       <span className="font-medium text-gray-800">{item.name}</span>
-                      <span
-                        className={`text-sm font-bold ${
-                          item.quantity === 0 
-                            ? 'text-red-600' 
-                            : item.quantity < 5 
-                            ? 'text-red-600' 
-                            : item.status === 'low' 
-                            ? 'text-amber-600' 
-                            : 'text-green-600'
-                        }`}
-                      >
-                        {item.quantity}
-                        {item.quantity < 5 && (
-                          <AlertTriangle size={14} className="inline ml-1" />
-                        )}
+                      <span className="rounded-md bg-teal-50 px-2.5 py-1 text-sm font-semibold text-teal-700">
+                        {item.quantity} pcs
                       </span>
                     </div>
                     <div className="mt-1 flex justify-between items-center">
                       <span className="text-xs text-gray-500">
                         Threshold: {item.threshold}
                       </span>
-                      <span
-                        className={`text-xs font-medium ${
-                          item.quantity === 0
-                            ? 'text-red-600'
-                            : item.quantity < 5
-                            ? 'text-red-600'
-                            : item.status === 'low'
-                            ? 'text-amber-600'
-                            : 'text-green-600'
-                        }`}
-                      >
-                        {item.quantity === 0
-                          ? 'Out of Stock'
-                          : item.quantity < 5
-                          ? 'Critical'
-                          : item.status === 'low'
-                          ? 'Low Stock'
-                          : 'In Stock'}
+                      <span className="text-xs font-medium text-gray-600">
+                        Stock Value: Rs {Number(item.stockValue || 0).toLocaleString()}
                       </span>
                     </div>
                   </div>
                 ))
               ) : (
                 <p className="text-sm text-gray-500 text-center py-8">
-                  All items are well stocked! 🎉
+                  No stock items available
                 </p>
               )}
             </div>
-            <button 
+            <button
               onClick={() => navigate('/inventory')}
-              className="w-full mt-4 bg-white border border-gray-300 text-gray-700 py-2 px-4 rounded-md hover:bg-gray-50 text-sm font-medium"
+              className="mt-4 w-full rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
             >
               View All Inventory
             </button>
           </div>
-
-          {/* Sales Trend */}
-          <div className="bg-white rounded-lg shadow-sm p-5 h-full">
-            <div className="flex justify-between items-center mb-6">
-              <div>
-                <h2 className="text-lg font-semibold text-gray-800">Sales Trend</h2>
-                <p className="text-sm text-gray-500 mt-1">
-                  Last 7 months performance
-                </p>
-              </div>
-              <div className="text-right">
-                <div className="text-2xl font-bold text-gray-800">
-                  Rs {stats.totalSales.toLocaleString()}
-                </div>
-                <div className="text-sm text-gray-500">
-                  {stats.monthlySalesData.length > 0 && stats.monthlySalesData.some((m: any) => m.sales > 0) ? (
-                    <>Avg: Rs {Math.round(stats.totalSales / 7).toLocaleString()}/month</>
-                  ) : (
-                    <>No sales yet</>
-                  )}
-                </div>
-              </div>
-            </div>
-            <div className="h-64">
-              {stats.monthlySalesData.length > 0 ? (
-                <ResponsiveContainer width="100%" height="100%">
-                  <LineChart
-                    data={stats.monthlySalesData}
-                    margin={{
-                      top: 10,
-                      right: 30,
-                      left: 10,
-                      bottom: 10,
-                    }}
-                  >
-                    <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
-                    <XAxis
-                      dataKey="name"
-                      tick={{
-                        fontSize: 12,
-                        fill: '#6b7280'
-                      }}
-                      tickLine={false}
-                      axisLine={{ stroke: '#e5e7eb' }}
-                    />
-                    <YAxis
-                      tick={{
-                        fontSize: 12,
-                        fill: '#6b7280'
-                      }}
-                      tickLine={false}
-                      axisLine={false}
-                      tickFormatter={(value) => `${value > 1000 ? (value/1000).toFixed(1) + 'k' : value}`}
-                    />
-                    <Tooltip
-                      formatter={(value: any) => [`Rs ${Number(value).toLocaleString()}`, 'Sales']}
-                      contentStyle={{
-                        borderRadius: '8px',
-                        border: '1px solid #e5e7eb',
-                        boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)',
-                        backgroundColor: '#ffffff'
-                      }}
-                      labelStyle={{ color: '#374151', fontWeight: 600 }}
-                    />
-                    <Legend 
-                      wrapperStyle={{ paddingTop: '10px' }}
-                      iconType="line"
-                    />
-                    <Line
-                      type="monotone"
-                      dataKey="sales"
-                      name="Sales"
-                      stroke="#14b8a6"
-                      strokeWidth={3}
-                      dot={{
-                        r: 5,
-                        fill: '#14b8a6',
-                        strokeWidth: 2,
-                        stroke: '#ffffff'
-                      }}
-                      activeDot={{
-                        r: 7,
-                        fill: '#0d9488',
-                        strokeWidth: 2,
-                        stroke: '#ffffff'
-                      }}
-                      animationDuration={1000}
-                    />
-                  </LineChart>
-                </ResponsiveContainer>
-              ) : (
-                <div className="flex flex-col items-center justify-center h-full text-gray-500">
-                  <svg className="w-16 h-16 mb-2 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
-                  </svg>
-                  <p>No sales data available</p>
-                  <p className="text-xs mt-1">Start making sales to see trends</p>
-                </div>
-              )}
-            </div>
-          </div>
         </div>
 
-        {/* Quick Actions */}
-        <div className="bg-white rounded-lg shadow-sm p-6">
-          <h3 className="text-lg font-semibold text-gray-800 mb-4">Quick Actions</h3>
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+        <div className="rounded-2xl border border-gray-200 bg-white p-5">
+          <h3 className="text-base font-semibold text-gray-900">Quick Actions</h3>
+          <p className="mt-1 text-xs text-gray-500">Placed at the bottom for fast access after reviewing dashboard insights.</p>
+          <div className="mt-4 grid grid-cols-2 gap-3 md:grid-cols-4">
             <button
               onClick={() => navigate('/billing')}
-              className="flex flex-col items-center justify-center p-4 bg-blue-50 hover:bg-blue-100 rounded-lg transition-colors"
+              className="rounded-lg border border-gray-200 bg-white px-3 py-3 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-50"
             >
-              <DollarSign className="w-8 h-8 text-blue-600 mb-2" />
-              <span className="text-sm font-medium text-gray-700">New Sale</span>
+              New Sale
             </button>
             <button
               onClick={() => navigate('/purchases')}
-              className="flex flex-col items-center justify-center p-4 bg-purple-50 hover:bg-purple-100 rounded-lg transition-colors"
+              className="rounded-lg border border-gray-200 bg-white px-3 py-3 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-50"
             >
-              <ShoppingCart className="w-8 h-8 text-purple-600 mb-2" />
-              <span className="text-sm font-medium text-gray-700">New Purchase</span>
+              New Purchase
             </button>
             <button
               onClick={() => navigate('/inventory')}
-              className="flex flex-col items-center justify-center p-4 bg-green-50 hover:bg-green-100 rounded-lg transition-colors"
+              className="rounded-lg border border-gray-200 bg-white px-3 py-3 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-50"
             >
-              <Package className="w-8 h-8 text-green-600 mb-2" />
-              <span className="text-sm font-medium text-gray-700">Add Inventory</span>
+              Manage Inventory
             </button>
             <button
               onClick={() => navigate('/reports')}
-              className="flex flex-col items-center justify-center p-4 bg-orange-50 hover:bg-orange-100 rounded-lg transition-colors"
+              className="rounded-lg border border-gray-200 bg-white px-3 py-3 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-50"
             >
-              <FileText className="w-8 h-8 text-orange-600 mb-2" />
-              <span className="text-sm font-medium text-gray-700">View Reports</span>
+              View Reports
             </button>
           </div>
         </div>

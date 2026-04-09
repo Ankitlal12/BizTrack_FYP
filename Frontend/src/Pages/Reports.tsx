@@ -59,7 +59,8 @@ interface PurchaseVsSales {
 const toLocalDate = (d: Date) => d.toLocaleDateString('en-CA');
 
 const Reports: React.FC = () => {
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
+  const [initialLoading, setInitialLoading] = useState(true);
 
   // Date range filter (default: last 7 days)
   const defaultTo = toLocalDate(new Date());
@@ -129,7 +130,8 @@ const Reports: React.FC = () => {
       prevParams.append('dateTo', prevEndDate.toISOString());
 
       const retentionParams = new URLSearchParams();
-      retentionParams.append('timeRange', 'week');
+      retentionParams.append('dateFrom', startDate.toISOString());
+      retentionParams.append('dateTo', endDate.toISOString());
 
       const [salesResponse, inventoryResponse, retentionResponse, purchasesResponse, prevSalesResponse] = await Promise.all([
         salesAPI.getAll(params.toString()),
@@ -165,6 +167,7 @@ const Reports: React.FC = () => {
 
     } finally {
       setLoading(false);
+      setInitialLoading(false);
     }
   };
 
@@ -328,11 +331,6 @@ const Reports: React.FC = () => {
 
     const categoryMap = new Map<string, number>();
 
-    // Debug: Log first sale item to see structure
-    if (sales.length > 0 && sales[0].items.length > 0) {
-      console.log('Sample sale item structure:', JSON.stringify(sales[0].items[0], null, 2));
-    }
-
     sales.forEach(sale => {
       sale.items.forEach((item: any) => {
         let category = 'Uncategorized';
@@ -361,24 +359,9 @@ const Reports: React.FC = () => {
       });
     });
 
-    console.log('Category sales map:', Array.from(categoryMap.entries()));
-
     const result = Array.from(categoryMap.entries())
       .map(([name, value]) => ({ name, value }))
       .sort((a, b) => b.value - a.value);
-
-    // If no sales data or all uncategorized, create sample data from inventory categories
-    if ((result.length === 0 || (result.length === 1 && result[0].name === 'Uncategorized')) && inventory.length > 0) {
-      console.log('Using inventory fallback data');
-      const invCategoryMap = new Map<string, number>();
-      inventory.forEach(item => {
-        const existing = invCategoryMap.get(item.category) || 0;
-        invCategoryMap.set(item.category, existing + (item.price * item.stock));
-      });
-      return Array.from(invCategoryMap.entries())
-        .map(([name, value]) => ({ name, value }))
-        .sort((a, b) => b.value - a.value);
-    }
 
     return result;
   };
@@ -417,7 +400,7 @@ const Reports: React.FC = () => {
 
   const COLORS = ['#0088FE', '#00C49F', '#FFBB28', '#FF8042', '#8884D8', '#82CA9D'];
 
-  if (loading) {
+  if (initialLoading) {
     return (
       <Layout>
         <div className="flex h-screen items-center justify-center">
@@ -439,10 +422,11 @@ const Reports: React.FC = () => {
           <div className="flex gap-3">
             <button
               onClick={loadReportsData}
+              disabled={loading}
               className="flex items-center gap-2 px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50"
             >
-              <RefreshCw className="w-4 h-4" />
-              Refresh
+              <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
+              {loading ? 'Applying...' : 'Refresh'}
             </button>
             <button
               onClick={exportToCSV}
@@ -460,21 +444,26 @@ const Reports: React.FC = () => {
             <div className="flex items-center gap-2">
               <Calendar className="w-5 h-5 text-gray-600" />
               <span className="text-sm font-medium text-gray-700">Date Range:</span>
+              {loading && <span className="text-xs text-teal-600 ml-2">Updating report...</span>}
               <div className="flex items-center gap-2 ml-2">
                 <input
                   type="date"
+                  title="Report start date"
                   value={dateFrom}
                   max={dateTo}
                   onChange={e => setDateFrom(e.target.value)}
+                  disabled={loading}
                   className="border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-teal-500"
                 />
                 <span className="text-gray-400 text-sm">to</span>
                 <input
                   type="date"
+                  title="Report end date"
                   value={dateTo}
                   min={dateFrom}
                   max={toLocalDate(new Date())}
                   onChange={e => setDateTo(e.target.value)}
+                  disabled={loading}
                   className="border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-teal-500"
                 />
               </div>

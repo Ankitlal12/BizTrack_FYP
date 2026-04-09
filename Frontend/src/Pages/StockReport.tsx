@@ -183,6 +183,7 @@ const StockReport: React.FC = () => {
       sellVal += s.revenue;
       units += s.soldQty;
     });
+    const hasPeriodSales = units > 0;
 
     setTotalStockCostValue(costVal);
     setTotalStockSellValue(sellVal);
@@ -212,41 +213,46 @@ const StockReport: React.FC = () => {
     });
     setCategoryBreakdown(Array.from(catMap.values()).sort((a, b) => b.costValue - a.costValue));
 
-    // Dead stock: items with stock > 0 and zero sales in selected period
-    const dead: DeadStockItem[] = inv
-      .filter(item => {
-        if (item.stock <= 0) return false;
-        const sold = soldMap.get(item._id?.toString())?.soldQty || soldMap.get(item.name)?.soldQty || 0;
-        return sold === 0;
-      })
-      .map(item => ({
-        _id: item._id,
-        name: item.name,
-        sku: item.sku,
-        category: item.category,
-        stock: item.stock,
-        cost: item.cost,
-        totalValue: item.cost * item.stock,
-      }))
-      .sort((a, b) => b.totalValue - a.totalValue);
-    setDeadStock(dead);
-
-    // Stock turnover (sold / current stock, higher = faster moving)
-    const turnover: TurnoverItem[] = inv
-      .filter(item => item.stock > 0)
-      .map(item => {
-        const sold = soldMap.get(item._id?.toString())?.soldQty || soldMap.get(item.name)?.soldQty || 0;
-        return {
+    if (!hasPeriodSales) {
+      setDeadStock([]);
+      setTurnoverData([]);
+    } else {
+      // Dead stock: items with stock > 0 and zero sales in selected period
+      const dead: DeadStockItem[] = inv
+        .filter(item => {
+          if (item.stock <= 0) return false;
+          const sold = soldMap.get(item._id?.toString())?.soldQty || soldMap.get(item.name)?.soldQty || 0;
+          return sold === 0;
+        })
+        .map(item => ({
+          _id: item._id,
           name: item.name,
           sku: item.sku,
+          category: item.category,
           stock: item.stock,
-          soldQty: sold,
-          turnoverRate: item.stock > 0 ? parseFloat((sold / item.stock).toFixed(2)) : 0,
-        };
-      })
-      .sort((a, b) => b.turnoverRate - a.turnoverRate)
-      .slice(0, 10);
-    setTurnoverData(turnover);
+          cost: item.cost,
+          totalValue: item.cost * item.stock,
+        }))
+        .sort((a, b) => b.totalValue - a.totalValue);
+      setDeadStock(dead);
+
+      // Stock turnover (sold / current stock, higher = faster moving)
+      const turnover: TurnoverItem[] = inv
+        .filter(item => item.stock > 0)
+        .map(item => {
+          const sold = soldMap.get(item._id?.toString())?.soldQty || soldMap.get(item.name)?.soldQty || 0;
+          return {
+            name: item.name,
+            sku: item.sku,
+            stock: item.stock,
+            soldQty: sold,
+            turnoverRate: item.stock > 0 ? parseFloat((sold / item.stock).toFixed(2)) : 0,
+          };
+        })
+        .sort((a, b) => b.turnoverRate - a.turnoverRate)
+        .slice(0, 10);
+      setTurnoverData(turnover);
+    }
 
     // Top sold items by revenue in selected period
     const topVal = inv

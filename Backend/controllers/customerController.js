@@ -200,6 +200,74 @@ exports.deleteCustomer = async (req, res) => {
   }
 };
 
+/**
+ * Reactivate customer
+ */
+exports.activateCustomer = async (req, res) => {
+  try {
+    const customer = await Customer.findByIdAndUpdate(
+      req.params.id,
+      { isActive: true },
+      { new: true }
+    );
+
+    if (!customer) {
+      return res.status(404).json({ error: 'Customer not found' });
+    }
+
+    res.json({
+      data: customer,
+      message: 'Customer activated successfully'
+    });
+  } catch (error) {
+    console.error('Error activating customer:', error);
+    res.status(500).json({
+      error: 'Failed to activate customer',
+      details: error.message
+    });
+  }
+};
+
+/**
+ * Permanently delete customer
+ */
+exports.hardDeleteCustomer = async (req, res) => {
+  try {
+    const customerId = req.params.id;
+    const customer = await Customer.findById(customerId);
+
+    if (!customer) {
+      return res.status(404).json({ error: 'Customer not found' });
+    }
+
+    const saleHistoryCount = await Sale.countDocuments({
+      $or: [
+        { customerPhone: customer.phone },
+        { customerEmail: customer.email }
+      ]
+    });
+
+    if (saleHistoryCount > 0) {
+      return res.status(400).json({
+        error: 'Cannot permanently delete customer with sales history',
+        details: `This customer has ${saleHistoryCount} sales record(s). Deactivate instead.`
+      });
+    }
+
+    await Customer.findByIdAndDelete(customerId);
+
+    res.json({
+      message: 'Customer permanently deleted successfully'
+    });
+  } catch (error) {
+    console.error('Error permanently deleting customer:', error);
+    res.status(500).json({
+      error: 'Failed to permanently delete customer',
+      details: error.message
+    });
+  }
+};
+
 // ==================== HISTORY & ANALYTICS ====================
 
 /**
@@ -296,60 +364,60 @@ exports.getCustomerPurchaseHistory = async (req, res) => {
  */
 exports.getCustomerRetentionAnalytics = async (req, res) => {
   try {
-    const { timeRange = 'month' } = req.query;
+    const { timeRange = 'month', dateFrom, dateTo } = req.query;
     
     // Calculate date ranges
     const now = new Date();
     let startDate, endDate;
     let previousStartDate, previousEndDate;
     
-    switch (timeRange) {
-      case 'week':
-        startDate = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
-        endDate = now;
-        previousStartDate = new Date(startDate.getTime() - 7 * 24 * 60 * 60 * 1000);
-        previousEndDate = startDate;
-        break;
-      case 'month':
-        startDate = new Date(now.getFullYear(), now.getMonth() - 1, now.getDate());
-        endDate = now;
-        previousStartDate = new Date(now.getFullYear(), now.getMonth() - 2, now.getDate());
-        previousEndDate = startDate;
-        break;
-      case 'quarter':
-        startDate = new Date(now.getTime() - 90 * 24 * 60 * 60 * 1000);
-        endDate = now;
-        previousStartDate = new Date(startDate.getTime() - 90 * 24 * 60 * 60 * 1000);
-        previousEndDate = startDate;
-        break;
-      default:
-        startDate = new Date(now.getFullYear(), now.getMonth() - 1, now.getDate());
-        endDate = now;
-        previousStartDate = new Date(now.getFullYear(), now.getMonth() - 2, now.getDate());
-        previousEndDate = startDate;
+    if (dateFrom || dateTo) {
+      startDate = dateFrom ? new Date(dateFrom) : new Date(now.getFullYear(), now.getMonth() - 1, now.getDate());
+      endDate = dateTo ? new Date(dateTo) : now;
+      const msInDay = 24 * 60 * 60 * 1000;
+      const periodMs = Math.max(msInDay, endDate.getTime() - startDate.getTime());
+      previousEndDate = new Date(startDate.getTime() - 1);
+      previousStartDate = new Date(previousEndDate.getTime() - periodMs);
+    } else {
+      switch (timeRange) {
+        case 'week':
+          startDate = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+          endDate = now;
+          previousStartDate = new Date(startDate.getTime() - 7 * 24 * 60 * 60 * 1000);
+          previousEndDate = startDate;
+          break;
+        case 'month':
+          startDate = new Date(now.getFullYear(), now.getMonth() - 1, now.getDate());
+          endDate = now;
+          previousStartDate = new Date(now.getFullYear(), now.getMonth() - 2, now.getDate());
+          previousEndDate = startDate;
+          break;
+        case 'quarter':
+          startDate = new Date(now.getTime() - 90 * 24 * 60 * 60 * 1000);
+          endDate = now;
+          previousStartDate = new Date(startDate.getTime() - 90 * 24 * 60 * 60 * 1000);
+          previousEndDate = startDate;
+          break;
+        default:
+          startDate = new Date(now.getFullYear(), now.getMonth() - 1, now.getDate());
+          endDate = now;
+          previousStartDate = new Date(now.getFullYear(), now.getMonth() - 2, now.getDate());
+          previousEndDate = startDate;
+      }
     }
 
-    // Get all sales data
-    const allSales = await Sale.find({}).sort({ createdAt: 1 });
-    const currentPeriodSales = allSales.filter(sale => {
-      const saleDate = new Date(sale.createdAt);
-      return saleDate >= startDate && saleDate <= endDate;
-    });
-    
-    const previousPeriodSales = allSales.filter(sale => {
-      const saleDate = new Date(sale.createdAt);
-      return saleDate >= previousStartDate && saleDate < previousEndDate;
-    });
+    // Get sales only for the required windows (current period + previous period)
+    const [currentPeriodSales, previousPeriodSales] = await Promise.all([
+      Sale.find({ createdAt: { $gte: startDate, $lte: endDate } }).sort({ createdAt: 1 }),
+      Sale.find({ createdAt: { $gte: previousStartDate, $lt: previousEndDate } }).sort({ createdAt: 1 }),
+    ]);
 
-    // Get all customers
-    const allCustomers = await Customer.find({ isActive: true });
-
-    // Calculate customer metrics
+    // Calculate customer metrics for the CURRENT selected period only
     const customerMetrics = {};
     
     // Track customer purchase patterns
-    allSales.forEach(sale => {
-      const customerKey = sale.customerPhone || sale.customerEmail || sale.customerName;
+    currentPeriodSales.forEach(sale => {
+      const customerKey = sale.customerPhone || sale.customerEmail || sale.customerName || 'Unknown Customer';
       const saleDate = new Date(sale.createdAt);
       
       if (!customerMetrics[customerKey]) {
@@ -383,17 +451,17 @@ exports.getCustomerRetentionAnalytics = async (req, res) => {
     const previousCustomers = new Set();
     
     currentPeriodSales.forEach(sale => {
-      const customerKey = sale.customerPhone || sale.customerEmail || sale.customerName;
+      const customerKey = sale.customerPhone || sale.customerEmail || sale.customerName || 'Unknown Customer';
       currentCustomers.add(customerKey);
     });
     
     previousPeriodSales.forEach(sale => {
-      const customerKey = sale.customerPhone || sale.customerEmail || sale.customerName;
+      const customerKey = sale.customerPhone || sale.customerEmail || sale.customerName || 'Unknown Customer';
       previousCustomers.add(customerKey);
     });
 
     // Calculate metrics
-    const totalCustomers = Object.keys(customerMetrics).length;
+    const totalCustomers = currentCustomers.size;
     const currentPeriodCustomerCount = currentCustomers.size;
     const previousPeriodCustomerCount = previousCustomers.size;
     
@@ -446,13 +514,15 @@ exports.getCustomerRetentionAnalytics = async (req, res) => {
       customer.totalSpent > avgCustomerLifetimeValue * 1.5
     );
     
+    const referenceDate = new Date(endDate);
+
     const recentCustomers = Object.values(customerMetrics).filter(customer => {
-      const daysSinceLastPurchase = (now - customer.lastPurchaseDate) / (1000 * 60 * 60 * 24);
+      const daysSinceLastPurchase = (referenceDate - customer.lastPurchaseDate) / (1000 * 60 * 60 * 24);
       return daysSinceLastPurchase <= 30;
     });
     
     const atRiskCustomers = Object.values(customerMetrics).filter(customer => {
-      const daysSinceLastPurchase = (now - customer.lastPurchaseDate) / (1000 * 60 * 60 * 24);
+      const daysSinceLastPurchase = (referenceDate - customer.lastPurchaseDate) / (1000 * 60 * 60 * 24);
       return daysSinceLastPurchase > 60 && customer.totalPurchases > 1;
     });
 
@@ -516,7 +586,7 @@ exports.getCustomerRetentionAnalytics = async (req, res) => {
           totalPurchases: customer.totalPurchases,
           firstPurchase: customer.firstPurchaseDate.toISOString().split('T')[0],
           lastPurchase: customer.lastPurchaseDate.toISOString().split('T')[0],
-          daysSinceLastPurchase: Math.floor((now - customer.lastPurchaseDate) / (1000 * 60 * 60 * 24))
+          daysSinceLastPurchase: Math.floor((referenceDate - customer.lastPurchaseDate) / (1000 * 60 * 60 * 24))
         }))
     };
 

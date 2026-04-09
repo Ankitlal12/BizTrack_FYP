@@ -13,6 +13,7 @@ import { toast } from 'sonner';
 const Login = () => {
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
+  const [fieldErrors, setFieldErrors] = useState<{ username?: string; password?: string }>({});
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
@@ -31,13 +32,35 @@ const Login = () => {
   const { login, setUser, setIsAuthenticated } = useAuth();
   const navigate = useNavigate();
 
+  const validateLoginFields = () => {
+    const nextErrors: { username?: string; password?: string } = {};
+    const trimmedUsername = username.trim();
+
+    if (!trimmedUsername) {
+      nextErrors.username = 'Username is required';
+    }
+
+    if (!password) {
+      nextErrors.password = 'Password is required';
+    }
+
+    setFieldErrors(nextErrors);
+    return { isValid: Object.keys(nextErrors).length === 0, trimmedUsername };
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
+
+    const { isValid, trimmedUsername } = validateLoginFields();
+    if (!isValid) {
+      return;
+    }
+
     setIsLoading(true);
 
     try {
-      const success = await login(username, password);
+      const success = await login(trimmedUsername, password);
       if (!success) {
         setError('Invalid username or password');
       }
@@ -164,7 +187,7 @@ const Login = () => {
       <div className="absolute bottom-0 right-0 w-96 h-96 bg-teal-300 opacity-20 rounded-full blur-3xl animate-pulse"></div>
 
       {/* Login Card */}
-      <div className="relative z-10 bg-white/80 backdrop-blur-md border border-gray-100 shadow-xl rounded-3xl p-6 sm:p-10 w-full max-w-md mx-4">
+      <div className="login-card-animated-border relative z-10 bg-white/85 backdrop-blur-md shadow-xl rounded-3xl p-6 sm:p-10 w-full max-w-md mx-4">
 
         {/* Logo */}
         <div className="text-center mb-8">
@@ -196,15 +219,22 @@ const Login = () => {
               <input
                 id="username"
                 type="text"
-                required
                 value={username}
-                onChange={(e) => setUsername(e.target.value)}
+                onChange={(e) => {
+                  setUsername(e.target.value);
+                  if (fieldErrors.username) {
+                    setFieldErrors((prev) => ({ ...prev, username: undefined }));
+                  }
+                }}
                 placeholder="Enter your username"
-                className="pl-10 w-full border border-gray-200 rounded-xl py-3 
+                className={`pl-10 w-full border ${fieldErrors.username ? 'border-red-400' : 'border-gray-200'} rounded-xl py-3 
                   focus:ring-2 focus:ring-teal-500 focus:border-teal-500 
-                  outline-none transition-all text-gray-800 placeholder-gray-400"
+                  outline-none transition-all text-gray-800 placeholder-gray-400`}
               />
             </div>
+            {fieldErrors.username && (
+              <p className="mt-1 text-sm text-red-600">{fieldErrors.username}</p>
+            )}
           </div>
 
           {/* Password */}
@@ -217,13 +247,17 @@ const Login = () => {
               <input
                 id="password"
                 type={showPassword ? "text" : "password"}
-                required
                 value={password}
-                onChange={(e) => setPassword(e.target.value)}
+                onChange={(e) => {
+                  setPassword(e.target.value);
+                  if (fieldErrors.password) {
+                    setFieldErrors((prev) => ({ ...prev, password: undefined }));
+                  }
+                }}
                 placeholder="Enter your password"
-                className="pl-10 pr-10 w-full border border-gray-200 rounded-xl py-3 
+                className={`pl-10 pr-10 w-full border ${fieldErrors.password ? 'border-red-400' : 'border-gray-200'} rounded-xl py-3 
                   focus:ring-2 focus:ring-teal-500 focus:border-teal-500 
-                  outline-none transition-all text-gray-800 placeholder-gray-400"
+                  outline-none transition-all text-gray-800 placeholder-gray-400`}
               />
               <button
                 type="button"
@@ -238,6 +272,9 @@ const Login = () => {
                 )}
               </button>
             </div>
+            {fieldErrors.password && (
+              <p className="mt-1 text-sm text-red-600">{fieldErrors.password}</p>
+            )}
           </div>
 
           {/* Remember + Help */}

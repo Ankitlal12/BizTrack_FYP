@@ -8,11 +8,8 @@ interface PurchaseTableProps {
   sortField: string
   sortDirection: 'asc' | 'desc'
   expandedPurchase: string | null
-  editingPaymentStatus: string | null
   onSort: (field: string) => void
   onToggleExpand: (id: string | null) => void
-  onPaymentStatusChange: (purchaseId: string, newStatus: string) => void
-  onEditPaymentStatus: (purchaseKey: string | null) => void
   onRecordPayment?: (purchase: Purchase) => void
   onViewInvoice?: (purchaseId: string) => void
   onMarkReceived?: (purchaseId: string) => void
@@ -23,11 +20,8 @@ const PurchaseTable: React.FC<PurchaseTableProps> = ({
   sortField,
   sortDirection,
   expandedPurchase,
-  editingPaymentStatus,
   onSort,
   onToggleExpand,
-  onPaymentStatusChange,
-  onEditPaymentStatus,
   onRecordPayment,
   onViewInvoice,
   onMarkReceived,
@@ -46,10 +40,7 @@ const PurchaseTable: React.FC<PurchaseTableProps> = ({
               key={purchase._id || purchase.purchaseNumber}
               purchase={purchase}
               expandedPurchase={expandedPurchase}
-              editingPaymentStatus={editingPaymentStatus}
               onToggleExpand={onToggleExpand}
-              onPaymentStatusChange={onPaymentStatusChange}
-              onEditPaymentStatus={onEditPaymentStatus}
               onRecordPayment={onRecordPayment}
               onViewInvoice={onViewInvoice}
               onMarkReceived={onMarkReceived}
