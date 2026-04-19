@@ -1,6 +1,11 @@
 const mongoose = require("mongoose");
 
 const customerSchema = new mongoose.Schema({
+  tenantKey: {
+    type: String,
+    required: true,
+    index: true,
+  },
   name: {
     type: String,
     required: true,
@@ -10,6 +15,7 @@ const customerSchema = new mongoose.Schema({
     type: String,
     required: true,
     trim: true,
+    match: [/^(97|98)\d{8}$/, "Phone must be exactly 10 digits and start with 97 or 98"],
   },
   email: {
     type: String,

@@ -2,12 +2,13 @@
 const NotificationArchive = require("../models/NotificationArchive");
 const Notification = require("../models/Notification");
 const { permanentlyDeleteNotification } = require("../utils/notificationHelper");
+const tenantFilter = (req) => ({ tenantKey: req.user.tenantKey });
 
 // ==================== READ ENDPOINTS ====================
 exports.getAllArchivedNotifications = async (req, res) => {
   try {
     const { read, limit = 25, skip = 0 } = req.query;
-    const query = {};
+    const query = { ...tenantFilter(req) };
     
     if (read !== undefined) {
       query.read = read === 'true';
@@ -30,7 +31,7 @@ exports.getAllArchivedNotifications = async (req, res) => {
 // Get unread count from archive
 exports.getUnreadCount = async (req, res) => {
   try {
-    const count = await NotificationArchive.countDocuments({ read: false });
+    const count = await NotificationArchive.countDocuments({ ...tenantFilter(req), read: false });
     res.json({ count });
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -40,7 +41,7 @@ exports.getUnreadCount = async (req, res) => {
 // Get single archived notification
 exports.getArchivedNotificationById = async (req, res) => {
   try {
-    const notification = await NotificationArchive.findById(req.params.id);
+    const notification = await NotificationArchive.findOne({ _id: req.params.id, ...tenantFilter(req) });
     if (!notification) {
       return res.status(404).json({ error: "Notification not found" });
     }
@@ -53,8 +54,8 @@ exports.getArchivedNotificationById = async (req, res) => {
 // Mark archived notification as read (syncs to temp storage)
 exports.markAsRead = async (req, res) => {
   try {
-    const notification = await NotificationArchive.findByIdAndUpdate(
-      req.params.id,
+    const notification = await NotificationArchive.findOneAndUpdate(
+      { _id: req.params.id, ...tenantFilter(req) },
       { read: true },
       { new: true }
     );
@@ -63,8 +64,8 @@ exports.markAsRead = async (req, res) => {
     }
     
     // Also update in temp storage (same ID)
-    await Notification.findByIdAndUpdate(
-      req.params.id,
+    await Notification.findOneAndUpdate(
+      { _id: req.params.id, ...tenantFilter(req) },
       { read: true }
     );
     
@@ -78,7 +79,7 @@ exports.markAsRead = async (req, res) => {
 exports.markAllAsRead = async (req, res) => {
   try {
     // Get all unread notifications from archive
-    const unreadNotifications = await NotificationArchive.find({ read: false });
+    const unreadNotifications = await NotificationArchive.find({ ...tenantFilter(req), read: false });
     const unreadIds = unreadNotifications.map(n => n._id);
     
     // Update in archive
@@ -107,7 +108,7 @@ exports.markAllAsRead = async (req, res) => {
 // Permanently delete notification (Settings page only)
 exports.deleteNotification = async (req, res) => {
   try {
-    await permanentlyDeleteNotification(req.params.id);
+    await permanentlyDeleteNotification(req.params.id, req.user.tenantKey);
     res.json({ message: "Notification permanently deleted" });
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -117,7 +118,7 @@ exports.deleteNotification = async (req, res) => {
 // Delete all read notifications permanently
 exports.deleteAllRead = async (req, res) => {
   try {
-    const readNotifications = await NotificationArchive.find({ read: true });
+    const readNotifications = await NotificationArchive.find({ ...tenantFilter(req), read: true });
     
     // Delete each one using the helper to ensure both storages are cleaned
     await Promise.all(

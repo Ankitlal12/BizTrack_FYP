@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react'
 import { XIcon, PlusIcon, TrashIcon } from 'lucide-react'
 import { useAuth } from '../../contexts/AuthContext'
-import { purchasesAPI } from '../../services/api'
+import { inventoryAPI, purchasesAPI } from '../../services/api'
 import { toast } from 'sonner'
 import { useNavigate } from 'react-router-dom'
 interface NewPurchaseOrderModalProps {
@@ -20,6 +20,7 @@ const NewPurchaseOrderModal: React.FC<NewPurchaseOrderModalProps> = ({
   const [suppliers, setSuppliers] = useState<any[]>([])
   const [selectedSupplier, setSelectedSupplier] = useState<any>(null)
   const [loadingSuppliers, setLoadingSuppliers] = useState(false)
+  const [loadingCategories, setLoadingCategories] = useState(false)
   const [expectedDeliveryDate, setExpectedDeliveryDate] = useState('')
   // Installment payment plan
   const [paymentInstallments, setPaymentInstallments] = useState<Array<{id: number; amount: number; dueDate: string; method: string}>>([{id: 1, amount: 0, dueDate: '', method: 'khalti'}])
@@ -42,6 +43,7 @@ const NewPurchaseOrderModal: React.FC<NewPurchaseOrderModalProps> = ({
   useEffect(() => {
     if (isOpen) {
       loadSuppliers()
+      loadCategories()
     }
   }, [isOpen])
 
@@ -55,6 +57,35 @@ const NewPurchaseOrderModal: React.FC<NewPurchaseOrderModalProps> = ({
       toast.error('Failed to load suppliers')
     } finally {
       setLoadingSuppliers(false)
+    }
+  }
+
+  const loadCategories = async () => {
+    try {
+      setLoadingCategories(true)
+      const response = await inventoryAPI.getCategories()
+      const defaults = [
+        'Electronics',
+        'Office Supplies',
+        'Furniture',
+        'Storage',
+        'Accessories',
+        'Audio',
+        'Lighting',
+        'Networking',
+        'Software',
+        'Food & Beverages',
+        'Dairy Products',
+        'Fresh Produce',
+        'Frozen Foods',
+        'Bakery Items',
+        'Other',
+      ]
+      setCategories(Array.from(new Set([...defaults, ...(response.categories || [])])))
+    } catch (error: any) {
+      console.error('Error loading categories:', error)
+    } finally {
+      setLoadingCategories(false)
     }
   }
 
@@ -86,12 +117,20 @@ const NewPurchaseOrderModal: React.FC<NewPurchaseOrderModalProps> = ({
   const [showAddCategory, setShowAddCategory] = useState(false)
 
   const handleAddCategory = () => {
-    if (newCategory.trim() && !categories.includes(newCategory.trim())) {
-      setCategories([...categories.slice(0, -1), newCategory.trim(), 'Other'])
-      setNewCategory('')
-      setShowAddCategory(false)
-      toast.success(`Category "${newCategory.trim()}" added successfully`)
-    }
+    const categoryName = newCategory.trim()
+    if (!categoryName || categories.includes(categoryName)) return
+
+    inventoryAPI.createCategory(categoryName)
+      .then((response) => {
+        const savedCategory = response.category || categoryName
+        setCategories((prev) => Array.from(new Set([...prev, savedCategory])).sort())
+        setNewCategory('')
+        setShowAddCategory(false)
+        toast.success(`Category "${savedCategory}" added successfully`)
+      })
+      .catch((error: any) => {
+        toast.error(error?.message || 'Failed to add category')
+      })
   }
 
   // Check if category is food-related
@@ -314,15 +353,41 @@ const NewPurchaseOrderModal: React.FC<NewPurchaseOrderModalProps> = ({
         return
       }
       try {
-        // Save pending purchase data so the success page can create it after payment
-        localStorage.setItem('biztrack_pending_purchase', JSON.stringify(newPurchaseOrder))
-
         const result = await purchasesAPI.initiateKhaltiPayment({
           amount: khaltiInstallment.amount,
           purchaseOrderId: `NEW-${Date.now()}`,
           supplierName: supplier || 'Supplier',
           supplierPhone: selectedSupplier?.phone || '9800000000',
         })
+
+        const payableAmount = Number(result?.payableAmount ?? khaltiInstallment.amount)
+        const remainingAmount = Number(result?.remainingAmount ?? 0)
+
+        let pendingPurchaseOrder = newPurchaseOrder
+        if (result?.sandboxCapped && payableAmount > 0 && payableAmount < khaltiInstallment.amount) {
+          const adjustedInstallments = [...newPurchaseOrder.paymentInstallments]
+          const targetIndex = adjustedInstallments.findIndex(
+            (inst: any) => inst.method === 'khalti' && !isFutureDate(inst.dueDate)
+          )
+
+          if (targetIndex >= 0) {
+            adjustedInstallments[targetIndex] = {
+              ...adjustedInstallments[targetIndex],
+              amount: payableAmount,
+            }
+            pendingPurchaseOrder = {
+              ...newPurchaseOrder,
+              paymentInstallments: adjustedInstallments,
+            }
+          }
+
+          toast.info('Sandbox payment limit applied', {
+            description: `Khalti charged Rs ${payableAmount.toFixed(2)} now. Remaining Rs ${remainingAmount.toFixed(2)} will stay due.`,
+          })
+        }
+
+        // Save pending purchase data so the success page can create it after payment
+        localStorage.setItem('biztrack_pending_purchase', JSON.stringify(pendingPurchaseOrder))
 
         if (result.payment_url) {
           window.location.href = result.payment_url
@@ -690,11 +755,15 @@ const NewPurchaseOrderModal: React.FC<NewPurchaseOrderModalProps> = ({
                             required
                           >
                             <option value="">Select category</option>
-                            {categories.map((category) => (
-                              <option key={category} value={category}>
-                                {category}
-                              </option>
-                            ))}
+                            {loadingCategories ? (
+                              <option value="" disabled>Loading categories...</option>
+                            ) : (
+                              categories.map((category) => (
+                                <option key={category} value={category}>
+                                  {category}
+                                </option>
+                              ))
+                            )}
                             <option value="__add_new__" className="text-teal-600 font-medium">
                               + Add New Category
                             </option>

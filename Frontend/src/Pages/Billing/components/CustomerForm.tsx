@@ -24,7 +24,7 @@ const CustomerForm: React.FC<CustomerFormProps> = ({
           <UserPlus className="w-4 h-4 text-teal-600" />
           <span className="text-sm font-semibold text-teal-800">New Customer</span>
         </div>
-        <button onClick={onCancel} className="p-1 hover:bg-teal-100 rounded transition-colors">
+        <button onClick={onCancel} title="Close" aria-label="Close" className="p-1 hover:bg-teal-100 rounded transition-colors">
           <X className="w-4 h-4 text-teal-600" />
         </button>
       </div>
@@ -57,7 +57,9 @@ const CustomerForm: React.FC<CustomerFormProps> = ({
               validationErrors.phone ? 'border-red-400 bg-red-50' : 'border-gray-300 bg-white'
             }`}
             value={newCustomer.phone}
-            onChange={e => onCustomerChange({ ...newCustomer, phone: e.target.value })}
+            onChange={e => onCustomerChange({ ...newCustomer, phone: e.target.value.replace(/\D/g, '').slice(0, 10) })}
+            maxLength={10}
+            inputMode="numeric"
           />
           {validationErrors.phone && <p className="text-red-500 text-xs mt-1">{validationErrors.phone}</p>}
         </div>

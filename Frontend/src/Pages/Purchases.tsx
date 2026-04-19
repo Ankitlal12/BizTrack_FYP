@@ -147,12 +147,22 @@ const Purchases: React.FC = () => {
         purchaseId: selectedPurchase._id,
         amount,
       })
+
+      const payableAmount = Number(result?.payableAmount ?? amount)
+      const remainingAmount = Number(result?.remainingAmount ?? 0)
+
+      if (result?.sandboxCapped && remainingAmount > 0) {
+        toast.info('Sandbox payment limit applied', {
+          description: `Khalti charged Rs ${payableAmount.toFixed(2)} now. Remaining Rs ${remainingAmount.toFixed(2)} stays due.`
+        })
+      }
+
       if (result.payment_url) {
         // Store context so success page can show purchase info
         localStorage.setItem('biztrack_khalti_purchase', JSON.stringify({
           purchaseId: selectedPurchase._id,
           purchaseNumber: selectedPurchase.purchaseNumber,
-          amount,
+          amount: payableAmount,
         }))
         window.location.href = result.payment_url
       } else {

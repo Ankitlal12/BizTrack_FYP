@@ -13,6 +13,73 @@ const KhaltiPurchaseSuccess = () => {
   const [purchaseData, setPurchaseData] = useState<any>(null)
   const hasVerified = useRef(false)
 
+  const isFutureDate = (dateStr?: string) => {
+    if (!dateStr) return false
+    const todayStart = new Date()
+    todayStart.setHours(0, 0, 0, 0)
+    const dateOnly = new Date(dateStr)
+    dateOnly.setHours(0, 0, 0, 0)
+    return dateOnly > todayStart
+  }
+
+  const applyKhaltiSettlementToInstallments = (
+    installments: any[],
+    paidAmount: number,
+    pidx: string,
+    transactionId: string,
+    extraNote?: string,
+  ) => {
+    let remaining = Number(paidAmount || 0)
+    const updated: any[] = []
+
+    for (const inst of installments || []) {
+      const amount = Number(inst.amount || 0)
+      const isImmediateKhalti = inst.method === 'khalti' && !isFutureDate(inst.dueDate)
+
+      if (!isImmediateKhalti || amount <= 0) {
+        updated.push(inst)
+        continue
+      }
+
+      if (remaining <= 0) {
+        updated.push(inst)
+        continue
+      }
+
+      if (remaining >= amount - 0.001) {
+        updated.push({
+          ...inst,
+          status: 'completed',
+          khaltiPidx: pidx,
+          khaltiTransactionId: transactionId,
+          notes: `${inst.notes || ''}${inst.notes ? ' | ' : ''}${extraNote || ''}`.trim(),
+        })
+        remaining -= amount
+        continue
+      }
+
+      updated.push({
+        ...inst,
+        amount: Number(remaining.toFixed(2)),
+        status: 'completed',
+        khaltiPidx: pidx,
+        khaltiTransactionId: transactionId,
+        notes: `${inst.notes || ''}${inst.notes ? ' | ' : ''}${extraNote || ''}`.trim(),
+      })
+
+      updated.push({
+        ...inst,
+        amount: Number((amount - remaining).toFixed(2)),
+        status: 'scheduled',
+        notes: `${inst.notes || ''}${inst.notes ? ' | ' : ''}Remaining due after partial Khalti payment`.trim(),
+      })
+
+      remaining = 0
+    }
+
+    return updated
+  }
+
   const fallbackExistingPurchasePayment = async (context: any, pidx: string, reason: string) => {
     if (!context?.purchaseId || !context?.amount) {
       throw new Error('Missing purchase payment context for fallback callback')
@@ -43,16 +110,16 @@ const KhaltiPurchaseSuccess = () => {
     }
 
     const purchaseOrder = JSON.parse(pendingData)
-    const updatedInstallments = (purchaseOrder.paymentInstallments || []).map((inst: any) =>
-      inst.method === 'khalti'
-        ? {
-            ...inst,
-            status: 'completed',
-            khaltiPidx: pidx,
-            khaltiTransactionId: `fallback-${Date.now()}`,
-            notes: `${inst.notes || ''}${inst.notes ? ' | ' : ''}Fallback callback used: ${reason}`,
-          }
-        : inst
+    const fallbackPaidAmount = (purchaseOrder.paymentInstallments || [])
+      .filter((inst: any) => inst.method === 'khalti' && !isFutureDate(inst.dueDate))
+      .reduce((sum: number, inst: any) => sum + Number(inst.amount || 0), 0)
+
+    const updatedInstallments = applyKhaltiSettlementToInstallments(
+      purchaseOrder.paymentInstallments || [],
+      fallbackPaidAmount,
+      pidx,
+      `fallback-${Date.now()}`,
+      `Fallback callback used: ${reason}`,
     )
 
     const createdPurchase = await purchasesAPI.create({
@@ -157,10 +224,11 @@ const KhaltiPurchaseSuccess = () => {
 
       const purchaseOrder = JSON.parse(pendingData)
 
-      const updatedInstallments = (purchaseOrder.paymentInstallments || []).map((inst: any) =>
-        inst.method === 'khalti'
-          ? { ...inst, status: 'completed', khaltiPidx: verificationResult.pidx, khaltiTransactionId: verificationResult.transaction_id }
-          : inst
+      const updatedInstallments = applyKhaltiSettlementToInstallments(
+        purchaseOrder.paymentInstallments || [],
+        Number(verificationResult.total_amount || 0),
+        verificationResult.pidx,
+        verificationResult.transaction_id,
       )
 
       const createdPurchase = await purchasesAPI.create({

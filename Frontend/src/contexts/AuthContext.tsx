@@ -14,7 +14,7 @@ import { usersAPI, tokenManager } from '../services/api'
 // =====================
 // TYPES
 // =====================
-export type UserRole = 'owner' | 'manager' | 'staff'
+export type UserRole = 'admin' | 'owner' | 'manager' | 'staff'
 
 export interface User {
   id: string
@@ -96,8 +96,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           setUser(parsedUser)
           setIsAuthenticated(true)
 
-          // Only owners can fetch the full staff list
-          if (parsedUser.role === 'owner') {
+          // Admin and owners can fetch the full staff list
+          if (parsedUser.role === 'admin' || parsedUser.role === 'owner') {
             try {
               const staff = await usersAPI.getAll()
               const formattedStaff: StaffMember[] = staff.map((s: any) => ({
@@ -158,8 +158,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         setIsAuthenticated(true)
         localStorage.setItem('biztrack_user', JSON.stringify(userObj))
         
-        // Only owners need the staff list
-        if (userObj.role === 'owner') {
+        // Admin and owners need the staff list
+        if (userObj.role === 'admin' || userObj.role === 'owner') {
           try {
             const staff = await usersAPI.getAll()
             const formattedStaff: StaffMember[] = staff.map((s: any) => ({
@@ -181,7 +181,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
         // Navigate based on role using the fresh userObj (not React state,
         // which may not have flushed yet when navigate() is called)
-        if (userObj.role === 'owner') {
+        if (userObj.role === 'admin') {
+          navigate('/admin', { replace: true })
+        } else if (userObj.role === 'owner') {
           navigate('/', { replace: true })
         } else if (userObj.role === 'manager') {
           navigate('/inventory', { replace: true })
@@ -192,7 +194,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         return true
       } catch (error: any) {
         console.error('Login failed:', error)
-        return false
+        throw error
       }
     },
     [navigate],
@@ -229,8 +231,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         setIsAuthenticated(true)
         localStorage.setItem('biztrack_user', JSON.stringify(userObj))
         
-        // Only owners need the staff list
-        if (userObj.role === 'owner') {
+        // Admin and owners need the staff list
+        if (userObj.role === 'admin' || userObj.role === 'owner') {
           try {
             const staff = await usersAPI.getAll()
             const formattedStaff: StaffMember[] = staff.map((s: any) => ({
@@ -251,7 +253,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         }
 
         // Navigate based on role using the fresh userObj (not React state)
-        if (userObj.role === 'owner') {
+        if (userObj.role === 'admin') {
+          navigate('/admin', { replace: true })
+        } else if (userObj.role === 'owner') {
           navigate('/', { replace: true })
         } else if (userObj.role === 'manager') {
           navigate('/inventory', { replace: true })

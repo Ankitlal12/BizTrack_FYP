@@ -1,6 +1,16 @@
 // ==================== IMPORTS ====================
 const LoginHistory = require("../models/LoginHistory");
+const User = require("../models/User");
 const { formatNepaliDateTime } = require("../utils/dateUtils");
+
+const tenantFilter = (req) => ({ tenantKey: req.user.tenantKey });
+
+const resolveTenantKey = async (req, fallbackUserId) => {
+  if (req.user?.tenantKey) return req.user.tenantKey;
+  if (!fallbackUserId) return null;
+  const user = await User.findById(fallbackUserId).select("tenantKey");
+  return user?.tenantKey || null;
+};
 
 // ==================== READ ENDPOINTS ====================
 exports.getAllLoginHistory = async (req, res) => {
@@ -8,7 +18,7 @@ exports.getAllLoginHistory = async (req, res) => {
     const { page = 1, limit = 50, userId, days = 30 } = req.query;
     
     // Build query
-    const query = {};
+    const query = { ...tenantFilter(req) };
     
     // Filter by user if specified
     if (userId) {
@@ -77,6 +87,7 @@ exports.getUserLoginHistory = async (req, res) => {
     daysAgo.setDate(daysAgo.getDate() - parseInt(days));
     
     const query = {
+      ...tenantFilter(req),
       userId: userId,
       loginTime: { $gte: daysAgo }
     };
@@ -138,7 +149,13 @@ exports.recordLogin = async (req, res) => {
       success = true
     } = req.body;
     
+    const tenantKey = await resolveTenantKey(req, userId);
+    if (!tenantKey) {
+      return res.status(400).json({ error: "Tenant key is required for login history" });
+    }
+
     const loginRecord = await LoginHistory.create({
+      tenantKey,
       userId,
       userName,
       userRole,
@@ -170,18 +187,21 @@ exports.getLoginStats = async (req, res) => {
     
     // Total logins in period
     const totalLogins = await LoginHistory.countDocuments({
+      ...tenantFilter(req),
       loginTime: { $gte: daysAgo },
       success: true
     });
     
     // Failed login attempts
     const failedLogins = await LoginHistory.countDocuments({
+      ...tenantFilter(req),
       loginTime: { $gte: daysAgo },
       success: false
     });
     
     // Unique users who logged in
     const uniqueUsers = await LoginHistory.distinct("userId", {
+      ...tenantFilter(req),
       loginTime: { $gte: daysAgo },
       success: true
     });
@@ -190,6 +210,7 @@ exports.getLoginStats = async (req, res) => {
     const loginMethods = await LoginHistory.aggregate([
       {
         $match: {
+          ...tenantFilter(req),
           loginTime: { $gte: daysAgo },
           success: true
         }
@@ -206,6 +227,7 @@ exports.getLoginStats = async (req, res) => {
     const roleBreakdown = await LoginHistory.aggregate([
       {
         $match: {
+          ...tenantFilter(req),
           loginTime: { $gte: daysAgo },
           success: true
         }
@@ -253,6 +275,7 @@ exports.recordLogout = async (req, res) => {
     
     // Find the most recent login record for this user that doesn't have a logout time
     const loginRecord = await LoginHistory.findOne({
+      ...tenantFilter(req),
       userId: userId,
       success: true,
       logoutTime: null
@@ -311,6 +334,7 @@ exports.updateHeartbeat = async (req, res) => {
     
     // Find the most recent active login session
     const loginRecord = await LoginHistory.findOne({
+      ...tenantFilter(req),
       userId: userId,
       success: true,
       logoutTime: null
@@ -344,6 +368,7 @@ exports.autoLogoutInactiveSessions = async (req, res) => {
     
     // Find all active sessions where last activity is older than threshold
     const inactiveSessions = await LoginHistory.find({
+      ...tenantFilter(req),
       success: true,
       logoutTime: null,
       $or: [

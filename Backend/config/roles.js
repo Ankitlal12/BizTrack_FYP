@@ -25,6 +25,7 @@
  * │ GET    /api/suppliers        │  ✓    │  ✓      │  ✗    │
  * │ POST   /api/suppliers        │  ✓    │  ✓      │  ✗    │
  * │ DELETE /api/suppliers/:id    │  ✓    │  ✗      │  ✗    │
+ * │ POST   /api/billing/customers │  ✓    │  ✓      │  ✓    │
  * │ GET    /api/customers        │  ✓    │  ✓      │  ✗    │
  * │ GET    /api/transactions     │  ✓    │  ✓      │  ✗    │
  * │ GET    /api/reorders         │  ✓    │  ✓      │  ✗    │
@@ -36,13 +37,14 @@
  */
 
 const ROLES = {
+  ADMIN:   'admin',
   OWNER:   'owner',
   MANAGER: 'manager',
   STAFF:   'staff',
 };
 
-const OWNER_MANAGER = [ROLES.OWNER, ROLES.MANAGER];
-const OWNER_ONLY    = [ROLES.OWNER];
-const ALL_ROLES     = [ROLES.OWNER, ROLES.MANAGER, ROLES.STAFF];
+const OWNER_MANAGER = [ROLES.ADMIN, ROLES.OWNER, ROLES.MANAGER];
+const OWNER_ONLY    = [ROLES.ADMIN, ROLES.OWNER];
+const ALL_ROLES     = [ROLES.ADMIN, ROLES.OWNER, ROLES.MANAGER, ROLES.STAFF];
 
 module.exports = { ROLES, OWNER_MANAGER, OWNER_ONLY, ALL_ROLES };

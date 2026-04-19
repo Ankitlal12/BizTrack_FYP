@@ -5,6 +5,7 @@ const Notification = require("../models/Notification");
 const { generateInvoiceFromSale } = require("./invoiceController");
 const { getNepaliCurrentDateTime, getNepaliDayRangeInUTC } = require("../utils/dateUtils");
 const { createNotification } = require("../utils/notificationHelper");
+const tenantFilter = (req) => ({ tenantKey: req.user.tenantKey });
 
 // ==================== HELPERS ====================
 
@@ -19,6 +20,7 @@ const checkAndCreateStockNotification = async (item) => {
       });
       if (!existingNotif) {
         await createNotification({
+          tenantKey: req.user.tenantKey,
           type: "out_of_stock",
           title: "Item Out of Stock",
           message: `${item.name} (SKU: ${item.sku}) is out of stock. Please restock immediately.`,
@@ -35,6 +37,7 @@ const checkAndCreateStockNotification = async (item) => {
       });
       if (!existingNotif) {
         await createNotification({
+          tenantKey: req.user.tenantKey,
           type: "low_stock",
           title: "Low Stock Alert",
           message: `${item.name} (SKU: ${item.sku}) is running low. Current stock: ${item.stock}, Reorder level: ${item.reorderLevel}.`,
@@ -77,7 +80,7 @@ exports.getAllSales = async (req, res) => {
     const limit = parseInt(req.query.limit) || 10;
     const skip = (page - 1) * limit;
 
-    const query = {};
+    const query = { ...tenantFilter(req) };
 
     if (req.query.search) {
       query.$or = [
@@ -143,7 +146,7 @@ exports.getAllSales = async (req, res) => {
 // Get single sale by ID
 exports.getSaleById = async (req, res) => {
   try {
-    const sale = await Sale.findById(req.params.id).populate("items.inventoryId");
+    const sale = await Sale.findOne({ _id: req.params.id, ...tenantFilter(req) }).populate("items.inventoryId");
     if (!sale) return res.status(404).json({ error: "Sale not found" });
     res.json(sale);
   } catch (err) {
@@ -157,7 +160,7 @@ exports.getSaleById = async (req, res) => {
 exports.createSale = async (req, res) => {
   try {
     if (!req.body.invoiceNumber) {
-      const count = await Sale.countDocuments();
+      const count = await Sale.countDocuments(tenantFilter(req));
       req.body.invoiceNumber = `SALE-${String(count + 1).padStart(6, '0')}`;
     }
 
@@ -165,7 +168,7 @@ exports.createSale = async (req, res) => {
     const stockErrors = [];
     for (const item of req.body.items) {
       if (item.inventoryId) {
-        const inventoryItem = await Inventory.findById(item.inventoryId);
+        const inventoryItem = await Inventory.findOne({ _id: item.inventoryId, tenantKey: req.user.tenantKey });
         if (!inventoryItem) {
           stockErrors.push(`Item ${item.name || item.inventoryId} not found in inventory`);
         } else if (inventoryItem.stock < item.quantity) {
@@ -180,8 +183,8 @@ exports.createSale = async (req, res) => {
     // Deduct inventory stock and check for low-stock notifications
     for (const item of req.body.items) {
       if (item.inventoryId) {
-        const updatedInventory = await Inventory.findByIdAndUpdate(
-          item.inventoryId,
+        const updatedInventory = await Inventory.findOneAndUpdate(
+          { _id: item.inventoryId, tenantKey: req.user.tenantKey },
           { $inc: { stock: -item.quantity } },
           { new: true }
         );
@@ -189,11 +192,13 @@ exports.createSale = async (req, res) => {
       }
     }
 
-    const sale = await Sale.create(req.body);
+    const sale = await Sale.create({ ...req.body, tenantKey: req.user.tenantKey });
+
+    let generatedInvoice = null;
 
     // Auto-generate invoice
     try {
-      await generateInvoiceFromSale(sale, {
+      generatedInvoice = await generateInvoiceFromSale(sale, {
         userId: req.user?.id || req.user?._id,
         name: req.user?.name || "Unknown User",
         role: req.user?.role || "staff",
@@ -211,13 +216,19 @@ exports.createSale = async (req, res) => {
         message: `Sale ${sale.invoiceNumber || sale._id} has been created with ${totalItems} item(s) for ${req.body.customerName || 'customer'}.`,
         relatedId: sale._id,
         relatedModel: "Sale",
-        metadata: { invoiceNumber: sale.invoiceNumber, customerName: req.body.customerName, totalItems, total: sale.total },
+        metadata: {
+          invoiceId: generatedInvoice?._id,
+          invoiceNumber: generatedInvoice?.invoiceNumber || sale.invoiceNumber,
+          customerName: req.body.customerName,
+          totalItems,
+          total: sale.total,
+        },
       });
     } catch (notifError) {
       console.error("Failed to create notification:", notifError);
     }
 
-    const populatedSale = await Sale.findById(sale._id).populate("items.inventoryId");
+    const populatedSale = await Sale.findOne({ _id: sale._id, ...tenantFilter(req) }).populate("items.inventoryId");
     res.status(201).json(populatedSale);
   } catch (err) {
     res.status(400).json({ error: err.message });
@@ -227,7 +238,7 @@ exports.createSale = async (req, res) => {
 // Update sale
 exports.updateSale = async (req, res) => {
   try {
-    const sale = await Sale.findByIdAndUpdate(req.params.id, req.body, { new: true, runValidators: true }).populate("items.inventoryId");
+    const sale = await Sale.findOneAndUpdate({ _id: req.params.id, ...tenantFilter(req) }, req.body, { new: true, runValidators: true }).populate("items.inventoryId");
     if (!sale) return res.status(404).json({ error: "Sale not found" });
     res.json(sale);
   } catch (err) {
@@ -238,16 +249,16 @@ exports.updateSale = async (req, res) => {
 // Delete sale — restores inventory stock
 exports.deleteSale = async (req, res) => {
   try {
-    const sale = await Sale.findById(req.params.id);
+    const sale = await Sale.findOne({ _id: req.params.id, ...tenantFilter(req) });
     if (!sale) return res.status(404).json({ error: "Sale not found" });
 
     for (const item of sale.items) {
       if (item.inventoryId) {
-        await Inventory.findByIdAndUpdate(item.inventoryId, { $inc: { stock: item.quantity } });
+        await Inventory.findOneAndUpdate({ _id: item.inventoryId, tenantKey: req.user.tenantKey }, { $inc: { stock: item.quantity } });
       }
     }
 
-    await Sale.findByIdAndDelete(req.params.id);
+    await Sale.findOneAndDelete({ _id: req.params.id, ...tenantFilter(req) });
     res.json({ message: "Sale deleted successfully" });
   } catch (err) {
     res.status(500).json({ error: err.message });

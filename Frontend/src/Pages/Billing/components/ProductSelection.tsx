@@ -6,6 +6,7 @@ interface ProductSelectionProps {
   searchProduct: string
   onSearchChange: (value: string) => void
   filteredProducts: Product[]
+  categories?: string[]
   onAddToCart: (product: Product) => void
   validationError?: string
 }
@@ -14,15 +15,21 @@ const ProductSelection: React.FC<ProductSelectionProps> = ({
   searchProduct,
   onSearchChange,
   filteredProducts,
+  categories: sharedCategories = [],
   onAddToCart,
   validationError,
 }) => {
   const [activeCategory, setActiveCategory] = useState('All')
 
   const categories = useMemo(() => {
-    const cats = Array.from(new Set(filteredProducts.map(p => p.category)))
-    return ['All', ...cats.sort()]
-  }, [filteredProducts])
+    const cats = Array.from(new Set([
+      ...sharedCategories,
+      ...filteredProducts.map(p => p.category),
+    ]))
+      .filter(Boolean)
+      .sort()
+    return ['All', ...cats]
+  }, [filteredProducts, sharedCategories])
 
   // Reset category if it disappears from filtered results
   const safeCategory = categories.includes(activeCategory) ? activeCategory : 'All'

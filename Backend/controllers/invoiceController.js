@@ -5,6 +5,7 @@ const Purchase = require("../models/Purchase");
 const { getNepaliCurrentDateTime } = require("../utils/dateUtils");
 const nodemailer = require("nodemailer");
 const PDFDocument = require("pdfkit");
+const tenantFilter = (req) => ({ tenantKey: req.user.tenantKey });
 
 // ==================== HELPERS ====================
 
@@ -127,6 +128,7 @@ const generateInvoiceFromSale = async (sale, userInfo = {}) => {
     const invoiceNumber = sale.invoiceNumber;
 
     const invoiceData = {
+      tenantKey: sale.tenantKey,
       invoiceNumber: invoiceNumber,
       type: "sale",
       relatedId: sale._id,
@@ -176,6 +178,7 @@ const generateInvoiceFromPurchase = async (purchase, userInfo = {}) => {
     const invoiceNumber = purchase.purchaseNumber;
 
     const invoiceData = {
+      tenantKey: purchase.tenantKey,
       invoiceNumber: invoiceNumber,
       type: "purchase",
       relatedId: purchase._id,
@@ -243,7 +246,7 @@ exports.getAllInvoices = async (req, res) => {
     } = req.query;
     
     // Build filter object
-    const filter = {};
+    const filter = { ...tenantFilter(req) };
     
     // Basic filters
     if (type) filter.type = type;
@@ -327,13 +330,13 @@ exports.getAllInvoices = async (req, res) => {
         if (invoice.relatedId) {
           try {
             if (invoice.type === 'sale') {
-              const sale = await Sale.findById(invoice.relatedId);
+              const sale = await Sale.findOne({ _id: invoice.relatedId, tenantKey: req.user.tenantKey });
               if (sale) {
                 payments = sale.payments || [];
                 scheduledAmount = sale.scheduledAmount || 0;
               }
             } else if (invoice.type === 'purchase') {
-              const purchase = await Purchase.findById(invoice.relatedId);
+              const purchase = await Purchase.findOne({ _id: invoice.relatedId, tenantKey: req.user.tenantKey });
               if (purchase) {
                 payments = purchase.payments || [];
                 scheduledAmount = purchase.scheduledAmount || 0;
@@ -366,7 +369,7 @@ exports.getAllInvoices = async (req, res) => {
 // Get single invoice
 exports.getInvoiceById = async (req, res) => {
   try {
-    const invoice = await Invoice.findById(req.params.id)
+    const invoice = await Invoice.findOne({ _id: req.params.id, ...tenantFilter(req) })
       .populate('items.inventoryId')
       .populate('relatedId');
     if (!invoice) {
@@ -379,13 +382,13 @@ exports.getInvoiceById = async (req, res) => {
     if (invoice.relatedId) {
       try {
         if (invoice.type === 'sale') {
-          const sale = await Sale.findById(invoice.relatedId);
+          const sale = await Sale.findOne({ _id: invoice.relatedId, tenantKey: req.user.tenantKey });
           if (sale) {
             payments = sale.payments || [];
             scheduledAmount = sale.scheduledAmount || 0;
           }
         } else if (invoice.type === 'purchase') {
-          const purchase = await Purchase.findById(invoice.relatedId);
+          const purchase = await Purchase.findOne({ _id: invoice.relatedId, tenantKey: req.user.tenantKey });
           if (purchase) {
             payments = purchase.payments || [];
             scheduledAmount = purchase.scheduledAmount || 0;
@@ -414,6 +417,7 @@ exports.createInvoice = async (req, res) => {
   try {
     const invoiceData = {
       ...req.body,
+      tenantKey: req.user.tenantKey,
       createdBy: {
         userId: req.user?.id || req.user?._id,
         name: req.user?.name || "Unknown User",
@@ -424,13 +428,13 @@ exports.createInvoice = async (req, res) => {
     // Generate invoice number if not provided
     if (!invoiceData.invoiceNumber) {
       const type = invoiceData.type || "sale";
-      const count = await Invoice.countDocuments({ type: type });
+      const count = await Invoice.countDocuments({ type: type, ...tenantFilter(req) });
       const prefix = type === 'sale' ? 'INV' : 'PINV';
       invoiceData.invoiceNumber = `${prefix}-${String(count + 1).padStart(6, '0')}`;
     }
 
     const invoice = await Invoice.create(invoiceData);
-    const populatedInvoice = await Invoice.findById(invoice._id)
+    const populatedInvoice = await Invoice.findOne({ _id: invoice._id, ...tenantFilter(req) })
       .populate('items.inventoryId')
       .populate('relatedId');
     
@@ -443,8 +447,8 @@ exports.createInvoice = async (req, res) => {
 // Update invoice
 exports.updateInvoice = async (req, res) => {
   try {
-    const invoice = await Invoice.findByIdAndUpdate(
-      req.params.id,
+    const invoice = await Invoice.findOneAndUpdate(
+      { _id: req.params.id, ...tenantFilter(req) },
       req.body,
       { new: true, runValidators: true }
     ).populate('items.inventoryId').populate('relatedId');
@@ -461,7 +465,7 @@ exports.updateInvoice = async (req, res) => {
 // Delete invoice
 exports.deleteInvoice = async (req, res) => {
   try {
-    const invoice = await Invoice.findByIdAndDelete(req.params.id);
+    const invoice = await Invoice.findOneAndDelete({ _id: req.params.id, ...tenantFilter(req) });
     if (!invoice) {
       return res.status(404).json({ error: "Invoice not found" });
     }
@@ -478,6 +482,7 @@ exports.generateFromSale = async (req, res) => {
     
     // Check if invoice already exists for this sale
     const existingInvoice = await Invoice.findOne({ 
+      ...tenantFilter(req),
       relatedId: saleId, 
       relatedModel: "Sale" 
     });
@@ -489,7 +494,7 @@ exports.generateFromSale = async (req, res) => {
       });
     }
 
-    const sale = await Sale.findById(saleId).populate('items.inventoryId');
+    const sale = await Sale.findOne({ _id: saleId, tenantKey: req.user.tenantKey }).populate('items.inventoryId');
     if (!sale) {
       return res.status(404).json({ error: "Sale not found" });
     }
@@ -501,7 +506,7 @@ exports.generateFromSale = async (req, res) => {
     };
 
     const invoice = await generateInvoiceFromSale(sale, userInfo);
-    const populatedInvoice = await Invoice.findById(invoice._id)
+    const populatedInvoice = await Invoice.findOne({ _id: invoice._id, ...tenantFilter(req) })
       .populate('items.inventoryId')
       .populate('relatedId');
 
@@ -518,6 +523,7 @@ exports.generateFromPurchase = async (req, res) => {
     
     // Check if invoice already exists for this purchase
     const existingInvoice = await Invoice.findOne({ 
+      ...tenantFilter(req),
       relatedId: purchaseId, 
       relatedModel: "Purchase" 
     });
@@ -529,7 +535,7 @@ exports.generateFromPurchase = async (req, res) => {
       });
     }
 
-    const purchase = await Purchase.findById(purchaseId).populate('items.inventoryId');
+    const purchase = await Purchase.findOne({ _id: purchaseId, tenantKey: req.user.tenantKey }).populate('items.inventoryId');
     if (!purchase) {
       return res.status(404).json({ error: "Purchase not found" });
     }
@@ -541,7 +547,7 @@ exports.generateFromPurchase = async (req, res) => {
     };
 
     const invoice = await generateInvoiceFromPurchase(purchase, userInfo);
-    const populatedInvoice = await Invoice.findById(invoice._id)
+    const populatedInvoice = await Invoice.findOne({ _id: invoice._id, ...tenantFilter(req) })
       .populate('items.inventoryId')
       .populate('relatedId');
 
@@ -556,7 +562,7 @@ exports.generateFromPurchase = async (req, res) => {
 // Record one or more payments for an invoice
 exports.recordInvoicePayment = async (req, res) => {
   try {
-    const invoice = await Invoice.findById(req.params.id);
+    const invoice = await Invoice.findOne({ _id: req.params.id, ...tenantFilter(req) });
     if (!invoice) {
       return res.status(404).json({ error: `Invoice not found (id: ${req.params.id})` });
     }
@@ -612,7 +618,7 @@ exports.recordInvoicePayment = async (req, res) => {
     let lastMethod = records[records.length - 1].method;
 
     if (invoice.type === "purchase") {
-      const purchase = await Purchase.findById(invoice.relatedId);
+      const purchase = await Purchase.findOne({ _id: invoice.relatedId, tenantKey: req.user.tenantKey });
       if (!purchase) return res.status(404).json({ error: `Related purchase not found (relatedId: ${invoice.relatedId})` });
 
       const currentPaid = purchase.paidAmount || 0;
@@ -655,7 +661,7 @@ exports.recordInvoicePayment = async (req, res) => {
       await invoice.save();
 
     } else if (invoice.type === "sale") {
-      const sale = await Sale.findById(invoice.relatedId);
+      const sale = await Sale.findOne({ _id: invoice.relatedId, tenantKey: req.user.tenantKey });
       if (!sale) return res.status(404).json({ error: `Related sale not found (relatedId: ${invoice.relatedId})` });
 
       const currentPaid = sale.paidAmount || 0;
@@ -701,7 +707,7 @@ exports.recordInvoicePayment = async (req, res) => {
     }
 
     // Return the updated invoice with fresh payments from the related doc
-    const updatedInvoice = await Invoice.findById(invoice._id)
+    const updatedInvoice = await Invoice.findOne({ _id: invoice._id, ...tenantFilter(req) })
       .populate("items.inventoryId")
       .populate("relatedId");
 
@@ -710,10 +716,10 @@ exports.recordInvoicePayment = async (req, res) => {
     const relatedDocId = updatedInvoice.relatedId?._id || updatedInvoice.relatedId;
     if (relatedDocId) {
       if (invoice.type === "purchase") {
-        const purchase = await Purchase.findById(relatedDocId);
+        const purchase = await Purchase.findOne({ _id: relatedDocId, tenantKey: req.user.tenantKey });
         if (purchase) { payments = purchase.payments || []; scheduledAmount = purchase.scheduledAmount || 0; }
       } else if (invoice.type === "sale") {
-        const sale = await Sale.findById(relatedDocId);
+        const sale = await Sale.findOne({ _id: relatedDocId, tenantKey: req.user.tenantKey });
         if (sale) { payments = sale.payments || []; scheduledAmount = sale.scheduledAmount || 0; }
       }
     }
@@ -733,7 +739,7 @@ exports.updatePaymentStatus = async (req, res) => {
   try {
     const { paymentStatus, paidAmount, paymentMethod } = req.body;
     
-    const invoice = await Invoice.findById(req.params.id);
+    const invoice = await Invoice.findOne({ _id: req.params.id, ...tenantFilter(req) });
     if (!invoice) {
       return res.status(404).json({ error: "Invoice not found" });
     }
@@ -764,7 +770,7 @@ exports.updatePaymentStatus = async (req, res) => {
       try {
         if (invoice.type === 'sale') {
           const Sale = require('../models/Sale');
-          const sale = await Sale.findById(invoice.relatedId);
+          const sale = await Sale.findOne({ _id: invoice.relatedId, tenantKey: req.user.tenantKey });
           if (sale) {
             sale.paymentStatus = paymentStatus;
             sale.paidAmount = paidAmount || 0;
@@ -774,7 +780,7 @@ exports.updatePaymentStatus = async (req, res) => {
           }
         } else if (invoice.type === 'purchase') {
           const Purchase = require('../models/Purchase');
-          const purchase = await Purchase.findById(invoice.relatedId);
+          const purchase = await Purchase.findOne({ _id: invoice.relatedId, tenantKey: req.user.tenantKey });
           if (purchase) {
             purchase.paymentStatus = paymentStatus;
             purchase.paidAmount = paidAmount || 0;
@@ -789,7 +795,7 @@ exports.updatePaymentStatus = async (req, res) => {
       }
     }
 
-    const populatedInvoice = await Invoice.findById(invoice._id)
+    const populatedInvoice = await Invoice.findOne({ _id: invoice._id, ...tenantFilter(req) })
       .populate('items.inventoryId')
       .populate('relatedId');
 
@@ -803,6 +809,7 @@ exports.updatePaymentStatus = async (req, res) => {
 exports.getInvoiceStats = async (req, res) => {
   try {
     const stats = await Invoice.aggregate([
+      { $match: { tenantKey: req.user.tenantKey } },
       {
         $group: {
           _id: null,
@@ -851,7 +858,7 @@ exports.getInvoiceStats = async (req, res) => {
 
 exports.sendInvoiceEmail = async (req, res) => {
   try {
-    const invoice = await Invoice.findById(req.params.id);
+    const invoice = await Invoice.findOne({ _id: req.params.id, ...tenantFilter(req) });
     if (!invoice) {
       return res.status(404).json({ error: "Invoice not found" });
     }

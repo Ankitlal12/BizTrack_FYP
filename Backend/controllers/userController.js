@@ -11,11 +11,91 @@ const { createNotification } = require("../utils/notificationHelper");
 const { generateOTP, getOTPExpiration, verifyOTP, sendOTPEmail, sendCredentialsEmail } = require("../utils/otpService");
 
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+const STAFF_PASSWORD_REGEX = /^(?=.*[A-Za-z])(?=.*\d)(?=.*[^A-Za-z\d]).+$/;
+const ADMIN_EMAIL = "admin@gmail.com";
+const ADMIN_PASSWORD = "admin123";
 
 // ==================== CONSTANTS ====================
 const GOOGLE_CLIENT_ID = process.env.GOOGLE_CLIENT_ID || "905396434192-03aqn8vkab2knh33brep80bfvmh3ojik.apps.googleusercontent.com";
+const WORKSPACE_TENANT_KEY = String(process.env.WORKSPACE_TENANT_KEY || '').trim();
 
 // ==================== HELPERS ====================
+
+const escapeRegExp = (value = "") => value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+const isPlatformAdmin = (user) => user?.role === "admin";
+const resolveTenantKey = (user) => user?.tenantKey || null;
+const tenantFilter = (req) => ({ tenantKey: req.user?.tenantKey });
+
+const enforceTenantScope = (targetUser, requester) => {
+  if (isPlatformAdmin(requester)) return true;
+  const requesterTenant = resolveTenantKey(requester);
+  return Boolean(requesterTenant && targetUser?.tenantKey === requesterTenant);
+};
+
+const isStrongStaffPassword = (password) =>
+  typeof password === "string" &&
+  password.length >= 6 &&
+  STAFF_PASSWORD_REGEX.test(password);
+
+const resolveTenantOwner = async (user) => {
+  if (!user) return null;
+  if (user.role === "owner") return user;
+  if (!user.tenantKey) return null;
+  return User.findOne({ tenantKey: user.tenantKey, role: "owner" });
+};
+
+const normalizeRequestHost = (req) => {
+  const hostHeader = req?.headers?.['x-forwarded-host'] || req?.get?.('host') || '';
+  const host = String(hostHeader).split(',')[0].trim().toLowerCase();
+  return host.split(':')[0];
+};
+
+const isLocalHost = (host = '') => host === 'localhost' || host === '127.0.0.1';
+
+const ensureWorkspaceLoginAllowed = async (user, req) => {
+  if (!user || user.role === "admin") return;
+
+  if (WORKSPACE_TENANT_KEY && user.tenantKey !== WORKSPACE_TENANT_KEY) {
+    throw {
+      status: 403,
+      message: "This account belongs to another workspace and cannot be used here.",
+    };
+  }
+
+  const owner = await resolveTenantOwner(user);
+  if (!owner) {
+    throw { status: 403, message: "Workspace owner not found for this account." };
+  }
+
+  if (owner.accountStatus === "frozen") {
+    throw { status: 403, message: "Your account has been freezed. Contact admin." };
+  }
+
+  if (owner.accountStatus === "deleted") {
+    throw { status: 403, message: "Your workspace is deleted and cannot be accessed." };
+  }
+
+  if (owner.isSaasCustomer && owner.subscriptionExpiresAt && new Date(owner.subscriptionExpiresAt) < new Date()) {
+    throw { status: 402, message: "Your monthly subscription has expired. Please renew to continue." };
+  }
+
+  const requestHost = normalizeRequestHost(req);
+  if (!requestHost || isLocalHost(requestHost)) {
+    return;
+  }
+
+  if (owner.workspaceHost && owner.workspaceHost !== requestHost) {
+    throw {
+      status: 403,
+      message: "This account belongs to another workspace and cannot be used here.",
+    };
+  }
+
+  if (!owner.workspaceHost && owner.role === 'owner') {
+    owner.workspaceHost = requestHost;
+    await owner.save();
+  }
+};
 
 // Verify a Google ID token and return the payload
 const verifyGoogleToken = async (credential) => {
@@ -52,6 +132,7 @@ const findOrCreateGoogleUser = async (googleId, email, name, picture) => {
     googleId,
     avatar: picture,
     role: 'owner',
+    tenantKey: `tenant_${Date.now()}`,
     active: true,
     dateAdded: new Date(),
   });
@@ -61,6 +142,7 @@ const findOrCreateGoogleUser = async (googleId, email, name, picture) => {
 const recordLoginHistory = async (user, req, method, success) => {
   try {
     await LoginHistory.create({
+      tenantKey: user.tenantKey,
       userId: user._id,
       userName: user.name,
       userRole: user.role,
@@ -105,14 +187,26 @@ exports.createUser = async (req, res) => {
       return res.status(400).json({ error: "Gmail address must end with @gmail.com" });
     }
 
-    if (password.length < 6) {
-      return res.status(400).json({ error: "Password must be at least 6 characters long" });
+    if (!isStrongStaffPassword(password)) {
+      return res.status(400).json({
+        error: "Password must be at least 6 characters long and include at least one letter, one number, and one special character",
+      });
+    }
+
+    const tenantKey = resolveTenantKey(req.user);
+    if (!tenantKey && !isPlatformAdmin(req.user)) {
+      return res.status(403).json({ error: "No workspace context found for this owner." });
     }
 
     // Check if user with email or username already exists
-    const existingUser = await User.findOne({
-      $or: [{ email: normalizedEmail }, { username: trimmedUsername }]
-    });
+    const existingFilter = isPlatformAdmin(req.user)
+      ? { $or: [{ email: normalizedEmail }, { username: trimmedUsername }] }
+      : {
+          tenantKey,
+          $or: [{ email: normalizedEmail }, { username: trimmedUsername }],
+        };
+
+    const existingUser = await User.findOne(existingFilter);
 
     if (existingUser) {
       return res.status(400).json({ 
@@ -131,6 +225,9 @@ exports.createUser = async (req, res) => {
       username: trimmedUsername,
       password: hashedPassword,
       role: role || 'staff',
+      tenantKey: isPlatformAdmin(req.user)
+        ? (req.body.tenantKey || null)
+        : tenantKey,
       active: true,
       dateAdded: new Date(),
     });
@@ -157,6 +254,7 @@ exports.createUser = async (req, res) => {
     // Create notification for new staff member
     try {
       await createNotification({
+        tenantKey: req.user.tenantKey,
         type: "system",
         title: "New Staff Member Added",
         message: `${trimmedName} has been added as a ${role || 'staff'} member.`,
@@ -191,7 +289,10 @@ exports.createUser = async (req, res) => {
 // Get all users
 exports.getAllUsers = async (req, res) => {
   try {
-    const users = await User.find({}).select('-password').sort({ dateAdded: -1 });
+    const filter = isPlatformAdmin(req.user)
+      ? {}
+      : { tenantKey: resolveTenantKey(req.user) };
+    const users = await User.find(filter).select('-password').sort({ dateAdded: -1 });
     res.json(users);
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -204,15 +305,71 @@ exports.getAllUsers = async (req, res) => {
 exports.login = async (req, res) => {
   try {
     const { username, password } = req.body;
+    const loginIdentifier = (username || "").trim();
+    const normalizedIdentifier = loginIdentifier.toLowerCase();
 
-    if (!username || !password) {
+    if (!loginIdentifier || !password) {
       return res.status(400).json({ 
-        error: "Username and password are required" 
+        error: "Email/username and password are required" 
       });
     }
 
-    // Find user by username
-    const user = await User.findOne({ username });
+    // Static admin bootstrap credentials requested by product requirement.
+    if (normalizedIdentifier === ADMIN_EMAIL && password === ADMIN_PASSWORD) {
+      let adminUser = await User.findOne({ email: ADMIN_EMAIL });
+
+      if (!adminUser) {
+        const saltRounds = 10;
+        const hashedPassword = await bcrypt.hash(ADMIN_PASSWORD, saltRounds);
+        adminUser = await User.create({
+          name: "System Admin",
+          email: ADMIN_EMAIL,
+          username: "admin",
+          password: hashedPassword,
+          role: "admin",
+          active: true,
+          dateAdded: new Date(),
+        });
+      } else {
+        let changed = false;
+        if (adminUser.role !== "admin") {
+          adminUser.role = "admin";
+          changed = true;
+        }
+        if (!adminUser.active) {
+          adminUser.active = true;
+          changed = true;
+        }
+        if (changed) await adminUser.save();
+      }
+
+      await recordLoginHistory(adminUser, req, "credentials", true);
+      const adminToken = generateToken(adminUser);
+      const adminResponse = adminUser.toObject();
+      delete adminResponse.password;
+
+      return res.json({
+        user: adminResponse,
+        token: adminToken,
+      });
+    }
+
+    // Find user by assigned username or assigned email.
+    const identifierRegex = new RegExp(`^${escapeRegExp(loginIdentifier)}$`, "i");
+    const matchedUsers = await User.find({
+      $or: [
+        { username: identifierRegex },
+        { email: identifierRegex },
+      ],
+    }).limit(5);
+
+    if (matchedUsers.length > 1) {
+      return res.status(409).json({
+        error: "Multiple accounts matched this login ID. Please contact admin to resolve duplicate usernames.",
+      });
+    }
+
+    const user = matchedUsers[0];
 
     if (!user) {
       return res.status(401).json({ 
@@ -227,6 +384,14 @@ exports.login = async (req, res) => {
       });
     }
 
+    try {
+      await ensureWorkspaceLoginAllowed(user, req);
+    } catch (workspaceError) {
+      return res.status(workspaceError.status || 403).json({
+        error: workspaceError.message || "Workspace login is not allowed.",
+      });
+    }
+
     // Verify password
     const isPasswordValid = await bcrypt.compare(password, user.password);
 
@@ -234,6 +399,7 @@ exports.login = async (req, res) => {
       // Record failed login attempt
       try {
         await LoginHistory.create({
+          tenantKey: user.tenantKey,
           userId: user._id,
           userName: user.name,
           userRole: user.role,
@@ -248,14 +414,15 @@ exports.login = async (req, res) => {
 
         // Create notification for failed login attempt
         const notification = await createNotification({
+          tenantKey: user.tenantKey,
           type: "login_failed",
           title: "Failed Login Attempt",
-          message: `Failed login attempt for user ${user.name} (${username}). IP: ${req.ip || 'Unknown'}`,
+          message: `Failed login attempt for user ${user.name} (${loginIdentifier}). IP: ${req.ip || 'Unknown'}`,
           relatedId: user._id,
           relatedModel: "User",
           metadata: {
             userName: user.name,
-            username: username,
+            username: loginIdentifier,
             ipAddress: req.ip || req.connection.remoteAddress,
             userAgent: req.get('User-Agent'),
             timestamp: new Date(),
@@ -273,9 +440,16 @@ exports.login = async (req, res) => {
       });
     }
 
+    // Ensure owners have a tenant workspace key for multi-tenant scoping.
+    if (user.role === 'owner' && !user.tenantKey) {
+      user.tenantKey = `tenant_${user._id}`;
+      await user.save();
+    }
+
     // Record successful login
     try {
       await LoginHistory.create({
+        tenantKey: user.tenantKey,
         userId: user._id,
         userName: user.name,
         userRole: user.role,
@@ -317,6 +491,15 @@ exports.updateUserStatus = async (req, res) => {
       });
     }
 
+    const existingUser = await User.findById(id);
+    if (!existingUser) {
+      return res.status(404).json({ error: "User not found" });
+    }
+
+    if (!enforceTenantScope(existingUser, req.user)) {
+      return res.status(403).json({ error: "Access denied for this workspace user." });
+    }
+
     const user = await User.findByIdAndUpdate(
       id,
       { active },
@@ -343,6 +526,10 @@ exports.getUserById = async (req, res) => {
       return res.status(404).json({ error: "User not found" });
     }
 
+    if (!enforceTenantScope(user, req.user)) {
+      return res.status(403).json({ error: "Access denied for this workspace user." });
+    }
+
     res.json(user);
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -361,6 +548,10 @@ exports.updateUser = async (req, res) => {
       return res.status(404).json({ error: "User not found" });
     }
 
+    if (!enforceTenantScope(user, req.user)) {
+      return res.status(403).json({ error: "Access denied for this workspace user." });
+    }
+
     // Owners cannot have their role changed through this endpoint
     if (user.role === 'owner') {
       return res.status(403).json({ error: "Owner role cannot be changed." });
@@ -373,7 +564,11 @@ exports.updateUser = async (req, res) => {
       if (!username || username.trim() === '') {
         return res.status(400).json({ error: "Username cannot be empty" });
       }
-      const existingUser = await User.findOne({ username: username.trim(), _id: { $ne: id } });
+      const existingUser = await User.findOne({
+        username: username.trim(),
+        _id: { $ne: id },
+        ...(isPlatformAdmin(req.user) ? {} : { tenantKey: resolveTenantKey(req.user) }),
+      });
       if (existingUser) {
         return res.status(400).json({ error: "Username is already taken" });
       }
@@ -382,8 +577,10 @@ exports.updateUser = async (req, res) => {
 
     // Update password if provided
     if (password !== undefined) {
-      if (!password || password.length < 6) {
-        return res.status(400).json({ error: "Password must be at least 6 characters long" });
+      if (!isStrongStaffPassword(password)) {
+        return res.status(400).json({
+          error: "Password must be at least 6 characters long and include at least one letter, one number, and one special character",
+        });
       }
       const saltRounds = 10;
       updateData.password = await bcrypt.hash(password, saltRounds);
@@ -412,6 +609,7 @@ exports.updateUser = async (req, res) => {
       if (updateData.role) changeDetails.push(`role changed to "${updateData.role}"`);
 
       await createNotification({
+        tenantKey: req.user.tenantKey,
         type: updateData.role ? "system" : "security_change",
         title: updateData.role ? "User Role Changed" : "Security Settings Changed",
         message: `${user.name} has been updated: ${changeDetails.join(', ')}.`,
@@ -441,9 +639,14 @@ exports.deleteUser = async (req, res) => {
       return res.status(404).json({ error: "User not found" });
     }
 
+    if (!enforceTenantScope(user, req.user)) {
+      return res.status(403).json({ error: "Access denied for this workspace user." });
+    }
+
     // Create notification for staff deletion
     try {
       await createNotification({
+        tenantKey: user.tenantKey,
         type: "system",
         title: "Staff Member Deleted",
         message: `${user.name} (${user.email}) has been removed from the system.`,
@@ -510,6 +713,14 @@ exports.googleLogin = async (req, res) => {
 
     if (!user.active) return res.status(401).json({ error: "Account is inactive. Please contact administrator." });
 
+    try {
+      await ensureWorkspaceLoginAllowed(user, req);
+    } catch (workspaceError) {
+      return res.status(workspaceError.status || 403).json({
+        error: workspaceError.message || "Workspace login is not allowed.",
+      });
+    }
+
     await recordLoginHistory(user, req, "google", true);
     const token = generateToken(user);
     const userResponse = user.toObject();
@@ -541,6 +752,14 @@ exports.googleLoginWithOTP = async (req, res) => {
 
     const user = await findOrCreateGoogleUser(googleId, email, name, picture);
     if (!user.active) return res.status(401).json({ error: "Account is inactive. Please contact administrator." });
+
+    try {
+      await ensureWorkspaceLoginAllowed(user, req);
+    } catch (workspaceError) {
+      return res.status(workspaceError.status || 403).json({
+        error: workspaceError.message || "Workspace login is not allowed.",
+      });
+    }
 
     // Generate and save OTP
     const otp = generateOTP();
@@ -592,6 +811,14 @@ exports.verifyOTPAndLogin = async (req, res) => {
       });
     }
 
+    try {
+      await ensureWorkspaceLoginAllowed(user, req);
+    } catch (workspaceError) {
+      return res.status(workspaceError.status || 403).json({
+        error: workspaceError.message || "Workspace login is not allowed.",
+      });
+    }
+
     // Verify OTP
     const verification = verifyOTP(
       user.otp?.code,
@@ -616,6 +843,7 @@ exports.verifyOTPAndLogin = async (req, res) => {
     // Record successful login
     try {
       await LoginHistory.create({
+        tenantKey: user.tenantKey,
         userId: user._id,
         userName: user.name,
         userRole: user.role,
@@ -672,6 +900,14 @@ exports.resendOTP = async (req, res) => {
     if (!user.active) {
       return res.status(401).json({ 
         error: "Account is inactive. Please contact administrator." 
+      });
+    }
+
+    try {
+      await ensureWorkspaceLoginAllowed(user, req);
+    } catch (workspaceError) {
+      return res.status(workspaceError.status || 403).json({
+        error: workspaceError.message || "Workspace login is not allowed.",
       });
     }
 
@@ -754,14 +990,20 @@ exports.getStaffAnalytics = async (req, res) => {
       startDate.setDate(startDate.getDate() - parseInt(days));
     }
     const daysAgo = startDate; // alias for existing code
+    const scope = tenantFilter(req);
+
+    if (!scope.tenantKey) {
+      return res.status(400).json({ error: "Tenant key is required for staff analytics" });
+    }
 
     // 1. All users
-    const allUsers = await User.find({}).select('-password -otp').sort({ dateAdded: -1 });
+    const allUsers = await User.find(scope).select('-password -otp').sort({ dateAdded: -1 });
 
     // 2. Sales aggregated per staff member — filtered by selected period
     const salesByStaff = await Sale.aggregate([
       {
         $match: {
+          tenantKey: scope.tenantKey,
           'createdBy.userId': { $exists: true, $ne: null },
           createdAt: { $gte: startDate, $lte: endDate },
         }
@@ -784,6 +1026,7 @@ exports.getStaffAnalytics = async (req, res) => {
     const sessionByStaff = await LoginHistory.aggregate([
       {
         $match: {
+          tenantKey: scope.tenantKey,
           success: true,
           loginTime: { $gte: startDate, $lte: endDate },
         }
@@ -803,6 +1046,7 @@ exports.getStaffAnalytics = async (req, res) => {
     const loginActivity = await LoginHistory.aggregate([
       {
         $match: {
+          tenantKey: scope.tenantKey,
           success: true,
           loginTime: { $gte: startDate, $lte: endDate }
         }
@@ -823,6 +1067,7 @@ exports.getStaffAnalytics = async (req, res) => {
     const dailySalesByStaff = await Sale.aggregate([
       {
         $match: {
+          tenantKey: scope.tenantKey,
           'createdBy.userId': { $exists: true, $ne: null },
           createdAt: { $gte: startDate, $lte: endDate }
         }

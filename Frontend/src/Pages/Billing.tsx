@@ -18,7 +18,7 @@ const BillingSystem = () => {
     cartItems, showCustomerForm, paymentMethod, paidAmount,
     notes, saleCompleted, saleData, newCustomer,
     isProcessing, validationErrors, filteredCustomers,
-    filteredProducts, subtotal, total, canCreateCustomer,
+    filteredProducts, categories, subtotal, total, canCreateCustomer,
     setSelectedCustomer, setSearchCustomer, setSearchProduct,
     setShowCustomerForm, setNotes, setNewCustomer, setValidationErrors,
     handleOpenCustomerForm,
@@ -150,6 +150,7 @@ const BillingSystem = () => {
                 searchProduct={searchProduct}
                 onSearchChange={setSearchProduct}
                 filteredProducts={filteredProducts}
+                categories={categories}
                 onAddToCart={addToCart}
                 validationError={validationErrors.cart}
               />

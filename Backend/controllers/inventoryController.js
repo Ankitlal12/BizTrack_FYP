@@ -1,5 +1,6 @@
 // ==================== IMPORTS ====================
 const Inventory = require("../models/Inventory");
+const Category = require("../models/Category");
 const Notification = require("../models/Notification");
 const mongoose = require("mongoose");
 const { createNotification } = require("../utils/notificationHelper");
@@ -8,6 +9,9 @@ const { createNotification } = require("../utils/notificationHelper");
 
 // Check database connection
 const checkDBConnection = () => mongoose.connection.readyState === 1;
+const tenantFilter = (req) => ({ tenantKey: req.user.tenantKey });
+const normalizeCategoryName = (value = "") => String(value).trim();
+const normalizeCategoryKey = (value = "") => normalizeCategoryName(value).toLowerCase();
 
 // Note: Expiry notifications removed — too frequent. Visual banners on inventory page are sufficient.
 
@@ -29,6 +33,7 @@ const checkAndCreateStockNotification = async (item) => {
       
       if (!existingNotif) {
         await createNotification({
+          tenantKey: req.user.tenantKey,
           type: "out_of_stock",
           title: "Item Out of Stock",
           message: `${item.name} (SKU: ${item.sku}) is out of stock. Please restock immediately.`,
@@ -59,6 +64,7 @@ const checkAndCreateStockNotification = async (item) => {
       
       if (!existingNotif) {
         await createNotification({
+          tenantKey: req.user.tenantKey,
           type: "low_stock",
           title: "Low Stock Alert",
           message: `${item.name} (SKU: ${item.sku}) is running low. Current stock: ${item.stock}, Reorder level: ${item.reorderLevel}.`,
@@ -82,6 +88,72 @@ const checkAndCreateStockNotification = async (item) => {
 
 // ==================== READ ENDPOINTS ====================
 
+exports.getCategories = async (req, res) => {
+  try {
+    const inventoryCategories = await Inventory.distinct('category', tenantFilter(req));
+    const savedCategories = await Category.find(tenantFilter(req)).select('name normalizedName');
+
+    const categoryMap = new Map();
+
+    inventoryCategories
+      .map(normalizeCategoryName)
+      .filter(Boolean)
+      .forEach((category) => {
+        categoryMap.set(normalizeCategoryKey(category), category);
+      });
+
+    savedCategories.forEach((category) => {
+      if (category?.name) {
+        categoryMap.set(category.normalizedName || normalizeCategoryKey(category.name), category.name);
+      }
+    });
+
+    res.json({ categories: Array.from(categoryMap.values()).sort((a, b) => a.localeCompare(b)) });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+};
+
+exports.createCategory = async (req, res) => {
+  try {
+    const name = normalizeCategoryName(req.body?.name);
+
+    if (!name) {
+      return res.status(400).json({ error: 'Category name is required' });
+    }
+
+    const normalizedName = normalizeCategoryKey(name);
+    const existingCategory = await Category.findOne({ tenantKey: req.user.tenantKey, normalizedName });
+
+    if (existingCategory) {
+      return res.status(200).json({
+        message: 'Category already exists',
+        category: existingCategory.name,
+      });
+    }
+
+    const category = await Category.create({
+      tenantKey: req.user.tenantKey,
+      name,
+      normalizedName,
+    });
+
+    res.status(201).json({
+      message: 'Category created successfully',
+      category: category.name,
+    });
+  } catch (err) {
+    if (err.code === 11000) {
+      return res.status(200).json({
+        message: 'Category already exists',
+        category: normalizeCategoryName(req.body?.name),
+      });
+    }
+
+    res.status(500).json({ error: err.message });
+  }
+};
+
 exports.getAllInventory = async (req, res) => {
   try {
     // Check if database is connected
@@ -92,7 +164,7 @@ exports.getAllInventory = async (req, res) => {
       });
     }
 
-    const items = await Inventory.find().sort({ createdAt: 1 });
+    const items = await Inventory.find(tenantFilter(req)).sort({ createdAt: 1 });
     
     // Only check for expiring items once per day (not on every inventory load)
     // This prevents notification spam
@@ -114,7 +186,7 @@ exports.getAllInventory = async (req, res) => {
 // Get single inventory item
 exports.getInventoryById = async (req, res) => {
   try {
-    const item = await Inventory.findById(req.params.id);
+    const item = await Inventory.findOne({ _id: req.params.id, ...tenantFilter(req) });
     if (!item) {
       return res.status(404).json({ error: "Inventory item not found" });
     }
@@ -129,7 +201,7 @@ exports.getInventoryById = async (req, res) => {
 // Create new inventory item
 exports.createInventory = async (req, res) => {
   try {
-    const item = await Inventory.create(req.body);
+    const item = await Inventory.create({ ...req.body, tenantKey: req.user.tenantKey });
     
     // Check for low stock and create notification
     await checkAndCreateStockNotification(item);
@@ -143,8 +215,8 @@ exports.createInventory = async (req, res) => {
 // Update inventory item
 exports.updateInventory = async (req, res) => {
   try {
-    const item = await Inventory.findByIdAndUpdate(
-      req.params.id,
+    const item = await Inventory.findOneAndUpdate(
+      { _id: req.params.id, ...tenantFilter(req) },
       { ...req.body, lastUpdated: new Date() },
       { new: true, runValidators: true }
     );
@@ -166,7 +238,7 @@ exports.updateInventory = async (req, res) => {
 // Check all inventory for low stock (can be called periodically)
 exports.checkLowStock = async (req, res) => {
   try {
-    const items = await Inventory.find();
+    const items = await Inventory.find(tenantFilter(req));
     let notificationsCreated = 0;
     
     for (const item of items) {
@@ -186,7 +258,7 @@ exports.checkLowStock = async (req, res) => {
 // Delete inventory item
 exports.deleteInventory = async (req, res) => {
   try {
-    const item = await Inventory.findByIdAndDelete(req.params.id);
+    const item = await Inventory.findOneAndDelete({ _id: req.params.id, ...tenantFilter(req) });
     if (!item) {
       return res.status(404).json({ error: "Inventory item not found" });
     }
@@ -204,6 +276,7 @@ exports.getLowStockItems = async (req, res) => {
     
     // Build query for low stock items
     const query = {
+      ...tenantFilter(req),
       $or: [
         { stock: { $lte: 0 } }, // Out of stock
         { $expr: { $lte: ['$stock', '$reorderLevel'] } } // Below reorder level
@@ -256,8 +329,8 @@ exports.updateReorderSettings = async (req, res) => {
     if (safetyStock !== undefined) updateData.safetyStock = safetyStock;
     if (autoReorderEnabled !== undefined) updateData.autoReorderEnabled = autoReorderEnabled;
 
-    const item = await Inventory.findByIdAndUpdate(
-      id,
+    const item = await Inventory.findOneAndUpdate(
+      { _id: id, ...tenantFilter(req) },
       { ...updateData, lastUpdated: new Date() },
       { new: true, runValidators: true }
     ).populate('preferredSupplierId', 'name contactPerson');

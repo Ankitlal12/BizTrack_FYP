@@ -34,8 +34,38 @@ const userSchema = new mongoose.Schema({
   },
   role: {
     type: String,
-    enum: ['owner', 'manager', 'staff'],
+    enum: ['admin', 'owner', 'manager', 'staff'],
     default: 'staff',
+  },
+  tenantKey: {
+    type: String,
+    trim: true,
+    index: true,
+  },
+  workspaceHost: {
+    type: String,
+    trim: true,
+    lowercase: true,
+  },
+  isSaasCustomer: {
+    type: Boolean,
+    default: false,
+  },
+  accountStatus: {
+    type: String,
+    enum: ["active", "frozen", "deleted"],
+    default: "active",
+  },
+  subscriptionPlan: {
+    type: String,
+    enum: ["monthly"],
+    default: "monthly",
+  },
+  subscriptionLastPaidAt: {
+    type: Date,
+  },
+  subscriptionExpiresAt: {
+    type: Date,
   },
   active: {
     type: Boolean,

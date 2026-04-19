@@ -11,7 +11,7 @@ import {
   Calendar, Download, RefreshCw, ArrowUpRight, ArrowDownRight,
   AlertCircle, CreditCard, Clock, Warehouse
 } from 'lucide-react';
-import ReportChatbot from './Reports/ReportChatbot';
+import ReportChatbot from './Reports/ReportAssistant';
 import DatePresets from '../components/DatePresets';
 
 interface SaleItem {
@@ -58,6 +58,56 @@ interface PurchaseVsSales {
 
 const toLocalDate = (d: Date) => d.toLocaleDateString('en-CA');
 
+const buildProductInsights = (sales: SaleItem[], inventory: any[]) => {
+  const costMap = new Map<string, number>();
+
+  inventory.forEach((item) => {
+    if (item?._id) costMap.set(item._id.toString(), item.cost || 0);
+    if (item?.name) costMap.set(item.name, item.cost || 0);
+  });
+
+  const productMap = new Map<string, {
+    name: string;
+    quantity: number;
+    revenue: number;
+    estimatedCost: number;
+    category?: string;
+  }>();
+
+  sales.forEach((sale) => {
+    sale.items.forEach((item: any) => {
+      const key = item.name;
+      const existing = productMap.get(key) || {
+        name: item.name,
+        quantity: 0,
+        revenue: 0,
+        estimatedCost: 0,
+        category: item.category || item.inventoryId?.category,
+      };
+
+      const invId = typeof item.inventoryId === 'string'
+        ? item.inventoryId
+        : item.inventoryId?._id?.toString?.() || item.inventoryId?.toString?.() || '';
+      const cost = costMap.get(invId) || costMap.get(item.name) || 0;
+
+      productMap.set(key, {
+        ...existing,
+        quantity: existing.quantity + (item.quantity || 0),
+        revenue: existing.revenue + ((item.price || 0) * (item.quantity || 0)),
+        estimatedCost: existing.estimatedCost + (cost * (item.quantity || 0)),
+      });
+    });
+  });
+
+  return Array.from(productMap.values())
+    .map((item) => ({
+      ...item,
+      estimatedProfit: item.revenue - item.estimatedCost,
+      margin: item.revenue > 0 ? ((item.revenue - item.estimatedCost) / item.revenue) * 100 : 0,
+    }))
+    .sort((a, b) => b.estimatedProfit - a.estimatedProfit);
+};
+
 const Reports: React.FC = () => {
   const [loading, setLoading] = useState(false);
   const [initialLoading, setInitialLoading] = useState(true);
@@ -68,8 +118,6 @@ const Reports: React.FC = () => {
   const [dateFrom, setDateFrom] = useState(defaultFrom);
   const [dateTo, setDateTo] = useState(defaultTo);
 
-  // keep timeRange for chatbot prop (derived label)
-  const timeRange = 'week' as const;
   const [salesData, setSalesData] = useState<SaleItem[]>([]);
   const [inventoryData, setInventoryData] = useState<any[]>([]);
   
@@ -102,6 +150,43 @@ const Reports: React.FC = () => {
   const [prevOrders, setPrevOrders] = useState(0);
   const [prevItemsSold, setPrevItemsSold] = useState(0);
   const [prevAvgOrder, setPrevAvgOrder] = useState(0);
+
+  const productInsights = buildProductInsights(salesData, inventoryData);
+  const fastMovingProducts = [...topProducts].slice(0, 8);
+  const profitableProducts = [...productInsights].sort((a, b) => b.estimatedProfit - a.estimatedProfit).slice(0, 8);
+  const lowStockItems = inventoryData
+    .filter((item: any) => typeof item.stock === 'number' && typeof item.reorderLevel === 'number' && item.stock <= item.reorderLevel)
+    .slice(0, 10)
+    .map((item: any) => ({
+      name: item.name,
+      stock: item.stock,
+      reorderLevel: item.reorderLevel,
+      category: item.category,
+    }));
+
+  const reportChatbotContext = {
+    dateRange: { from: dateFrom, to: dateTo },
+    summary: {
+      totalSales,
+      totalOrders,
+      totalItemsSold,
+      avgOrderValue,
+      cogs,
+      grossProfit,
+      grossMargin,
+      totalPurchaseCost,
+      outstandingReceivables,
+      outstandingPayables,
+      scheduledTotal,
+    },
+    fastMovingProducts,
+    profitableProducts,
+    lowStockItems,
+    topSuppliers,
+    categorySales,
+    dailySalesData,
+    customerRetention,
+  };
 
   useEffect(() => {
     loadReportsData();
@@ -390,7 +475,7 @@ const Reports: React.FC = () => {
     const url = window.URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `sales-report-${timeRange}-${new Date().toISOString().split('T')[0]}.csv`;
+    a.download = `sales-report-${new Date().toISOString().split('T')[0]}.csv`;
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
@@ -891,21 +976,10 @@ const Reports: React.FC = () => {
             </table>
           </div>
         </div>
+
+        <ReportChatbot reportContext={reportChatbotContext} />
       </div>
 
-      {/* Report Chatbot */}
-      <ReportChatbot
-        salesData={salesData}
-        inventoryData={inventoryData}
-        totalSales={totalSales}
-        totalOrders={totalOrders}
-        totalItemsSold={totalItemsSold}
-        avgOrderValue={avgOrderValue}
-        categorySales={categorySales}
-        topProducts={topProducts}
-        timeRange={timeRange}
-        customerRetention={customerRetention}
-      />
     </Layout>
   );
 };

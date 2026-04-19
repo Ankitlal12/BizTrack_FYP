@@ -31,13 +31,13 @@ interface CustomerModalProps {
 // ==================== HELPERS ====================
 
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
-const PHONE_REGEX = /^\d{1,10}$/
+const PHONE_REGEX = /^(97|98)\d{8}$/
 
 const validateCustomerForm = (formData: any): Record<string, string> => {
   const errors: Record<string, string> = {}
   if (!formData.name.trim()) errors.name = 'Customer name is required'
   if (!formData.phone.trim()) errors.phone = 'Phone number is required'
-  if (formData.phone && !PHONE_REGEX.test(formData.phone)) errors.phone = 'Phone number must be up to 10 digits only'
+  if (formData.phone && !PHONE_REGEX.test(formData.phone)) errors.phone = 'Phone must be exactly 10 digits and start with 97 or 98'
   if (formData.email && !EMAIL_REGEX.test(formData.email)) errors.email = 'Please enter a valid email address'
   return errors
 }
@@ -146,7 +146,7 @@ const CustomerModal: React.FC<CustomerModalProps> = ({ customer, onClose, onSucc
               <p className="text-sm text-gray-600">{customer ? 'Update customer information' : 'Add a new customer'}</p>
             </div>
           </div>
-          <button onClick={onClose} className="p-2 hover:bg-gray-100 rounded-lg transition-colors">
+          <button onClick={onClose} title="Close" aria-label="Close" className="p-2 hover:bg-gray-100 rounded-lg transition-colors">
             <X className="w-5 h-5 text-gray-500" />
           </button>
         </div>

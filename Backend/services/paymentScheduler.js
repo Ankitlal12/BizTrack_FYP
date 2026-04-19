@@ -43,25 +43,30 @@ const processScheduledPurchasePayments = async () => {
               const dueDate = new Date(payment.date).toLocaleDateString('en-NP', {
                 year: 'numeric', month: 'short', day: 'numeric',
               });
-              await createNotification({
-                type: "installment_due",
-                title: "Installment Payment Due",
-                message: `Rs ${payment.amount.toFixed(2)} installment is due for purchase ${purchase.purchaseNumber} from ${purchase.supplierName} (due: ${dueDate}). Pay now via Khalti.`,
-                priority: "high",
-                relatedId: purchase._id,
-                relatedModel: "Purchase",
-                metadata: {
-                  purchaseId: purchase._id.toString(),
-                  purchaseNumber: purchase.purchaseNumber,
-                  supplierName: purchase.supplierName,
-                  amount: payment.amount,
-                  dueDate: payment.date,
-                  installmentIndex: i,
-                  notifiedDate: new Date().toISOString().split('T')[0],
-                },
-              });
-              console.log(`🔔 Sent installment due notification for purchase ${purchase.purchaseNumber}, installment #${i + 1} (Rs ${payment.amount})`);
-              processedCount++;
+              try {
+                await createNotification({
+                  tenantKey: purchase.tenantKey,
+                  type: "installment_due",
+                  title: "Installment Payment Due",
+                  message: `Rs ${payment.amount.toFixed(2)} installment is due for purchase ${purchase.purchaseNumber} from ${purchase.supplierName} (due: ${dueDate}). Pay now via Khalti.`,
+                  priority: "high",
+                  relatedId: purchase._id,
+                  relatedModel: "Purchase",
+                  metadata: {
+                    purchaseId: purchase._id.toString(),
+                    purchaseNumber: purchase.purchaseNumber,
+                    supplierName: purchase.supplierName,
+                    amount: payment.amount,
+                    dueDate: payment.date,
+                    installmentIndex: i,
+                    notifiedDate: new Date().toISOString().split('T')[0],
+                  },
+                });
+                console.log(`🔔 Sent installment due notification for purchase ${purchase.purchaseNumber}, installment #${i + 1} (Rs ${payment.amount})`);
+                processedCount++;
+              } catch (notifError) {
+                console.error(`❌ Failed to create notification for purchase ${purchase.purchaseNumber}:`, notifError);
+              }
             }
           }
         }

@@ -6,6 +6,7 @@ const { generateInvoiceFromPurchase } = require("./invoiceController");
 const { getNepaliCurrentDateTime, getNepaliDayRangeInUTC } = require("../utils/dateUtils");
 const { createNotification } = require("../utils/notificationHelper");
 const { initiateKhaltiPayment, verifyKhaltiPayment } = require("../utils/khaltiService");
+const tenantFilter = (req) => ({ tenantKey: req.user.tenantKey });
 
 // Note: Expiry notifications removed — too frequent. Visual banners on inventory page are sufficient.
 
@@ -16,12 +17,30 @@ const toNepalDayStart = (date) => {
   return new Date(nptDate.getFullYear(), nptDate.getMonth(), nptDate.getDate());
 };
 
+const generateNextPurchaseNumber = async (tenantKey) => {
+  const lastPurchase = await Purchase.findOne({ tenantKey })
+    .sort({ createdAt: -1 })
+    .select('purchaseNumber');
+
+  if (lastPurchase?.purchaseNumber) {
+    const parts = lastPurchase.purchaseNumber.split('-');
+    const lastNum = parseInt(parts[1], 10);
+
+    if (Number.isFinite(lastNum)) {
+      return `PO-${String(lastNum + 1).padStart(6, '0')}`;
+    }
+  }
+
+  return 'PO-000001';
+};
+
 // Check stock level and fire low-stock / out-of-stock notifications
-const checkAndCreateStockNotification = async (item) => {
+const checkAndCreateStockNotification = async (req, item) => {
   try {
     // Check if stock is out
     if (item.stock <= 0) {
       const existingNotif = await Notification.findOne({
+        ...tenantFilter(req),
         type: "out_of_stock",
         relatedId: item._id,
         read: false,
@@ -29,6 +48,7 @@ const checkAndCreateStockNotification = async (item) => {
       
       if (!existingNotif) {
         await createNotification({
+          tenantKey: req.user.tenantKey,
           type: "out_of_stock",
           title: "Item Out of Stock",
           message: `${item.name} (SKU: ${item.sku}) is out of stock. Please restock immediately.`,
@@ -46,6 +66,7 @@ const checkAndCreateStockNotification = async (item) => {
     // Check if stock is low (below reorder level)
     else if (item.stock <= item.reorderLevel) {
       const existingNotif = await Notification.findOne({
+        ...tenantFilter(req),
         type: "low_stock",
         relatedId: item._id,
         read: false,
@@ -53,6 +74,7 @@ const checkAndCreateStockNotification = async (item) => {
       
       if (!existingNotif) {
         await createNotification({
+          tenantKey: req.user.tenantKey,
           type: "low_stock",
           title: "Low Stock Alert",
           message: `${item.name} (SKU: ${item.sku}) is running low. Current stock: ${item.stock}, Reorder level: ${item.reorderLevel}.`,
@@ -84,6 +106,7 @@ exports.getUpcomingProducts = async (req, res) => {
     // This will show ALL pending purchases with delivery dates (past, present, and future)
     // The frontend can filter by date if needed
     const purchases = await Purchase.find({
+      ...tenantFilter(req),
       status: 'pending',
       expectedDeliveryDate: { $exists: true, $ne: null },
     })
@@ -130,7 +153,7 @@ exports.getAllPurchases = async (req, res) => {
     const skip = (page - 1) * limit;
 
     // Build query object for filtering
-    const query = {};
+    const query = { ...tenantFilter(req) };
     
     // Add filters if provided
     if (req.query.search) {
@@ -227,7 +250,7 @@ exports.getAllPurchases = async (req, res) => {
 // Get single purchase
 exports.getPurchaseById = async (req, res) => {
   try {
-    const purchase = await Purchase.findById(req.params.id).populate("items.inventoryId");
+    const purchase = await Purchase.findOne({ _id: req.params.id, ...tenantFilter(req) }).populate("items.inventoryId");
     if (!purchase) {
       return res.status(404).json({ error: "Purchase not found" });
     }
@@ -244,8 +267,7 @@ exports.createPurchase = async (req, res) => {
   try {
     // Generate purchase number if not provided
     if (!req.body.purchaseNumber) {
-      const count = await Purchase.countDocuments();
-      req.body.purchaseNumber = `PO-${String(count + 1).padStart(6, '0')}`;
+      req.body.purchaseNumber = await generateNextPurchaseNumber(req.user.tenantKey);
     }
 
     // Check if this is a future delivery (items should NOT be added to inventory yet)
@@ -269,7 +291,7 @@ exports.createPurchase = async (req, res) => {
       let inventoryItem;
       
       // Always try to find an existing inventory record to link
-      inventoryItem = await Inventory.findOne({ name: item.name });
+      inventoryItem = await Inventory.findOne({ name: item.name, tenantKey: req.user.tenantKey });
       
       if (isFutureDelivery) {
         // Future delivery: do NOT add stock now — just link to existing item if it exists
@@ -313,7 +335,7 @@ exports.createPurchase = async (req, res) => {
         await inventoryItem.save();
         
         // Check for low stock after update
-        await checkAndCreateStockNotification(inventoryItem);
+        await checkAndCreateStockNotification(req, inventoryItem);
       } else {
         // Create new inventory item
         const sku = item.name
@@ -344,7 +366,7 @@ exports.createPurchase = async (req, res) => {
           inventoryData.expiryDate = new Date(item.expiryDate);
         }
         
-        inventoryItem = await Inventory.create(inventoryData);
+        inventoryItem = await Inventory.create({ ...inventoryData, tenantKey: req.user.tenantKey });
       }
       
       processedItems.push({
@@ -356,6 +378,7 @@ exports.createPurchase = async (req, res) => {
     // Create purchase with processed items
     const purchaseData = {
       ...req.body,
+      tenantKey: req.user.tenantKey,
       items: processedItems,
       // Add user tracking information
       createdBy: {
@@ -438,7 +461,32 @@ exports.createPurchase = async (req, res) => {
       purchaseData.paymentStatus = 'unpaid';
     }
     
-    const purchase = await Purchase.create(purchaseData);
+    let purchase;
+    let lastCreateError = null;
+
+    for (let attempt = 0; attempt < 3; attempt += 1) {
+      try {
+        if (attempt > 0) {
+          purchaseData.purchaseNumber = await generateNextPurchaseNumber(req.user.tenantKey);
+        }
+
+        purchase = await Purchase.create(purchaseData);
+        break;
+      } catch (createError) {
+        const isDuplicatePurchaseNumber = createError?.code === 11000 &&
+          (createError?.keyPattern?.purchaseNumber || createError?.keyValue?.purchaseNumber);
+
+        if (!isDuplicatePurchaseNumber) {
+          throw createError;
+        }
+
+        lastCreateError = createError;
+      }
+    }
+
+    if (!purchase) {
+      throw lastCreateError || new Error('Failed to create purchase due to duplicate purchase number. Please retry.');
+    }
 
     // Debug: Log what was actually saved
     console.log('✅ Purchase created with items:', JSON.stringify(purchase.items.map(item => ({
@@ -448,6 +496,8 @@ exports.createPurchase = async (req, res) => {
       cost: item.cost
     })), null, 2));
 
+    let generatedInvoice = null;
+
     // Auto-generate invoice for the purchase
     try {
       const userInfo = {
@@ -456,7 +506,7 @@ exports.createPurchase = async (req, res) => {
         role: req.user?.role || "staff",
       };
       
-      await generateInvoiceFromPurchase(purchase, userInfo);
+      generatedInvoice = await generateInvoiceFromPurchase(purchase, userInfo);
     } catch (invoiceError) {
       console.error("Failed to generate invoice for purchase:", invoiceError);
       // Don't fail the purchase creation if invoice generation fails
@@ -466,12 +516,15 @@ exports.createPurchase = async (req, res) => {
     try {
       const totalItems = processedItems.reduce((sum, item) => sum + item.quantity, 0);
       await createNotification({
+        tenantKey: req.user.tenantKey,
         type: "purchase",
         title: "New Purchase Order Created",
         message: `Purchase order ${purchase.purchaseNumber} has been created with ${totalItems} item(s) from ${req.body.supplierName || 'supplier'}.`,
         relatedId: purchase._id,
         relatedModel: "Purchase",
         metadata: {
+          invoiceId: generatedInvoice?._id,
+          invoiceNumber: generatedInvoice?.invoiceNumber || purchase.purchaseNumber,
           purchaseNumber: purchase.purchaseNumber,
           supplierName: req.body.supplierName,
           totalItems: totalItems,
@@ -483,17 +536,18 @@ exports.createPurchase = async (req, res) => {
       console.error("Failed to create notification:", notifError);
     }
 
-    const populatedPurchase = await Purchase.findById(purchase._id).populate("items.inventoryId");
+    const populatedPurchase = await Purchase.findOne({ _id: purchase._id, ...tenantFilter(req) }).populate("items.inventoryId");
     res.status(201).json(populatedPurchase);
   } catch (err) {
-    res.status(400).json({ error: err.message });
+    const status = err?.code === 11000 ? 409 : 400;
+    res.status(status).json({ error: err.message });
   }
 };
 
 // Update purchase
 exports.updatePurchase = async (req, res) => {
   try {
-    const oldPurchase = await Purchase.findById(req.params.id);
+    const oldPurchase = await Purchase.findOne({ _id: req.params.id, ...tenantFilter(req) });
     if (!oldPurchase) {
       return res.status(404).json({ error: "Purchase not found" });
     }
@@ -529,8 +583,8 @@ exports.updatePurchase = async (req, res) => {
       }
     }
 
-    const purchase = await Purchase.findByIdAndUpdate(
-      req.params.id,
+    const purchase = await Purchase.findOneAndUpdate(
+      { _id: req.params.id, ...tenantFilter(req) },
       req.body,
       { new: true, runValidators: true }
     ).populate("items.inventoryId");
@@ -600,6 +654,7 @@ exports.updatePurchase = async (req, res) => {
       }
 
       await createNotification({
+        tenantKey: req.user.tenantKey,
         type: "purchase",
         title: "Purchase Order Updated",
         message: updateMessage,
@@ -628,7 +683,7 @@ exports.updatePurchase = async (req, res) => {
 // Delete purchase
 exports.deletePurchase = async (req, res) => {
   try {
-    const purchase = await Purchase.findById(req.params.id);
+    const purchase = await Purchase.findOne({ _id: req.params.id, ...tenantFilter(req) });
     if (!purchase) {
       return res.status(404).json({ error: "Purchase not found" });
     }
@@ -644,7 +699,7 @@ exports.deletePurchase = async (req, res) => {
       }
     }
 
-    await Purchase.findByIdAndDelete(req.params.id);
+    await Purchase.findOneAndDelete({ _id: req.params.id, ...tenantFilter(req) });
     res.json({ message: "Purchase deleted successfully" });
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -662,7 +717,7 @@ exports.recordPayment = async (req, res) => {
       return res.status(400).json({ error: "Payment amount must be greater than 0" });
     }
 
-    const purchase = await Purchase.findById(req.params.id);
+    const purchase = await Purchase.findOne({ _id: req.params.id, ...tenantFilter(req) });
     if (!purchase) {
       return res.status(404).json({ error: "Purchase not found" });
     }
@@ -796,6 +851,7 @@ exports.recordPayment = async (req, res) => {
       }
 
       await createNotification({
+        tenantKey: req.user.tenantKey,
         type: isScheduledPayment ? "payment_scheduled" : "payment_made",
         title: notificationTitle,
         message: notificationMessage,
@@ -820,7 +876,7 @@ exports.recordPayment = async (req, res) => {
       console.error("Failed to create payment notification:", notifError);
     }
 
-    const populatedPurchase = await Purchase.findById(purchase._id).populate("items.inventoryId");
+    const populatedPurchase = await Purchase.findOne({ _id: purchase._id, ...tenantFilter(req) }).populate("items.inventoryId");
     res.json(populatedPurchase);
   } catch (err) {
     res.status(400).json({ error: err.message });
@@ -831,7 +887,7 @@ exports.getSuppliersForPurchase = async (req, res) => {
   try {
     const Supplier = require("../models/Supplier");
     
-    const suppliers = await Supplier.find({ isActive: true })
+    const suppliers = await Supplier.find({ isActive: true, tenantKey: req.user.tenantKey })
       .select('name email phone contactPerson paymentTerms averageLeadTimeDays')
       .sort({ name: 1 });
 
@@ -882,7 +938,7 @@ exports.initiateKhaltiPurchasePayment = async (req, res) => {
 
     // Case 1: Payment on an existing purchase
     if (purchaseId) {
-      const purchase = await Purchase.findById(purchaseId);
+      const purchase = await Purchase.findOne({ _id: purchaseId, ...tenantFilter(req) });
       if (!purchase) {
         return res.status(404).json({ error: "Purchase not found" });
       }
@@ -928,7 +984,11 @@ exports.initiateKhaltiPurchasePayment = async (req, res) => {
         payment_url: khaltiResponse.payment_url,
         expires_at: khaltiResponse.expires_at,
         purchaseId: purchase._id,
-        amount: paymentAmount,
+        amount: khaltiResponse.payableAmount || paymentAmount,
+        requestedAmount: khaltiResponse.requestedAmount,
+        payableAmount: khaltiResponse.payableAmount,
+        remainingAmount: khaltiResponse.remainingAmount,
+        sandboxCapped: khaltiResponse.sandboxCapped,
       });
     }
 
@@ -956,7 +1016,11 @@ exports.initiateKhaltiPurchasePayment = async (req, res) => {
       pidx: khaltiResponse.pidx,
       payment_url: khaltiResponse.payment_url,
       expires_at: khaltiResponse.expires_at,
-      amount,
+      amount: khaltiResponse.payableAmount || amount,
+      requestedAmount: khaltiResponse.requestedAmount,
+      payableAmount: khaltiResponse.payableAmount,
+      remainingAmount: khaltiResponse.remainingAmount,
+      sandboxCapped: khaltiResponse.sandboxCapped,
     });
   } catch (err) {
     console.error("Khalti purchase payment initiation error:", err);
@@ -984,14 +1048,18 @@ exports.verifyKhaltiPurchasePayment = async (req, res) => {
 
     // If purchaseId is provided, record the payment on the purchase
     if (purchaseId) {
-      const purchase = await Purchase.findById(purchaseId);
+      const purchase = await Purchase.findOne({ _id: purchaseId, ...tenantFilter(req) });
       if (purchase) {
-        const paymentAmount = amount || verificationResult.total_amount;
+        const verifiedAmount = Number(verificationResult.total_amount || 0);
         const currentPaid = purchase.paidAmount || 0;
         const currentScheduled = purchase.scheduledAmount || 0;
         const remaining = purchase.total - currentPaid - currentScheduled;
+        const paymentAmount = Math.min(
+          remaining,
+          verifiedAmount > 0 ? verifiedAmount : Number(amount || 0)
+        );
 
-        if (paymentAmount <= remaining + 0.001) {
+        if (paymentAmount > 0 && paymentAmount <= remaining + 0.001) {
           purchase.payments = purchase.payments || [];
           purchase.payments.push({
             amount: paymentAmount,
@@ -1057,6 +1125,7 @@ exports.getKhaltiBalance = async (req, res) => {
 
     // Sum all completed Khalti payments made for purchases
     const purchasesResult = await Purchase.aggregate([
+      { $match: { tenantKey: req.user.tenantKey } },
       { $unwind: "$payments" },
       { $match: { "payments.method": "khalti", "payments.status": "completed" } },
       { $group: { _id: null, total: { $sum: "$payments.amount" } } },
@@ -1079,7 +1148,7 @@ exports.initiateKhaltiInstallmentPayment = async (req, res) => {
     if (!purchaseId || installmentIndex === undefined) {
       return res.status(400).json({ error: "purchaseId and installmentIndex are required" });
     }
-    const purchase = await Purchase.findById(purchaseId);
+    const purchase = await Purchase.findOne({ _id: purchaseId, ...tenantFilter(req) });
     if (!purchase) return res.status(404).json({ error: "Purchase not found" });
 
     const payment = purchase.payments[installmentIndex];
@@ -1113,7 +1182,11 @@ exports.initiateKhaltiInstallmentPayment = async (req, res) => {
       expires_at: khaltiResponse.expires_at,
       purchaseId: purchase._id,
       installmentIndex,
-      amount: payment.amount,
+      amount: khaltiResponse.payableAmount || payment.amount,
+      requestedAmount: khaltiResponse.requestedAmount,
+      payableAmount: khaltiResponse.payableAmount,
+      remainingAmount: khaltiResponse.remainingAmount,
+      sandboxCapped: khaltiResponse.sandboxCapped,
     });
   } catch (err) {
     console.error("Khalti installment initiation error:", err);
@@ -1133,14 +1206,37 @@ exports.verifyKhaltiInstallmentPayment = async (req, res) => {
     }
 
     if (purchaseId && installmentIndex !== undefined) {
-      const purchase = await Purchase.findById(purchaseId);
+      const purchase = await Purchase.findOne({ _id: purchaseId, ...tenantFilter(req) });
       if (purchase) {
         const payment = purchase.payments[installmentIndex];
         if (payment && payment.status === "scheduled") {
-          const paymentAmount = amount || payment.amount;
-          purchase.payments[installmentIndex].status = "completed";
-          purchase.payments[installmentIndex].notes = `Khalti txn: ${verificationResult.transaction_id}`;
-          purchase.payments[installmentIndex].method = "khalti";
+          const verifiedAmount = Number(verificationResult.total_amount || 0);
+          const requestedAmount = Number(amount || payment.amount || 0);
+          const paymentAmount = Math.min(payment.amount, verifiedAmount > 0 ? verifiedAmount : requestedAmount);
+
+          if (paymentAmount <= 0) {
+            return res.status(400).json({ error: "Verified installment amount is invalid" });
+          }
+
+          if (paymentAmount >= payment.amount - 0.001) {
+            purchase.payments[installmentIndex].status = "completed";
+            purchase.payments[installmentIndex].notes = `Khalti txn: ${verificationResult.transaction_id}`;
+            purchase.payments[installmentIndex].method = "khalti";
+          } else {
+            // Keep the original installment scheduled for the remaining balance.
+            purchase.payments[installmentIndex].amount = Number((payment.amount - paymentAmount).toFixed(2));
+            purchase.payments[installmentIndex].notes = `Remaining scheduled after partial Khalti payment (txn: ${verificationResult.transaction_id})`;
+
+            // Record the settled part as a completed payment entry.
+            purchase.payments.push({
+              amount: paymentAmount,
+              date: new Date(),
+              method: "khalti",
+              notes: `Partial payment for installment #${installmentIndex + 1} - txn: ${verificationResult.transaction_id}`,
+              status: "completed",
+            });
+          }
+
           purchase.paidAmount = (purchase.paidAmount || 0) + paymentAmount;
           purchase.scheduledAmount = Math.max(0, (purchase.scheduledAmount || 0) - paymentAmount);
 
@@ -1168,6 +1264,7 @@ exports.verifyKhaltiInstallmentPayment = async (req, res) => {
 
           try {
             await createNotification({
+              tenantKey: req.user.tenantKey,
               type: "payment_made",
               title: "Installment Payment Completed",
               message: `Installment #${installmentIndex + 1} of Rs ${paymentAmount.toFixed(2)} paid via Khalti for purchase ${purchase.purchaseNumber} to ${purchase.supplierName}.`,

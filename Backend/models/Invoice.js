@@ -1,6 +1,11 @@
 const mongoose = require("mongoose");
 
 const invoiceSchema = new mongoose.Schema({
+  tenantKey: {
+    type: String,
+    required: true,
+    index: true,
+  },
   invoiceNumber: {
     type: String,
     required: true,

@@ -36,10 +36,11 @@
  * └─────────────────────────┴───────┴─────────┴───────┘
  */
 
-export type UserRole = 'owner' | 'manager' | 'staff'
+export type UserRole = 'admin' | 'owner' | 'manager' | 'staff'
 
 // The default landing page for each role after login or on access-denied redirect
 export const ROLE_HOME: Record<UserRole, string> = {
+  admin:   '/admin',
   owner:   '/',
   manager: '/inventory',
   staff:   '/billing',
@@ -47,6 +48,9 @@ export const ROLE_HOME: Record<UserRole, string> = {
 
 // Routes each role is allowed to visit (used by RoleGuard)
 export const ROLE_ALLOWED_ROUTES: Record<UserRole, string[]> = {
+  admin: [
+    '/', '/admin', '/admin/users',
+  ],
   owner: [
     '/', '/billing', '/billing/payment-success',
     '/inventory', '/low-stock', '/upcoming-products', '/expiry-management',

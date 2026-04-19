@@ -2,6 +2,7 @@
 const Sale = require("../models/Sale");
 const Purchase = require("../models/Purchase");
 const { getNepaliDayRangeInUTC } = require("../utils/dateUtils");
+const tenantFilter = (req) => ({ tenantKey: req.user.tenantKey });
 
 // ==================== HELPERS ====================
 
@@ -16,8 +17,8 @@ exports.getTransactions = async (req, res) => {
     const skip = (page - 1) * limit;
 
     // Build query objects for filtering
-    const saleQuery = {};
-    const purchaseQuery = {};
+    const saleQuery = { ...tenantFilter(req) };
+    const purchaseQuery = { ...tenantFilter(req) };
     
     // Add filters if provided
     if (req.query.search) {

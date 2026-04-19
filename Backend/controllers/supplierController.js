@@ -3,6 +3,7 @@ const Supplier = require("../models/Supplier");
 const Inventory = require("../models/Inventory");
 const Purchase = require("../models/Purchase");
 const Reorder = require("../models/Reorder");
+const tenantFilter = (req) => ({ tenantKey: req.user.tenantKey });
 
 // ==================== READ ENDPOINTS ====================
 exports.getAllSuppliers = async (req, res) => {
@@ -11,7 +12,7 @@ exports.getAllSuppliers = async (req, res) => {
     const skip = (page - 1) * limit;
 
     // Build query
-    const query = {};
+    const query = { ...tenantFilter(req) };
     
     if (search) {
       query.$or = [
@@ -38,6 +39,7 @@ exports.getAllSuppliers = async (req, res) => {
         
         // Also count inventory items that have this supplier as preferred supplier
         const inventoryCount = await Inventory.countDocuments({
+          tenantKey: req.user.tenantKey,
           $or: [
             { preferredSupplierId: supplier._id },
             { supplier: supplier.name }
@@ -79,7 +81,7 @@ exports.getAllSuppliers = async (req, res) => {
  */
 exports.getSupplierById = async (req, res) => {
   try {
-    const supplier = await Supplier.findById(req.params.id)
+    const supplier = await Supplier.findOne({ _id: req.params.id, ...tenantFilter(req) })
       .populate('products.inventoryId', 'name sku category');
 
     if (!supplier) {
@@ -108,7 +110,7 @@ exports.createSupplier = async (req, res) => {
       products: req.body.products || []
     };
 
-    const supplier = await Supplier.create(supplierData);
+    const supplier = await Supplier.create({ ...supplierData, tenantKey: req.user.tenantKey });
     
     res.status(201).json({ 
       data: supplier,
@@ -135,8 +137,8 @@ exports.createSupplier = async (req, res) => {
  */
 exports.updateSupplier = async (req, res) => {
   try {
-    const supplier = await Supplier.findByIdAndUpdate(
-      req.params.id,
+    const supplier = await Supplier.findOneAndUpdate(
+      { _id: req.params.id, ...tenantFilter(req) },
       req.body,
       { new: true, runValidators: true }
     );
@@ -167,6 +169,7 @@ exports.deleteSupplier = async (req, res) => {
 
     // Check for active reorders
     const activeReorders = await Reorder.countDocuments({
+      tenantKey: req.user.tenantKey,
       supplierId,
       status: { $in: ['pending', 'approved', 'ordered'] }
     });
@@ -180,6 +183,7 @@ exports.deleteSupplier = async (req, res) => {
 
     // Check for pending purchases
     const pendingPurchases = await Purchase.countDocuments({
+      tenantKey: req.user.tenantKey,
       supplierName: { $regex: req.params.id, $options: 'i' },
       status: { $in: ['pending', 'ordered'] }
     });
@@ -192,8 +196,8 @@ exports.deleteSupplier = async (req, res) => {
     }
 
     // Soft delete
-    const supplier = await Supplier.findByIdAndUpdate(
-      supplierId,
+    const supplier = await Supplier.findOneAndUpdate(
+      { _id: supplierId, ...tenantFilter(req) },
       { isActive: false },
       { new: true }
     );
@@ -222,7 +226,7 @@ exports.deleteSupplier = async (req, res) => {
  */
 exports.getSupplierProducts = async (req, res) => {
   try {
-    const supplier = await Supplier.findById(req.params.id)
+    const supplier = await Supplier.findOne({ _id: req.params.id, ...tenantFilter(req) })
       .populate('products.inventoryId', 'name sku category price cost stock reorderLevel');
 
     if (!supplier) {
@@ -248,13 +252,13 @@ exports.addProductToSupplier = async (req, res) => {
     const supplierId = req.params.id;
 
     // Check if inventory item exists
-    const inventory = await Inventory.findById(inventoryId);
+    const inventory = await Inventory.findOne({ _id: inventoryId, tenantKey: req.user.tenantKey });
     if (!inventory) {
       return res.status(404).json({ error: 'Inventory item not found' });
     }
 
     // Check if product already linked
-    const supplier = await Supplier.findById(supplierId);
+    const supplier = await Supplier.findOne({ _id: supplierId, ...tenantFilter(req) });
     if (!supplier) {
       return res.status(404).json({ error: 'Supplier not found' });
     }
@@ -305,7 +309,7 @@ exports.removeProductFromSupplier = async (req, res) => {
   try {
     const { supplierId, inventoryId } = req.params;
 
-    const supplier = await Supplier.findById(supplierId);
+    const supplier = await Supplier.findOne({ _id: supplierId, ...tenantFilter(req) });
     if (!supplier) {
       return res.status(404).json({ error: 'Supplier not found' });
     }
@@ -342,13 +346,14 @@ exports.getSupplierPurchaseHistory = async (req, res) => {
     const skip = (page - 1) * limit;
 
     // Get supplier details
-    const supplier = await Supplier.findById(supplierId);
+    const supplier = await Supplier.findOne({ _id: supplierId, ...tenantFilter(req) });
     if (!supplier) {
       return res.status(404).json({ error: 'Supplier not found' });
     }
 
     // Get all purchases from this supplier
     const purchases = await Purchase.find({ 
+      tenantKey: req.user.tenantKey,
       supplierName: supplier.name 
     })
       .populate('items.inventoryId', 'name sku')
@@ -357,11 +362,13 @@ exports.getSupplierPurchaseHistory = async (req, res) => {
       .limit(parseInt(limit));
 
     const totalPurchases = await Purchase.countDocuments({ 
+      tenantKey: req.user.tenantKey,
       supplierName: supplier.name 
     });
 
     // Calculate financial summary
     const allPurchases = await Purchase.find({ 
+      tenantKey: req.user.tenantKey,
       supplierName: supplier.name 
     });
 
@@ -417,8 +424,8 @@ exports.getSupplierPurchaseHistory = async (req, res) => {
  */
 exports.activateSupplier = async (req, res) => {
   try {
-    const supplier = await Supplier.findByIdAndUpdate(
-      req.params.id,
+    const supplier = await Supplier.findOneAndUpdate(
+      { _id: req.params.id, ...tenantFilter(req) },
       { isActive: true },
       { new: true }
     );
@@ -446,13 +453,13 @@ exports.activateSupplier = async (req, res) => {
 exports.hardDeleteSupplier = async (req, res) => {
   try {
     const supplierId = req.params.id;
-    const supplier = await Supplier.findById(supplierId);
+    const supplier = await Supplier.findOne({ _id: supplierId, ...tenantFilter(req) });
 
     if (!supplier) {
       return res.status(404).json({ error: 'Supplier not found' });
     }
 
-    const purchaseHistoryCount = await Purchase.countDocuments({ supplierName: supplier.name });
+    const purchaseHistoryCount = await Purchase.countDocuments({ tenantKey: req.user.tenantKey, supplierName: supplier.name });
     if (purchaseHistoryCount > 0) {
       return res.status(400).json({
         error: 'Cannot permanently delete supplier with purchase history',
@@ -461,11 +468,11 @@ exports.hardDeleteSupplier = async (req, res) => {
     }
 
     await Inventory.updateMany(
-      { preferredSupplierId: supplierId },
+      { preferredSupplierId: supplierId, tenantKey: req.user.tenantKey },
       { $set: { preferredSupplierId: null } }
     );
 
-    await Supplier.findByIdAndDelete(supplierId);
+    await Supplier.findOneAndDelete({ _id: supplierId, ...tenantFilter(req) });
 
     res.json({
       message: 'Supplier permanently deleted successfully'

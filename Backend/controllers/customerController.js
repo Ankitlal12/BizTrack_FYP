@@ -2,6 +2,11 @@
 const Customer = require("../models/Customer");
 const Sale = require("../models/Sale");
 const Invoice = require("../models/Invoice");
+const tenantFilter = (req) => ({ tenantKey: req.user.tenantKey });
+
+const NEPAL_PHONE_REGEX = /^(97|98)\d{8}$/;
+
+const normalizePhone = (value = "") => String(value).replace(/\D/g, "").trim();
 
 // ==================== READ ENDPOINTS ====================
 exports.getAllCustomers = async (req, res) => {
@@ -10,7 +15,7 @@ exports.getAllCustomers = async (req, res) => {
     const skip = (page - 1) * limit;
 
     // Build query
-    const query = {};
+    const query = { ...tenantFilter(req) };
     
     if (search) {
       query.$or = [
@@ -33,6 +38,7 @@ exports.getAllCustomers = async (req, res) => {
     const customersWithCount = await Promise.all(
       customers.map(async (customer) => {
         const purchaseCount = await Sale.countDocuments({
+          tenantKey: req.user.tenantKey,
           $or: [
             { customerPhone: customer.phone },
             { customerEmail: customer.email }
@@ -71,7 +77,7 @@ exports.getAllCustomers = async (req, res) => {
  */
 exports.getCustomerById = async (req, res) => {
   try {
-    const customer = await Customer.findById(req.params.id);
+    const customer = await Customer.findOne({ _id: req.params.id, ...tenantFilter(req) });
 
     if (!customer) {
       return res.status(404).json({ error: 'Customer not found' });
@@ -95,13 +101,21 @@ exports.getCustomerById = async (req, res) => {
 exports.createCustomer = async (req, res) => {
   try {
     const customerData = {
-      ...req.body
+      ...req.body,
+      tenantKey: req.user.tenantKey,
+      phone: normalizePhone(req.body.phone),
     };
 
     // Validate required fields
     if (!customerData.name || !customerData.phone) {
       return res.status(400).json({
         error: 'Name and phone are required fields'
+      });
+    }
+
+    if (!NEPAL_PHONE_REGEX.test(customerData.phone)) {
+      return res.status(400).json({
+        error: 'Phone must be exactly 10 digits and start with 97 or 98'
       });
     }
 
@@ -132,9 +146,19 @@ exports.createCustomer = async (req, res) => {
  */
 exports.updateCustomer = async (req, res) => {
   try {
-    const customer = await Customer.findByIdAndUpdate(
-      req.params.id,
-      req.body,
+    const updatedData = { ...req.body };
+    if (updatedData.phone !== undefined) {
+      updatedData.phone = normalizePhone(updatedData.phone);
+      if (!NEPAL_PHONE_REGEX.test(updatedData.phone)) {
+        return res.status(400).json({
+          error: 'Phone must be exactly 10 digits and start with 97 or 98'
+        });
+      }
+    }
+
+    const customer = await Customer.findOneAndUpdate(
+      { _id: req.params.id, ...tenantFilter(req) },
+      updatedData,
       { new: true, runValidators: true }
     );
 
@@ -161,7 +185,7 @@ exports.updateCustomer = async (req, res) => {
 exports.deleteCustomer = async (req, res) => {
   try {
     const customerId = req.params.id;
-    const customer = await Customer.findById(customerId);
+    const customer = await Customer.findOne({ _id: customerId, ...tenantFilter(req) });
 
     if (!customer) {
       return res.status(404).json({ error: 'Customer not found' });
@@ -169,6 +193,7 @@ exports.deleteCustomer = async (req, res) => {
 
     // Check for pending invoices
     const pendingInvoices = await Invoice.countDocuments({
+      tenantKey: req.user.tenantKey,
       customerPhone: customer.phone,
       paymentStatus: { $in: ['unpaid', 'partial'] }
     });
@@ -181,8 +206,8 @@ exports.deleteCustomer = async (req, res) => {
     }
 
     // Soft delete
-    const updatedCustomer = await Customer.findByIdAndUpdate(
-      customerId,
+    const updatedCustomer = await Customer.findOneAndUpdate(
+      { _id: customerId, ...tenantFilter(req) },
       { isActive: false },
       { new: true }
     );
@@ -205,8 +230,8 @@ exports.deleteCustomer = async (req, res) => {
  */
 exports.activateCustomer = async (req, res) => {
   try {
-    const customer = await Customer.findByIdAndUpdate(
-      req.params.id,
+    const customer = await Customer.findOneAndUpdate(
+      { _id: req.params.id, ...tenantFilter(req) },
       { isActive: true },
       { new: true }
     );
@@ -234,13 +259,14 @@ exports.activateCustomer = async (req, res) => {
 exports.hardDeleteCustomer = async (req, res) => {
   try {
     const customerId = req.params.id;
-    const customer = await Customer.findById(customerId);
+    const customer = await Customer.findOne({ _id: customerId, ...tenantFilter(req) });
 
     if (!customer) {
       return res.status(404).json({ error: 'Customer not found' });
     }
 
     const saleHistoryCount = await Sale.countDocuments({
+      tenantKey: req.user.tenantKey,
       $or: [
         { customerPhone: customer.phone },
         { customerEmail: customer.email }
@@ -254,7 +280,7 @@ exports.hardDeleteCustomer = async (req, res) => {
       });
     }
 
-    await Customer.findByIdAndDelete(customerId);
+    await Customer.findOneAndDelete({ _id: customerId, ...tenantFilter(req) });
 
     res.json({
       message: 'Customer permanently deleted successfully'
@@ -280,13 +306,14 @@ exports.getCustomerPurchaseHistory = async (req, res) => {
     const skip = (page - 1) * limit;
 
     // Get customer details
-    const customer = await Customer.findById(customerId);
+    const customer = await Customer.findOne({ _id: customerId, ...tenantFilter(req) });
     if (!customer) {
       return res.status(404).json({ error: 'Customer not found' });
     }
 
     // Get all sales from this customer
     const sales = await Sale.find({ 
+      tenantKey: req.user.tenantKey,
       $or: [
         { customerPhone: customer.phone },
         { customerEmail: customer.email }

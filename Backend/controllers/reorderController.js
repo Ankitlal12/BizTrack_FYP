@@ -6,12 +6,13 @@ const Purchase = require("../models/Purchase");
 const Notification = require("../models/Notification");
 const { calculateReorderQuantity, calculatePriority, getUrgencyLevel } = require("../utils/reorderCalculator");
 const { createNotification } = require("../utils/notificationHelper");
+const tenantFilter = (req) => ({ tenantKey: req.user.tenantKey });
 
 // ==================== HELPERS ====================
 
 // Generate the next sequential number for a given model (e.g. RO-000001, PO-000001)
-const generateSequentialNumber = async (Model, field, prefix) => {
-  const last = await Model.findOne().sort({ createdAt: -1 });
+const generateSequentialNumber = async (Model, field, prefix, tenantKey) => {
+  const last = await Model.findOne({ tenantKey }).sort({ createdAt: -1 });
   if (last && last[field]) {
     const lastNum = parseInt(last[field].split('-')[1]);
     return `${prefix}-${String(lastNum + 1).padStart(6, '0')}`;
@@ -27,6 +28,7 @@ exports.getLowStockReport = async (req, res) => {
 
     // Build query for low stock items
     const query = {
+      ...tenantFilter(req),
       $or: [
         { stock: { $lte: 0 } }, // Out of stock
         { $expr: { $lte: ['$stock', '$reorderLevel'] } } // Below reorder level
@@ -119,7 +121,7 @@ exports.getLowStockReport = async (req, res) => {
  */
 exports.getReorderById = async (req, res) => {
   try {
-    const reorder = await Reorder.findById(req.params.id)
+    const reorder = await Reorder.findOne({ _id: req.params.id, ...tenantFilter(req) })
       .populate('inventoryId', 'name sku category price cost stock')
       .populate('supplierId', 'name contactPerson phone email')
       .populate('purchaseOrderId', 'purchaseNumber status total');
@@ -155,7 +157,7 @@ exports.getAllReorders = async (req, res) => {
     const skip = (page - 1) * limit;
 
     // Build query
-    const query = {};
+    const query = { ...tenantFilter(req) };
 
     if (status && status !== 'all') {
       query.status = status;
@@ -216,14 +218,14 @@ exports.createReorder = async (req, res) => {
     const { inventoryId, supplierId, suggestedQuantity, notes } = req.body;
 
     // Validate inventory item
-    const inventory = await Inventory.findById(inventoryId);
+    const inventory = await Inventory.findOne({ _id: inventoryId, ...tenantFilter(req) });
     if (!inventory) {
       return res.status(404).json({ error: 'Inventory item not found' });
     }
 
     // Validate supplier if provided
     if (supplierId) {
-      const supplier = await Supplier.findById(supplierId);
+      const supplier = await Supplier.findOne({ _id: supplierId, ...tenantFilter(req) });
       if (!supplier) {
         return res.status(404).json({ error: 'Supplier not found' });
       }
@@ -233,15 +235,11 @@ exports.createReorder = async (req, res) => {
     const analytics = await calculateReorderQuantity(inventoryId);
 
     // Generate reorder number
-    const lastReorder = await Reorder.findOne().sort({ createdAt: -1 });
-    let reorderNumber = 'RO-000001';
-    if (lastReorder && lastReorder.reorderNumber) {
-      const lastNumber = parseInt(lastReorder.reorderNumber.split('-')[1]);
-      reorderNumber = `RO-${String(lastNumber + 1).padStart(6, '0')}`;
-    }
+    const reorderNumber = await generateSequentialNumber(Reorder, 'reorderNumber', 'RO', req.user.tenantKey);
 
     // Create reorder
     const reorder = await Reorder.create({
+      tenantKey: req.user.tenantKey,
       reorderNumber,
       inventoryId,
       supplierId: supplierId || inventory.preferredSupplierId,
@@ -263,6 +261,7 @@ exports.createReorder = async (req, res) => {
 
     // Create notification
     await createNotification({
+      tenantKey: req.user.tenantKey,
       type: 'reorder_created',
       title: 'Reorder Request Created',
       message: `Manual reorder request created for ${inventory.name} (SKU: ${inventory.sku})`,
@@ -277,7 +276,7 @@ exports.createReorder = async (req, res) => {
       }
     });
 
-    const populatedReorder = await Reorder.findById(reorder._id)
+    const populatedReorder = await Reorder.findOne({ _id: reorder._id, ...tenantFilter(req) })
       .populate('inventoryId', 'name sku category')
       .populate('supplierId', 'name contactPerson');
 
@@ -311,7 +310,7 @@ exports.createQuickReorder = async (req, res) => {
     }
 
     // Validate inventory item
-    const inventory = await Inventory.findById(inventoryId);
+    const inventory = await Inventory.findOne({ _id: inventoryId, ...tenantFilter(req) });
     if (!inventory) {
       return res.status(404).json({ error: 'Inventory item not found' });
     }
@@ -320,15 +319,11 @@ exports.createQuickReorder = async (req, res) => {
     const finalSupplierId = supplierId || inventory.preferredSupplierId;
 
     // Generate reorder number
-    const lastReorder = await Reorder.findOne().sort({ createdAt: -1 });
-    let reorderNumber = 'RO-000001';
-    if (lastReorder && lastReorder.reorderNumber) {
-      const lastNumber = parseInt(lastReorder.reorderNumber.split('-')[1]);
-      reorderNumber = `RO-${String(lastNumber + 1).padStart(6, '0')}`;
-    }
+    const reorderNumber = await generateSequentialNumber(Reorder, 'reorderNumber', 'RO', req.user.tenantKey);
 
     // Create reorder
     const reorderData = {
+      tenantKey: req.user.tenantKey,
       reorderNumber,
       inventoryId,
       supplierId: finalSupplierId,
@@ -354,6 +349,7 @@ exports.createQuickReorder = async (req, res) => {
     // Mark related notifications as read
     await Notification.updateMany(
       {
+        ...tenantFilter(req),
         type: { $in: ['low_stock', 'out_of_stock'] },
         relatedId: inventoryId,
         read: false
@@ -365,12 +361,7 @@ exports.createQuickReorder = async (req, res) => {
     
     // Generate purchase number
     const Purchase = require("../models/Purchase");
-    const lastPurchase = await Purchase.findOne().sort({ createdAt: -1 });
-    let purchaseNumber = 'PO-000001';
-    if (lastPurchase && lastPurchase.purchaseNumber) {
-      const lastNumber = parseInt(lastPurchase.purchaseNumber.split('-')[1]);
-      purchaseNumber = `PO-${String(lastNumber + 1).padStart(6, '0')}`;
-    }
+    const purchaseNumber = await generateSequentialNumber(Purchase, 'purchaseNumber', 'PO', req.user.tenantKey);
 
     // Get supplier information
     let supplierInfo = {
@@ -381,7 +372,7 @@ exports.createQuickReorder = async (req, res) => {
 
     if (finalSupplierId) {
       const Supplier = require("../models/Supplier");
-      const supplier = await Supplier.findById(finalSupplierId);
+      const supplier = await Supplier.findOne({ _id: finalSupplierId, ...tenantFilter(req) });
       if (supplier) {
         supplierInfo = {
           name: supplier.name,
@@ -397,6 +388,7 @@ exports.createQuickReorder = async (req, res) => {
 
     // Create purchase order with current timestamp
     const purchase = await Purchase.create({
+      tenantKey: req.user.tenantKey,
       purchaseNumber,
       supplierName: supplierInfo.name,
       supplierEmail: supplierInfo.email,
@@ -452,6 +444,7 @@ exports.createQuickReorder = async (req, res) => {
 
     // Create success notification for low-stock purchase
     await createNotification({
+      tenantKey: req.user.tenantKey,
       type: 'low_stock_purchase',
       title: 'Low Stock Item Restocked',
       message: `✅ Purchase order ${purchaseNumber} created for low-stock item "${inventory.name}". Stock increased from ${inventory.stock - quantity} to ${inventory.stock} units.`,
@@ -469,7 +462,7 @@ exports.createQuickReorder = async (req, res) => {
       }
     });
 
-    const populatedReorder = await Reorder.findById(reorder._id)
+    const populatedReorder = await Reorder.findOne({ _id: reorder._id, ...tenantFilter(req) })
       .populate('inventoryId', 'name sku category')
       .populate('supplierId', 'name contactPerson')
       .populate('purchaseOrderId', 'purchaseNumber status total');
@@ -500,7 +493,7 @@ exports.createQuickReorder = async (req, res) => {
  */
 exports.approveReorder = async (req, res) => {
   try {
-    const reorder = await Reorder.findById(req.params.id);
+    const reorder = await Reorder.findOne({ _id: req.params.id, ...tenantFilter(req) });
     if (!reorder) {
       return res.status(404).json({ error: 'Reorder not found' });
     }
@@ -521,6 +514,7 @@ exports.approveReorder = async (req, res) => {
 
     // Create notification
     await createNotification({
+      tenantKey: req.user.tenantKey,
       type: 'reorder_approved',
       title: 'Reorder Approved',
       message: `Reorder request approved for ${reorder.inventoryId.name}`,
@@ -532,7 +526,7 @@ exports.approveReorder = async (req, res) => {
       }
     });
 
-    const populatedReorder = await Reorder.findById(reorder._id)
+    const populatedReorder = await Reorder.findOne({ _id: reorder._id, ...tenantFilter(req) })
       .populate('inventoryId', 'name sku category')
       .populate('supplierId', 'name contactPerson');
 
@@ -557,7 +551,7 @@ exports.createPurchaseFromReorder = async (req, res) => {
     const { reorderId } = req.params;
     const { quantity, notes } = req.body;
 
-    const reorder = await Reorder.findById(reorderId)
+    const reorder = await Reorder.findOne({ _id: reorderId, ...tenantFilter(req) })
       .populate('inventoryId')
       .populate('supplierId');
 
@@ -576,12 +570,7 @@ exports.createPurchaseFromReorder = async (req, res) => {
     const orderQuantity = quantity || reorder.suggestedQuantity;
 
     // Generate purchase number
-    const lastPurchase = await Purchase.findOne().sort({ createdAt: -1 });
-    let purchaseNumber = 'PO-000001';
-    if (lastPurchase && lastPurchase.purchaseNumber) {
-      const lastNumber = parseInt(lastPurchase.purchaseNumber.split('-')[1]);
-      purchaseNumber = `PO-${String(lastNumber + 1).padStart(6, '0')}`;
-    }
+    const purchaseNumber = await generateSequentialNumber(Purchase, 'purchaseNumber', 'PO', req.user.tenantKey);
 
     // Calculate costs
     const unitCost = inventory.lastPurchasePrice || inventory.cost;
@@ -589,6 +578,7 @@ exports.createPurchaseFromReorder = async (req, res) => {
 
     // Create purchase order
     const purchase = await Purchase.create({
+      tenantKey: req.user.tenantKey,
       purchaseNumber,
       supplierName: supplier.name,
       supplierEmail: supplier.email,
@@ -673,7 +663,7 @@ exports.createBulkReorder = async (req, res) => {
     const itemsBySupplier = {};
     
     for (const item of items) {
-      const inventory = await Inventory.findById(item.inventoryId);
+      const inventory = await Inventory.findOne({ _id: item.inventoryId, ...tenantFilter(req) });
       if (!inventory) {
         return res.status(404).json({ 
           error: `Inventory item not found: ${item.inventoryId}`
@@ -702,7 +692,7 @@ exports.createBulkReorder = async (req, res) => {
 
     // Create purchase orders for each supplier
     for (const [supplierId, supplierItems] of Object.entries(itemsBySupplier)) {
-      const supplier = await Supplier.findById(supplierId);
+      const supplier = await Supplier.findOne({ _id: supplierId, ...tenantFilter(req) });
       if (!supplier) {
         return res.status(404).json({ 
           error: `Supplier not found: ${supplierId}`
@@ -710,12 +700,7 @@ exports.createBulkReorder = async (req, res) => {
       }
 
       // Generate purchase number
-      const lastPurchase = await Purchase.findOne().sort({ createdAt: -1 });
-      let purchaseNumber = 'PO-000001';
-      if (lastPurchase && lastPurchase.purchaseNumber) {
-        const lastNumber = parseInt(lastPurchase.purchaseNumber.split('-')[1]);
-        purchaseNumber = `PO-${String(lastNumber + 1).padStart(6, '0')}`;
-      }
+      const purchaseNumber = await generateSequentialNumber(Purchase, 'purchaseNumber', 'PO', req.user.tenantKey);
 
       // Prepare purchase items
       const purchaseItems = [];
@@ -738,6 +723,7 @@ exports.createBulkReorder = async (req, res) => {
 
       // Create purchase order
       const purchase = await Purchase.create({
+        tenantKey: req.user.tenantKey,
         purchaseNumber,
         supplierName: supplier.name,
         supplierEmail: supplier.email,
@@ -759,14 +745,10 @@ exports.createBulkReorder = async (req, res) => {
       // Create reorders and update inventory
       for (const item of supplierItems) {
         // Generate reorder number for each reorder
-        const lastReorder = await Reorder.findOne().sort({ createdAt: -1 });
-        let reorderNumber = 'RO-000001';
-        if (lastReorder && lastReorder.reorderNumber) {
-          const lastNumber = parseInt(lastReorder.reorderNumber.split('-')[1]);
-          reorderNumber = `RO-${String(lastNumber + 1).padStart(6, '0')}`;
-        }
+        const reorderNumber = await generateSequentialNumber(Reorder, 'reorderNumber', 'RO', req.user.tenantKey);
 
         const reorder = await Reorder.create({
+          tenantKey: req.user.tenantKey,
           reorderNumber,
           inventoryId: item.inventory._id,
           supplierId: supplierId,
@@ -819,7 +801,7 @@ exports.createBulkReorder = async (req, res) => {
  */
 exports.cancelReorder = async (req, res) => {
   try {
-    const reorder = await Reorder.findById(req.params.id);
+    const reorder = await Reorder.findOne({ _id: req.params.id, ...tenantFilter(req) });
     if (!reorder) {
       return res.status(404).json({ error: 'Reorder not found' });
     }
@@ -840,7 +822,7 @@ exports.cancelReorder = async (req, res) => {
     await reorder.save();
 
     // Update inventory
-    const inventory = await Inventory.findById(reorder.inventoryId);
+    const inventory = await Inventory.findOne({ _id: reorder.inventoryId, ...tenantFilter(req) });
     if (inventory) {
       inventory.reorderStatus = 'none';
       inventory.pendingOrderId = null;
@@ -868,7 +850,7 @@ exports.markReorderReceived = async (req, res) => {
     const { reorderId } = req.params;
     const { receivedQuantity } = req.body;
 
-    const reorder = await Reorder.findById(reorderId);
+    const reorder = await Reorder.findOne({ _id: reorderId, ...tenantFilter(req) });
     if (!reorder) {
       return res.status(404).json({ error: 'Reorder not found' });
     }
@@ -884,7 +866,7 @@ exports.markReorderReceived = async (req, res) => {
     await reorder.save();
 
     // Update inventory
-    const inventory = await Inventory.findById(reorder.inventoryId);
+    const inventory = await Inventory.findOne({ _id: reorder.inventoryId, ...tenantFilter(req) });
     if (inventory) {
       inventory.reorderStatus = 'none';
       inventory.pendingOrderId = null;
@@ -915,6 +897,7 @@ exports.getReorderStats = async (req, res) => {
     const stats = await Promise.all([
       // Total low stock items
       Inventory.countDocuments({
+        ...tenantFilter(req),
         $or: [
           { stock: { $lte: 0 } },
           { $expr: { $lte: ['$stock', '$reorderLevel'] } }
@@ -922,17 +905,17 @@ exports.getReorderStats = async (req, res) => {
       }),
       
       // Out of stock items
-      Inventory.countDocuments({ stock: { $lte: 0 } }),
+      Inventory.countDocuments({ ...tenantFilter(req), stock: { $lte: 0 } }),
       
       // Pending reorders
-      Reorder.countDocuments({ status: 'pending' }),
+      Reorder.countDocuments({ ...tenantFilter(req), status: 'pending' }),
       
       // Ordered reorders
-      Reorder.countDocuments({ status: 'ordered' }),
+      Reorder.countDocuments({ ...tenantFilter(req), status: 'ordered' }),
       
       // Total reorder value (estimated)
       Reorder.aggregate([
-        { $match: { status: { $in: ['pending', 'approved', 'ordered'] } } },
+        { $match: { tenantKey: req.user.tenantKey, status: { $in: ['pending', 'approved', 'ordered'] } } },
         { $lookup: { from: 'inventories', localField: 'inventoryId', foreignField: '_id', as: 'inventory' } },
         { $unwind: '$inventory' },
         { $group: { _id: null, totalValue: { $sum: { $multiply: ['$suggestedQuantity', '$inventory.cost'] } } } }

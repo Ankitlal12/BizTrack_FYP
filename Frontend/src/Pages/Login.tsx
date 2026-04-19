@@ -37,7 +37,7 @@ const Login = () => {
     const trimmedUsername = username.trim();
 
     if (!trimmedUsername) {
-      nextErrors.username = 'Username is required';
+      nextErrors.username = 'Email or username is required';
     }
 
     if (!password) {
@@ -62,11 +62,11 @@ const Login = () => {
     try {
       const success = await login(trimmedUsername, password);
       if (!success) {
-        setError('Invalid username or password');
+        setError('Invalid email/username or password');
       }
       // Navigation is handled inside AuthContext.login() based on role
-    } catch (err) {
-      setError('An error occurred. Please try again.');
+    } catch (err: any) {
+      setError(err?.message || 'An error occurred. Please try again.');
     } finally {
       setIsLoading(false);
     }
@@ -125,7 +125,9 @@ const Login = () => {
       
       toast.success('Login successful!');
       // Navigate based on role using fresh userObj — not React state
-      if (userObj.role === 'owner') {
+      if (userObj.role === 'admin') {
+        navigate('/admin', { replace: true });
+      } else if (userObj.role === 'owner') {
         navigate('/', { replace: true });
       } else if (userObj.role === 'manager') {
         navigate('/inventory', { replace: true });
@@ -209,10 +211,10 @@ const Login = () => {
 
         {/* Form */}
         <form className="space-y-5" onSubmit={handleSubmit}>
-          {/* Username */}
+          {/* Email/Username */}
           <div>
             <label htmlFor="username" className="block text-sm font-medium text-gray-700 mb-1">
-              Username
+              Email or Username
             </label>
             <div className="relative">
               <CiUser className="absolute left-3 top-3.5 text-gray-400 text-lg" />
@@ -226,7 +228,7 @@ const Login = () => {
                     setFieldErrors((prev) => ({ ...prev, username: undefined }));
                   }
                 }}
-                placeholder="Enter your username"
+                placeholder="Enter your email or username"
                 className={`pl-10 w-full border ${fieldErrors.username ? 'border-red-400' : 'border-gray-200'} rounded-xl py-3 
                   focus:ring-2 focus:ring-teal-500 focus:border-teal-500 
                   outline-none transition-all text-gray-800 placeholder-gray-400`}

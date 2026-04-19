@@ -96,6 +96,7 @@ const InventoryFilters: React.FC<InventoryFiltersProps> = ({
 
         {/* Category Filter */}
         <select
+          title="Filter by category"
           className="border border-gray-300 rounded-lg py-2 px-4 focus:outline-none focus:ring-2 focus:ring-teal-500"
           value={categoryFilter}
           onChange={(e) => onCategoryChange(e.target.value)}
@@ -109,12 +110,12 @@ const InventoryFilters: React.FC<InventoryFiltersProps> = ({
 
         {/* Status Filter */}
         <select
+          title="Filter by stock status"
           className="border border-gray-300 rounded-lg py-2 px-4 focus:outline-none focus:ring-2 focus:ring-teal-500"
           value={statusFilter}
           onChange={(e) => onStatusChange(e.target.value)}
         >
           <option value="all">All Status</option>
-          <option value="out-of-stock">Out of Stock</option>
           <option value="low">Low Stock</option>
           <option value="in-stock">In Stock</option>
         </select>
@@ -122,6 +123,7 @@ const InventoryFilters: React.FC<InventoryFiltersProps> = ({
         {/* Sort By */}
         <div className="flex items-center gap-2">
           <select
+            title="Sort inventory items"
             className="border border-gray-300 rounded-lg py-2 px-4 focus:outline-none focus:ring-2 focus:ring-teal-500"
             value={sortBy}
             onChange={(e) => onSortByChange(e.target.value as 'createdAt' | 'name' | 'stock' | 'price')}
@@ -264,6 +266,7 @@ const InventoryFilters: React.FC<InventoryFiltersProps> = ({
             <div className="space-y-2">
               <label className="text-xs font-medium text-gray-600 block">Supplier</label>
               <select
+                title="Filter by supplier"
                 className="border border-gray-300 rounded-lg py-2 px-3 w-full text-sm focus:outline-none focus:ring-2 focus:ring-teal-500 bg-white"
                 value={supplierFilter}
                 onChange={(e) => onSupplierChange(e.target.value)}

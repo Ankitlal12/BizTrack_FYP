@@ -1,6 +1,11 @@
 const mongoose = require("mongoose");
 
 const loginHistorySchema = new mongoose.Schema({
+  tenantKey: {
+    type: String,
+    required: true,
+    index: true,
+  },
   userId: {
     type: mongoose.Schema.Types.ObjectId,
     ref: "User",
@@ -12,7 +17,7 @@ const loginHistorySchema = new mongoose.Schema({
   },
   userRole: {
     type: String,
-    enum: ["owner", "manager", "staff"],
+    enum: ["admin", "owner", "manager", "staff"],
     required: true,
   },
   loginTime: {
@@ -51,6 +56,7 @@ const loginHistorySchema = new mongoose.Schema({
 });
 
 // Index for efficient queries
+loginHistorySchema.index({ tenantKey: 1, loginTime: -1 });
 loginHistorySchema.index({ loginTime: -1 });
 loginHistorySchema.index({ userId: 1, loginTime: -1 });
 

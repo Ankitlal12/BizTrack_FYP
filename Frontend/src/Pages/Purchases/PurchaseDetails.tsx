@@ -24,7 +24,7 @@ const PurchaseDetails: React.FC<PurchaseDetailsProps> = ({
   const navigate = useNavigate()
   const { user } = useAuth()
   const isOwner = user?.role === 'owner'
-  const canManagePurchases = user?.role === 'manager'
+  const canManagePurchases = user?.role === 'manager' || user?.role === 'owner'
   const paymentStatusValue = purchase.paymentStatus || 'unpaid'
   const paidAmount = purchase.paidAmount || 0
   const scheduledAmount = purchase.scheduledAmount || 0
@@ -37,11 +37,21 @@ const PurchaseDetails: React.FC<PurchaseDetailsProps> = ({
         purchaseId: purchase._id,
         installmentIndex,
       })
+
+      const payableAmount = Number(result?.payableAmount ?? amount)
+      const remainingAmount = Number(result?.remainingAmount ?? 0)
+
+      if (result?.sandboxCapped && remainingAmount > 0) {
+        toast.info('Sandbox payment limit applied', {
+          description: `Khalti charged Rs ${payableAmount.toFixed(2)} now. Remaining Rs ${remainingAmount.toFixed(2)} stays scheduled.`
+        })
+      }
+
       if (result.payment_url) {
         localStorage.setItem('biztrack_khalti_installment', JSON.stringify({
           purchaseId: purchase._id,
           installmentIndex,
-          amount,
+          amount: payableAmount,
           purchaseNumber: purchase.purchaseNumber,
         }))
         window.location.href = result.payment_url

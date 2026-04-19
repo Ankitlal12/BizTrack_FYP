@@ -17,6 +17,72 @@ const removeToken = (): void => {
 
 // ==================== CORE REQUEST ====================
 
+export interface ApiRequestErrorShape {
+  status?: number;
+  code?: string;
+  details?: string;
+  data?: any;
+  isNetworkError?: boolean;
+}
+
+export class ApiRequestError extends Error implements ApiRequestErrorShape {
+  status?: number;
+  code?: string;
+  details?: string;
+  data?: any;
+  isNetworkError?: boolean;
+
+  constructor(message: string, options: ApiRequestErrorShape = {}) {
+    super(message);
+    this.name = 'ApiRequestError';
+    this.status = options.status;
+    this.code = options.code;
+    this.details = options.details;
+    this.data = options.data;
+    this.isNetworkError = options.isNetworkError;
+  }
+}
+
+const isObject = (value: unknown): value is Record<string, any> => {
+  return typeof value === 'object' && value !== null;
+};
+
+const parseResponsePayload = async (response: Response): Promise<any> => {
+  const contentType = response.headers.get('content-type') || '';
+
+  if (contentType.includes('application/json')) {
+    return response.json().catch(() => ({}));
+  }
+
+  const text = await response.text().catch(() => '');
+  if (!text) {
+    return null;
+  }
+
+  try {
+    return JSON.parse(text);
+  } catch {
+    return { message: text };
+  }
+};
+
+const createApiError = (response: Response, payload: any): ApiRequestError => {
+  const normalizedPayload = isObject(payload) ? payload : {};
+
+  const message =
+    normalizedPayload.error ||
+    normalizedPayload.message ||
+    normalizedPayload.details ||
+    `HTTP ${response.status}: ${response.statusText}`;
+
+  return new ApiRequestError(message, {
+    status: response.status,
+    code: normalizedPayload.code,
+    details: normalizedPayload.details,
+    data: normalizedPayload,
+  });
+};
+
 // Generic API request function
 async function apiRequest<T>(
   endpoint: string,
@@ -38,33 +104,34 @@ async function apiRequest<T>(
 
   try {
     const response = await fetch(url, config);
-    
+
+    const payload = await parseResponsePayload(response);
+
     if (!response.ok) {
-      const error = await response.json().catch(() => ({ 
-        error: response.statusText,
-        details: `HTTP ${response.status}: ${response.statusText}`
-      }));
-      
-      // Include details if available
-      const errorMessage = error.error || error.details || `HTTP error! status: ${response.status}`;
-      const errorWithDetails = new Error(errorMessage);
-      if (error.details) {
-        (errorWithDetails as any).details = error.details;
-      }
-      throw errorWithDetails;
+      throw createApiError(response, payload);
     }
-    
-    return await response.json();
+
+    return payload as T;
   } catch (error: any) {
+    if (error instanceof ApiRequestError) {
+      console.error('API request failed:', error);
+      throw error;
+    }
+
     // Handle network errors
-    if (error.name === 'TypeError' && error.message.includes('fetch')) {
-      const networkError = new Error('Failed to fetch - Cannot connect to server');
-      (networkError as any).isNetworkError = true;
+    if (error?.name === 'TypeError' && String(error?.message || '').includes('fetch')) {
+      const networkError = new ApiRequestError('Failed to fetch - Cannot connect to server', {
+        isNetworkError: true,
+      });
       throw networkError;
     }
-    
+
+    if (error instanceof Error) {
+      throw new ApiRequestError(error.message);
+    }
+
     console.error('API request failed:', error);
-    throw error;
+    throw new ApiRequestError('Unexpected API error');
   }
 }
 
@@ -89,6 +156,11 @@ const inventoryAPIBase = {
 
 export const inventoryAPI = {
   ...inventoryAPIBase,
+  getCategories: () => apiRequest<{ categories: string[] }>('/inventory/categories'),
+  createCategory: (name: string) => apiRequest<{ message: string; category: string }>('/inventory/categories', {
+    method: 'POST',
+    body: JSON.stringify({ name }),
+  }),
   getLowStock: (params?: string) => {
     const query = params ? `?${params}` : '';
     return apiRequest<any[]>(`/inventory/low-stock${query}`);
@@ -364,6 +436,7 @@ export const billingAPI = {
   getBillById: (id: string) => apiRequest<any>(`/billing/bills/${id}`),
   
   // Khalti payment endpoints
+  getKhaltiBankList: () => apiRequest<{ success: boolean; banks: any[] }>('/billing/khalti/banks'),
   initiateKhaltiPayment: (data: any) => apiRequest<any>('/billing/khalti/initiate', {
     method: 'POST',
     body: JSON.stringify(data),
@@ -384,6 +457,15 @@ export const billingAPI = {
   }),
 };
 
+// AI Reports API
+export const reportAIAPI = {
+  chat: (data: { message: string; messages?: { role: 'user' | 'assistant'; content: string }[]; context?: any }) =>
+    apiRequest<{ reply: string; model?: string; usage?: any }>('/ai/report-chat', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
+};
+
 // Export token management functions
 export const tokenManager = {
   getToken,
@@ -399,6 +481,44 @@ export const userAPI = {
     usersAPI.update(id, data),
   getById: (id: string) => usersAPI.getById(id),
   getAll: () => usersAPI.getAll(),
+};
+
+// SaaS Onboarding API
+export const saasAPI = {
+  initiateGoogleSignup: (data: { credential: string; businessName: string; phone?: string; password: string; confirmPassword: string }) =>
+    apiRequest<{ signupId: string; amount: number; paymentUrl: string; pidx: string }>(
+      '/saas/signup/google/initiate',
+      {
+        method: 'POST',
+        body: JSON.stringify(data),
+      }
+    ),
+  verifyGoogleSignupPayment: (pidx: string) =>
+    apiRequest<{ message: string; user: any; token: string; workspace: { businessName: string; ownerEmail: string } }>(
+      '/saas/signup/google/verify',
+      {
+        method: 'POST',
+        body: JSON.stringify({ pidx }),
+      }
+    ),
+  initiateGoogleRenewal: (data: { credential: string }) =>
+    apiRequest<{ paymentUrl: string; pidx: string; amount: number; signupId: string }>(
+      '/saas/renew/google/initiate',
+      {
+        method: 'POST',
+        body: JSON.stringify(data),
+      }
+    ),
+  getClients: () => apiRequest<any[]>('/saas/clients'),
+  freezeClient: (ownerId: string, frozen: boolean) =>
+    apiRequest<{ message: string }>(`/saas/clients/${ownerId}/freeze`, {
+      method: 'PATCH',
+      body: JSON.stringify({ frozen }),
+    }),
+  deleteClient: (ownerId: string) =>
+    apiRequest<{ message: string }>(`/saas/clients/${ownerId}`, {
+      method: 'DELETE',
+    }),
 };
 
 // Login History API

@@ -54,6 +54,13 @@ const reportsGroup: NavGroup = {
 
 /** Build the full nav structure based on user role */
 const buildNavStructure = (role: string): NavEntry[] => {
+  if (role === 'admin') {
+    return [
+      { name: 'Admin Overview', path: '/admin', icon: <TbLayoutDashboard size={20} /> },
+      { name: 'SaaS Clients', path: '/admin/users', icon: <Users size={20} /> },
+    ]
+  }
+
   if (role === 'owner') {
     return [
       { name: 'Dashboard',           path: '/',             icon: <TbLayoutDashboard size={20} /> },

@@ -1,6 +1,11 @@
 const mongoose = require("mongoose");
 
 const notificationArchiveSchema = new mongoose.Schema({
+  tenantKey: {
+    type: String,
+    required: true,
+    index: true,
+  },
   type: {
     type: String,
     required: true,
@@ -62,6 +67,7 @@ const notificationArchiveSchema = new mongoose.Schema({
 });
 
 // Indexes for efficient querying
+notificationArchiveSchema.index({ tenantKey: 1, read: 1, createdAt: -1 });
 notificationArchiveSchema.index({ read: 1, createdAt: -1 });
 notificationArchiveSchema.index({ createdAt: -1 });
 notificationArchiveSchema.index({ type: 1, createdAt: -1 });

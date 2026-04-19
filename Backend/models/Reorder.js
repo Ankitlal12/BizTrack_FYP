@@ -1,6 +1,11 @@
 const mongoose = require("mongoose");
 
 const reorderSchema = new mongoose.Schema({
+  tenantKey: {
+    type: String,
+    required: true,
+    index: true,
+  },
   reorderNumber: {
     type: String,
     unique: true,
@@ -87,5 +92,6 @@ reorderSchema.index({ supplierId: 1 });
 reorderSchema.index({ status: 1 });
 reorderSchema.index({ triggerType: 1 });
 reorderSchema.index({ createdAt: -1 });
+reorderSchema.index({ tenantKey: 1, createdAt: -1 });
 
 module.exports = mongoose.model("Reorder", reorderSchema);

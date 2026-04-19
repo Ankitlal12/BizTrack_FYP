@@ -5,6 +5,7 @@ const mongoose = require("mongoose");
 const connectDB = require("./config/db");
 const { processAllScheduledPayments, processDeliveries } = require("./services/paymentScheduler");
 const { sendDailyOwnerSummaryEmail } = require("./utils/notificationHelper");
+const Purchase = require("./models/Purchase");
 
 // ==================== APP SETUP ====================
 const app = express();
@@ -65,6 +66,8 @@ const invoiceRoutes = require("./routes/invoiceRoutes");
 const notificationRoutes = require("./routes/notificationRoutes");
 const notificationArchiveRoutes = require("./routes/notificationArchiveRoutes");
 const billingRoutes = require("./routes/billingRoutes");
+const aiRoutes = require("./routes/aiRoutes");
+const saasRoutes = require("./routes/saasRoutes");
 const transactionRoutes = require("./routes/transactionRoutes");
 const loginHistoryRoutes = require("./routes/loginHistoryRoutes");
 const supplierRoutes = require("./routes/supplierRoutes");
@@ -81,6 +84,8 @@ app.use("/api/invoices", invoiceRoutes);
 app.use("/api/notifications/archive", notificationArchiveRoutes);
 app.use("/api/notifications", notificationRoutes);
 app.use("/api/billing", billingRoutes);
+app.use("/api/ai", aiRoutes);
+app.use("/api/saas", saasRoutes);
 app.use("/api/transactions", transactionRoutes);
 app.use("/api/login-history", loginHistoryRoutes);
 app.use("/api/suppliers", supplierRoutes);
@@ -105,39 +110,69 @@ app.listen(PORT, () => {
   console.log(`Server running on http://localhost:${PORT}`);
   console.log(`API Base URL: http://localhost:${PORT}/api`);
   console.log("=".repeat(50) + "\n");
+
+  // Ensure purchase number uniqueness is tenant-scoped.
+  Purchase.ensureTenantScopedPurchaseNumberIndex();
   
   // Initialize payment scheduler
   console.log("🔧 Initializing payment scheduler...");
 
   const scheduleDailyOwnerSummary = () => {
-    const DAILY_SUMMARY_HOUR = 19;
-    const DAILY_SUMMARY_MINUTE = 30;
+    const DAILY_SUMMARY_HOUR = Number(process.env.DAILY_SUMMARY_HOUR_NPT ?? 23);
+    const DAILY_SUMMARY_MINUTE = Number(process.env.DAILY_SUMMARY_MINUTE_NPT ?? 59);
     const TIMEZONE = "Asia/Kathmandu";
 
-    const getDelayUntilNextRun = () => {
-      const nowNepal = new Date(new Date().toLocaleString("en-US", { timeZone: TIMEZONE }));
-      const nextRun = new Date(nowNepal);
-      nextRun.setHours(DAILY_SUMMARY_HOUR, DAILY_SUMMARY_MINUTE, 0, 0);
+    let lastSentDate = null;
 
-      if (nextRun <= nowNepal) {
-        nextRun.setDate(nextRun.getDate() + 1);
-      }
+    const getNepalDateTimeParts = () => {
+      const formatter = new Intl.DateTimeFormat("en-CA", {
+        timeZone: TIMEZONE,
+        year: "numeric",
+        month: "2-digit",
+        day: "2-digit",
+        hour: "2-digit",
+        minute: "2-digit",
+        hour12: false,
+      });
 
-      return nextRun.getTime() - nowNepal.getTime();
+      const parts = formatter.formatToParts(new Date());
+      const getPart = (type) => parts.find((p) => p.type === type)?.value;
+
+      return {
+        year: Number(getPart("year")),
+        month: Number(getPart("month")),
+        day: Number(getPart("day")),
+        hour: Number(getPart("hour")),
+        minute: Number(getPart("minute")),
+        dateKey: `${getPart("year")}-${getPart("month")}-${getPart("day")}`,
+      };
     };
 
-    const runDailySummary = async () => {
+    const checkAndSend = async () => {
       try {
-        console.log(`📧 Running daily owner summary at ${new Date().toISOString()}`);
-        await sendDailyOwnerSummaryEmail();
+        const nowNepal = getNepalDateTimeParts();
+        const todayKey = nowNepal.dateKey;
+        const shouldRunNow = nowNepal.hour > DAILY_SUMMARY_HOUR ||
+          (nowNepal.hour === DAILY_SUMMARY_HOUR && nowNepal.minute >= DAILY_SUMMARY_MINUTE);
+
+        if (shouldRunNow && lastSentDate !== todayKey) {
+          console.log(`📧 Running daily owner summary at ${new Date().toISOString()} (NPT ${todayKey} ${String(nowNepal.hour).padStart(2, "0")}:${String(nowNepal.minute).padStart(2, "0")})`);
+          const result = await sendDailyOwnerSummaryEmail();
+          if (result?.skipped) {
+            console.warn("⚠️ Daily owner summary skipped: no active owner emails found.");
+          }
+          lastSentDate = todayKey;
+        }
       } catch (error) {
         console.error("❌ Error sending daily owner summary:", error);
-      } finally {
-        setTimeout(runDailySummary, 24 * 60 * 60 * 1000);
       }
     };
 
-    setTimeout(runDailySummary, getDelayUntilNextRun());
+    console.log(`🕒 Daily owner summary scheduled for ${String(DAILY_SUMMARY_HOUR).padStart(2, "0")}:${String(DAILY_SUMMARY_MINUTE).padStart(2, "0")} (${TIMEZONE})`);
+
+    // Check every minute so report still sends even if server starts late.
+    setInterval(checkAndSend, 60 * 1000);
+    setTimeout(checkAndSend, 5000);
   };
   
   // Run payment processor every hour

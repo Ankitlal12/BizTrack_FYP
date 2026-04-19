@@ -5,7 +5,7 @@ const {
   getAllCustomers, getCustomerById, createCustomer, updateCustomer, deleteCustomer,
   getBillingProducts, getBillingProductById,
   createBill, getAllBills, getBillById,
-  initiateKhaltiPayment, verifyKhaltiPayment,
+  initiateKhaltiPayment, verifyKhaltiPayment, getKhaltiBankList,
 } = require("../controllers/billingController");
 
 const router = express.Router();
@@ -23,6 +23,7 @@ router.get("/bills",             authorize(...ALL_ROLES), getAllBills);
 router.get("/bills/:id",         authorize(...ALL_ROLES), getBillById);
 
 // ── Khalti (all roles — staff uses Khalti to complete billing) ──
+router.get("/khalti/banks",      authorize(...ALL_ROLES), getKhaltiBankList);
 router.post("/khalti/initiate",  authorize(...ALL_ROLES), initiateKhaltiPayment);
 router.post("/khalti/verify",    authorize(...ALL_ROLES), verifyKhaltiPayment);
 
@@ -30,8 +31,8 @@ router.post("/khalti/verify",    authorize(...ALL_ROLES), verifyKhaltiPayment);
 router.get("/customers",         authorize(...ALL_ROLES), getAllCustomers);
 router.get("/customers/:id",     authorize(...ALL_ROLES), getCustomerById);
 
-// ── Customer write (owner + manager only) ──
-router.post("/customers",        authorize(...OWNER_MANAGER), createCustomer);
+// ── Customer write (all roles can create from billing; management actions stay restricted) ──
+router.post("/customers",        authorize(...ALL_ROLES), createCustomer);
 router.put("/customers/:id",     authorize(...OWNER_MANAGER), updateCustomer);
 router.delete("/customers/:id",  authorize(...OWNER_ONLY),    deleteCustomer);
 

@@ -8,15 +8,62 @@ import {
   ValidationErrors,
   NewCustomer,
 } from '../types'
-import { billingAPI } from '../../../services/api'
+import { billingAPI, inventoryAPI } from '../../../services/api'
 import { calculateTotals } from '../utils/billingUtils'
 import { useAuth } from '../../../contexts/AuthContext'
 
+const NEPAL_PHONE_REGEX = /^(97|98)\d{8}$/
+const KHALTI_SANDBOX_MIN_RUPEES = 10
+const KHALTI_SANDBOX_MAX_RUPEES = 1000000000000000000000000
+
+const normalizeAmountToRupees = (amount: number): number => {
+  if (!Number.isFinite(amount)) {
+    return 0
+  }
+  return Math.round(amount * 100) / 100
+}
+
+const getKhaltiMode = (): 'sandbox' | 'live' => {
+  const viteEnv = (import.meta as any)?.env || {}
+  const explicitMode = String(viteEnv.VITE_KHALTI_MODE || '').toLowerCase()
+
+  if (['sandbox', 'test', 'staging'].includes(explicitMode)) {
+    return 'sandbox'
+  }
+
+  if (['live', 'production', 'prod'].includes(explicitMode)) {
+    return 'live'
+  }
+
+  const gatewayUrl = String(viteEnv.VITE_KHALTI_GATEWAY_URL || '').toLowerCase()
+  if (gatewayUrl.includes('test-pay.khalti.com')) {
+    return 'sandbox'
+  }
+  if (gatewayUrl.includes('pay.khalti.com')) {
+    return 'live'
+  }
+
+  const host = window.location.hostname
+  if (host === 'localhost' || host === '127.0.0.1') {
+    return 'sandbox'
+  }
+
+  return 'live'
+}
+
+const getSandboxAmountValidationMessage = (amountInRupees: number): string | null => {
+  if (
+    amountInRupees < KHALTI_SANDBOX_MIN_RUPEES ||
+    amountInRupees > KHALTI_SANDBOX_MAX_RUPEES
+  ) {
+    return 'Test mode only supports Khalti payments between Rs 10 and Rs 1000.'
+  }
+  return null
+}
+
 export const useBilling = () => {
   const { user } = useAuth()
-  const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(
-    null,
-  )
+  const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null)
   const [searchCustomer, setSearchCustomer] = useState('')
   const [searchProduct, setSearchProduct] = useState('')
   const [cartItems, setCartItems] = useState<CartItem[]>([])
@@ -34,26 +81,15 @@ export const useBilling = () => {
   const [isProcessing, setIsProcessing] = useState(false)
   const [validationErrors, setValidationErrors] = useState<ValidationErrors>({})
   const [productsInventory, setProductsInventory] = useState<Product[]>([])
+  const [categories, setCategories] = useState<string[]>([])
   const [customers, setCustomers] = useState<Customer[]>([])
   const [isLoadingCustomers, setIsLoadingCustomers] = useState(false)
   const [isLoadingProducts, setIsLoadingProducts] = useState(false)
-
-  // Load customers from API on mount and when search changes
-  useEffect(() => {
-    loadCustomers()
-  }, [searchCustomer])
-
-  // Load products from API on mount and when search changes
-  // This ensures all inventory items are displayed when the page loads
-  useEffect(() => {
-    loadProducts()
-  }, [searchProduct])
 
   const loadCustomers = async () => {
     try {
       setIsLoadingCustomers(true)
       const data = await billingAPI.getAllCustomers(searchCustomer || undefined)
-      // Transform API response to match Customer type
       const transformedCustomers: Customer[] = data.map((c: any) => ({
         id: c._id || c.id,
         name: c.name,
@@ -74,10 +110,7 @@ export const useBilling = () => {
   const loadProducts = async () => {
     try {
       setIsLoadingProducts(true)
-      const data = await billingAPI.getBillingProducts(
-        searchProduct || undefined,
-      )
-      // Transform API response to match Product type
+      const data = await billingAPI.getBillingProducts(searchProduct || undefined)
       const transformedProducts: Product[] = data.map((p: any) => ({
         id: p.id,
         name: p.name,
@@ -97,10 +130,28 @@ export const useBilling = () => {
     }
   }
 
-  // Filter customers based on search (now handled by API, but keeping for local filtering if needed)
-  const filteredCustomers = customers
+  const loadCategories = async () => {
+    try {
+      const response = await inventoryAPI.getCategories()
+      setCategories(response.categories || [])
+    } catch (error: any) {
+      console.error('Error loading categories:', error)
+    }
+  }
 
-  // Filter products based on search (now handled by API, but keeping for local filtering if needed)
+  useEffect(() => {
+    loadCustomers()
+  }, [searchCustomer])
+
+  useEffect(() => {
+    loadProducts()
+  }, [searchProduct])
+
+  useEffect(() => {
+    loadCategories()
+  }, [])
+
+  const filteredCustomers = customers
   const filteredProducts = productsInventory
 
   const canCreateCustomer = user?.role === 'owner' || user?.role === 'manager' || user?.role === 'staff'
@@ -207,6 +258,8 @@ export const useBilling = () => {
     }
     if (!newCustomer.phone.trim()) {
       errors.phone = 'Phone number is required'
+    } else if (!NEPAL_PHONE_REGEX.test(newCustomer.phone.trim())) {
+      errors.phone = 'Phone must be exactly 10 digits and start with 97 or 98'
     }
     if (newCustomer.email && !/\S+@\S+\.\S+/.test(newCustomer.email)) {
       errors.email = 'Invalid email format'
@@ -263,12 +316,43 @@ export const useBilling = () => {
     if (!validateSale()) {
       return
     }
+
+    if (paymentMethod === 'khalti') {
+      const normalizedTotal = normalizeAmountToRupees(total)
+      if (getKhaltiMode() === 'sandbox') {
+        const sandboxValidationMessage = getSandboxAmountValidationMessage(normalizedTotal)
+        if (sandboxValidationMessage) {
+          setValidationErrors({ general: sandboxValidationMessage })
+          toast.error('Invalid amount for test mode', {
+            description: sandboxValidationMessage,
+          })
+          return
+        }
+      }
+    }
+
     await handleKhaltiPayment()
   }
 
   const handleKhaltiPayment = async () => {
-    setIsProcessing(true);
+    setIsProcessing(true)
+    let didRedirect = false
+
     try {
+      const normalizedTotal = normalizeAmountToRupees(total)
+      const isSandbox = getKhaltiMode() === 'sandbox'
+
+      if (isSandbox) {
+        const sandboxValidationMessage = getSandboxAmountValidationMessage(normalizedTotal)
+        if (sandboxValidationMessage) {
+          setValidationErrors({ general: sandboxValidationMessage })
+          toast.error('Invalid amount for test mode', {
+            description: sandboxValidationMessage,
+          })
+          return
+        }
+      }
+
       // Prepare Khalti payment data
       const khaltiData = {
         customerId: typeof selectedCustomer?.id === 'string' ? selectedCustomer.id : undefined,
@@ -286,11 +370,24 @@ export const useBilling = () => {
           price: item.price,
           total: item.total,
         })),
-        total,
-      };
+        // Keep amount in rupees; backend Khalti service handles rupees to paisa conversion.
+        total: normalizedTotal,
+      }
 
       // Initiate Khalti payment
-      const khaltiResponse = await billingAPI.initiateKhaltiPayment(khaltiData);
+      const khaltiResponse = await billingAPI.initiateKhaltiPayment(khaltiData)
+      const payableAmount = Number(khaltiResponse?.payableAmount ?? normalizedTotal)
+      const remainingAmount = Math.max(0, normalizedTotal - payableAmount)
+
+      if (khaltiResponse?.sandboxCapped && remainingAmount > 0) {
+        toast.info('Sandbox payment limit applied', {
+          description: `Khalti sandbox charged Rs ${payableAmount.toFixed(2)} now. Remaining Rs ${remainingAmount.toFixed(2)} will stay due.`,
+        })
+      }
+
+      if (!khaltiResponse?.payment_url) {
+        throw new Error('Khalti did not return a payment URL. Please try again.')
+      }
 
       // Store sale data temporarily in localStorage for after payment
       const tempSaleData = {
@@ -300,28 +397,37 @@ export const useBilling = () => {
         subtotal,
         tax,
         discount: 0,
-        total,
+        total: normalizedTotal,
         paymentMethod: 'khalti',
-        paidAmount: total, // Full amount for Khalti
+        paidAmount: payableAmount,
         notes,
         khaltiPidx: khaltiResponse.pidx,
         purchaseOrderId: khaltiResponse.purchaseOrderId,
-      };
-      
-      localStorage.setItem('biztrack_pending_sale', JSON.stringify(tempSaleData));
+      }
+
+      localStorage.setItem('biztrack_pending_sale', JSON.stringify(tempSaleData))
 
       // Redirect to Khalti payment page
-      window.location.href = khaltiResponse.payment_url;
+      didRedirect = true
+      window.location.href = khaltiResponse.payment_url
     } catch (error: any) {
-      console.error('Error initiating Khalti payment:', error);
-      const errorMessage = error.message || 'Failed to initiate Khalti payment';
+      console.error('Error initiating Khalti payment:', error)
+      const errorMessage =
+        error?.message ||
+        error?.details ||
+        'Failed to initiate Khalti payment. Please try again.'
+
       setValidationErrors({
         general: errorMessage,
-      });
+      })
+
       toast.error('Khalti Payment Failed', {
         description: errorMessage,
-      });
-      setIsProcessing(false);
+      })
+    } finally {
+      if (!didRedirect) {
+        setIsProcessing(false)
+      }
     }
   }
 
@@ -356,6 +462,7 @@ export const useBilling = () => {
     isProcessing,
     validationErrors,
     productsInventory,
+    categories,
     filteredCustomers,
     filteredProducts,
     subtotal,

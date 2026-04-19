@@ -8,7 +8,12 @@ import { canAccess, ROLE_HOME, UserRole } from './config/roles'
 
 // ==================== LAZY PAGE IMPORTS ====================
 const Login               = lazy(() => import('./Pages/Login'))
+const WebsiteHome         = lazy(() => import('./Pages/WebsiteHome'))
+const SaasSignup          = lazy(() => import('./Pages/SaasSignup'))
+const SaasPaymentSuccess  = lazy(() => import('./Pages/SaasPaymentSuccess'))
 const Dashboard           = lazy(() => import('./Pages/Dashboard'))
+const AdminOverview       = lazy(() => import('./Pages/AdminOverview'))
+const AdminUsers          = lazy(() => import('./Pages/AdminUsers'))
 const Inventory           = lazy(() => import('./Pages/Inventory'))
 const Invoices            = lazy(() => import('./Pages/Invoices'))
 const InvoiceDetail       = lazy(() => import('./Pages/Invoices/InvoiceDetail'))
@@ -113,12 +118,18 @@ export const App = () => {
             element={!isAuthenticated ? <Login /> : <Navigate to="/" replace />}
           />
 
+          {/* ── Public SaaS website ── */}
+          <Route path="/signup" element={!isAuthenticated ? <SaasSignup /> : <Navigate to="/" replace />} />
+          <Route path="/signup/payment-success" element={<SaasPaymentSuccess />} />
+
           {/* ── Root: role-based home redirect ── */}
           <Route
             path="/"
             element={
               !isAuthenticated ? (
-                <Navigate to="/login" replace />
+                <WebsiteHome />
+              ) : user?.role === 'admin' ? (
+                <Navigate to="/admin" replace />
               ) : user?.role === 'owner' ? (
                 <Dashboard />
               ) : user?.role === 'manager' ? (
@@ -143,6 +154,10 @@ export const App = () => {
           <Route path="/invoices/:id"      element={<RoleGuard element={<InvoiceDetail />}    roles={['owner', 'manager']} />} />
           <Route path="/transactions"      element={<RoleGuard element={<TransactionHistory />} roles={['owner', 'manager']} />} />
           <Route path="/settings"          element={<RoleGuard element={<Settings />}         roles={['owner', 'manager']} />} />
+
+          {/* ── Admin only ── */}
+          <Route path="/admin"             element={<RoleGuard element={<AdminOverview />}    roles={['admin']} />} />
+          <Route path="/admin/users"       element={<RoleGuard element={<AdminUsers />}       roles={['admin']} />} />
 
           {/* ── Owner only ── */}
           <Route path="/reports"           element={<RoleGuard element={<Reports />}          roles={['owner']} />} />

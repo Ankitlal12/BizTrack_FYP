@@ -1,6 +1,11 @@
 const mongoose = require("mongoose");
 
 const inventorySchema = new mongoose.Schema({
+  tenantKey: {
+    type: String,
+    required: true,
+    index: true,
+  },
   name: {
     type: String,
     required: true,

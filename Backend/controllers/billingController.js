@@ -6,17 +6,24 @@ const Notification = require("../models/Notification");
 const { getNepaliCurrentDateTime } = require("../utils/dateUtils");
 const { generateInvoiceFromSale } = require("./invoiceController");
 const { createNotification } = require("../utils/notificationHelper");
-const { initiateKhaltiPayment, verifyKhaltiPayment } = require("../utils/khaltiService");
+const { initiateKhaltiPayment, verifyKhaltiPayment, getBankList } = require("../utils/khaltiService");
+const tenantFilter = (req) => ({ tenantKey: req.user.tenantKey });
+const getErrorStatus = (error, fallback = 500) => Number.isInteger(error?.status) ? error.status : fallback;
+
+const NEPAL_PHONE_REGEX = /^(97|98)\d{8}$/;
+
+const normalizePhone = (value = "") => String(value).replace(/\D/g, "").trim();
 
 // ==================== HELPERS ====================
 
 // Check stock level and fire low-stock / out-of-stock notifications
-const checkAndCreateStockNotification = async (item) => {
+const checkAndCreateStockNotification = async (req, item) => {
   try {
     if (item.stock <= 0) {
-      const existingNotif = await Notification.findOne({ type: "out_of_stock", relatedId: item._id, read: false });
+      const existingNotif = await Notification.findOne({ type: "out_of_stock", relatedId: item._id, read: false, tenantKey: req.user.tenantKey });
       if (!existingNotif) {
         await createNotification({
+          tenantKey: req.user.tenantKey,
           type: "out_of_stock",
           title: "Item Out of Stock",
           message: `${item.name} (SKU: ${item.sku}) is out of stock. Please restock immediately.`,
@@ -26,9 +33,10 @@ const checkAndCreateStockNotification = async (item) => {
         });
       }
     } else if (item.stock <= item.reorderLevel) {
-      const existingNotif = await Notification.findOne({ type: "low_stock", relatedId: item._id, read: false });
+      const existingNotif = await Notification.findOne({ type: "low_stock", relatedId: item._id, read: false, tenantKey: req.user.tenantKey });
       if (!existingNotif) {
         await createNotification({
+          tenantKey: req.user.tenantKey,
           type: "low_stock",
           title: "Low Stock Alert",
           message: `${item.name} (SKU: ${item.sku}) is running low. Current stock: ${item.stock}, Reorder level: ${item.reorderLevel}.`,
@@ -44,9 +52,9 @@ const checkAndCreateStockNotification = async (item) => {
 };
 
 // Resolve customer info from request body (by ID or inline object)
-const resolveCustomerInfo = async (customerId, customer) => {
+const resolveCustomerInfo = async (req, customerId, customer) => {
   if (customerId) {
-    const customerDoc = await Customer.findById(customerId);
+    const customerDoc = await Customer.findOne({ _id: customerId, ...tenantFilter(req) });
     if (!customerDoc) throw { status: 404, message: "Customer not found" };
     return { customerName: customerDoc.name, customerEmail: customerDoc.email, customerPhone: customerDoc.phone };
   }
@@ -61,9 +69,10 @@ const resolveCustomerInfo = async (customerId, customer) => {
 exports.getAllCustomers = async (req, res) => {
   try {
     const { search } = req.query;
-    let query = {};
+    let query = { ...tenantFilter(req) };
     if (search) {
       query = {
+        ...tenantFilter(req),
         $or: [
           { name: { $regex: search, $options: "i" } },
           { email: { $regex: search, $options: "i" } },
@@ -80,7 +89,7 @@ exports.getAllCustomers = async (req, res) => {
 
 exports.getCustomerById = async (req, res) => {
   try {
-    const customer = await Customer.findById(req.params.id);
+    const customer = await Customer.findOne({ _id: req.params.id, ...tenantFilter(req) });
     if (!customer) return res.status(404).json({ error: "Customer not found" });
     res.json(customer);
   } catch (err) {
@@ -91,10 +100,14 @@ exports.getCustomerById = async (req, res) => {
 exports.createCustomer = async (req, res) => {
   try {
     const { name, email, phone, address, city, state, zipCode, notes } = req.body;
-    if (!name || !phone) return res.status(400).json({ error: "Name and phone are required fields" });
-    const existingCustomer = await Customer.findOne({ phone });
+    const normalizedPhone = normalizePhone(phone);
+    if (!name || !normalizedPhone) return res.status(400).json({ error: "Name and phone are required fields" });
+    if (!NEPAL_PHONE_REGEX.test(normalizedPhone)) {
+      return res.status(400).json({ error: "Phone must be exactly 10 digits and start with 97 or 98" });
+    }
+    const existingCustomer = await Customer.findOne({ phone: normalizedPhone, ...tenantFilter(req) });
     if (existingCustomer) return res.status(400).json({ error: "Customer with this phone number already exists" });
-    const customer = await Customer.create({ name, email: email || undefined, phone, address, city, state, zipCode, notes });
+    const customer = await Customer.create({ name, email: email || undefined, phone: normalizedPhone, address, city, state, zipCode, notes, tenantKey: req.user.tenantKey });
     res.status(201).json(customer);
   } catch (err) {
     if (err.name === "ValidationError") return res.status(400).json({ error: err.message });
@@ -104,7 +117,7 @@ exports.createCustomer = async (req, res) => {
 
 exports.updateCustomer = async (req, res) => {
   try {
-    const customer = await Customer.findByIdAndUpdate(req.params.id, req.body, { new: true, runValidators: true });
+    const customer = await Customer.findOneAndUpdate({ _id: req.params.id, ...tenantFilter(req) }, req.body, { new: true, runValidators: true });
     if (!customer) return res.status(404).json({ error: "Customer not found" });
     res.json(customer);
   } catch (err) {
@@ -115,15 +128,16 @@ exports.updateCustomer = async (req, res) => {
 
 exports.deleteCustomer = async (req, res) => {
   try {
-    const customer = await Customer.findById(req.params.id);
+    const customer = await Customer.findOne({ _id: req.params.id, ...tenantFilter(req) });
     if (!customer) return res.status(404).json({ error: "Customer not found" });
     const salesCount = await Sale.countDocuments({
+      ...tenantFilter(req),
       $or: [{ customerEmail: customer.email }, { customerPhone: customer.phone }],
     });
     if (salesCount > 0) {
       return res.status(400).json({ error: `Cannot delete customer. They have ${salesCount} associated sale(s).` });
     }
-    await Customer.findByIdAndDelete(req.params.id);
+    await Customer.findOneAndDelete({ _id: req.params.id, ...tenantFilter(req) });
     res.json({ message: "Customer deleted successfully" });
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -135,9 +149,10 @@ exports.deleteCustomer = async (req, res) => {
 exports.getBillingProducts = async (req, res) => {
   try {
     const { search } = req.query;
-    let query = {};
+    let query = { ...tenantFilter(req) };
     if (search) {
       query = {
+        ...tenantFilter(req),
         $or: [
           { name: { $regex: search, $options: "i" } },
           { sku: { $regex: search, $options: "i" } },
@@ -162,7 +177,7 @@ exports.getBillingProducts = async (req, res) => {
 
 exports.getBillingProductById = async (req, res) => {
   try {
-    const product = await Inventory.findById(req.params.id).select("name sku price category stock");
+    const product = await Inventory.findOne({ _id: req.params.id, ...tenantFilter(req) }).select("name sku price category stock");
     if (!product) return res.status(404).json({ error: "Product not found" });
     res.json({
       id: product._id.toString(),
@@ -185,11 +200,11 @@ exports.createBill = async (req, res) => {
 
     // Idempotency: return existing sale if duplicate payment token
     if (khaltiPayment?.pidx) {
-      const existing = await Sale.findOne({ "khaltiPayment.pidx": khaltiPayment.pidx }).populate("items.inventoryId");
+      const existing = await Sale.findOne({ "khaltiPayment.pidx": khaltiPayment.pidx, ...tenantFilter(req) }).populate("items.inventoryId");
       if (existing) return res.status(200).json(existing);
     }
     if (esewaPayment?.transactionUuid) {
-      const existing = await Sale.findOne({ "esewaPayment.transactionUuid": esewaPayment.transactionUuid }).populate("items.inventoryId");
+      const existing = await Sale.findOne({ "esewaPayment.transactionUuid": esewaPayment.transactionUuid, ...tenantFilter(req) }).populate("items.inventoryId");
       if (existing) return res.status(200).json(existing);
     }
 
@@ -198,9 +213,9 @@ exports.createBill = async (req, res) => {
 
     let customerInfo;
     try {
-      customerInfo = await resolveCustomerInfo(customerId, customer);
+      customerInfo = await resolveCustomerInfo(req, customerId, customer);
     } catch (e) {
-      return res.status(e.status).json({ error: e.message });
+      return res.status(getErrorStatus(e, 400)).json({ error: e.message || "Invalid customer information" });
     }
 
     // Validate stock and build sale items
@@ -211,7 +226,7 @@ exports.createBill = async (req, res) => {
         stockErrors.push(`Invalid item data: ${item.name || "Unknown"}`);
         continue;
       }
-      const inventoryItem = await Inventory.findById(item.id);
+      const inventoryItem = await Inventory.findOne({ _id: item.id, ...tenantFilter(req) });
       if (!inventoryItem) {
         stockErrors.push(`Product ${item.name || item.id} not found in inventory`);
         continue;
@@ -241,6 +256,7 @@ exports.createBill = async (req, res) => {
 
     const invoiceNumber = `INV-${Date.now().toString().slice(-6)}`;
     const saleData = {
+      tenantKey: req.user.tenantKey,
       invoiceNumber,
       ...customerInfo,
       items: saleItems,
@@ -267,35 +283,22 @@ exports.createBill = async (req, res) => {
     // Deduct inventory stock atomically
     for (const item of saleItems) {
       const updatedInventory = await Inventory.findOneAndUpdate(
-        { _id: item.inventoryId, stock: { $gte: item.quantity } },
+        { _id: item.inventoryId, stock: { $gte: item.quantity }, ...tenantFilter(req) },
         { $inc: { stock: -item.quantity }, lastUpdated: new Date() },
         { new: true }
       );
       if (!updatedInventory) {
-        await Sale.findByIdAndDelete(sale._id);
+        await Sale.findOneAndDelete({ _id: sale._id, ...tenantFilter(req) });
         return res.status(400).json({ error: "Insufficient stock", details: `Stock changed for ${item.name}. Please refresh and try again.` });
       }
-      await checkAndCreateStockNotification(updatedInventory);
+      await checkAndCreateStockNotification(req, updatedInventory);
     }
 
-    // Create sale notification
-    try {
-      const totalItems = saleItems.reduce((sum, item) => sum + item.quantity, 0);
-      await createNotification({
-        type: "sale",
-        title: "New Sale Completed",
-        message: `Sale ${sale.invoiceNumber} has been completed with ${totalItems} item(s) for ${customerInfo.customerName || 'customer'}. Total: Rs ${sale.total.toFixed(2)}.`,
-        relatedId: sale._id,
-        relatedModel: "Sale",
-        metadata: { invoiceNumber: sale.invoiceNumber, customerName: customerInfo.customerName, totalItems, total: sale.total, paymentMethod: sale.paymentMethod },
-      });
-    } catch (notifError) {
-      console.error("Failed to create notification:", notifError);
-    }
+    let generatedInvoice = null;
 
     // Auto-generate invoice
     try {
-      await generateInvoiceFromSale(sale, {
+      generatedInvoice = await generateInvoiceFromSale(sale, {
         userId: req.user?.id || req.user?._id,
         name: req.user?.name || "Unknown User",
         role: req.user?.role || "staff",
@@ -304,16 +307,39 @@ exports.createBill = async (req, res) => {
       console.error("Failed to generate invoice for sale:", invoiceError);
     }
 
-    const populatedSale = await Sale.findById(sale._id).populate("items.inventoryId");
+    // Create sale notification
+    try {
+      const totalItems = saleItems.reduce((sum, item) => sum + item.quantity, 0);
+      await createNotification({
+        tenantKey: req.user.tenantKey,
+        type: "sale",
+        title: "New Sale Completed",
+        message: `Sale ${sale.invoiceNumber} has been completed with ${totalItems} item(s) for ${customerInfo.customerName || 'customer'}. Total: Rs ${sale.total.toFixed(2)}.`,
+        relatedId: sale._id,
+        relatedModel: "Sale",
+        metadata: {
+          invoiceId: generatedInvoice?._id,
+          invoiceNumber: generatedInvoice?.invoiceNumber || sale.invoiceNumber,
+          customerName: customerInfo.customerName,
+          totalItems,
+          total: sale.total,
+          paymentMethod: sale.paymentMethod,
+        },
+      });
+    } catch (notifError) {
+      console.error("Failed to create notification:", notifError);
+    }
+
+    const populatedSale = await Sale.findOne({ _id: sale._id, ...tenantFilter(req) }).populate("items.inventoryId");
     res.status(201).json(populatedSale);
   } catch (err) {
     if (err?.code === 11000) {
       const existingSale =
         (req.body?.esewaPayment?.transactionUuid
-          ? await Sale.findOne({ "esewaPayment.transactionUuid": req.body.esewaPayment.transactionUuid }).populate("items.inventoryId")
+          ? await Sale.findOne({ "esewaPayment.transactionUuid": req.body.esewaPayment.transactionUuid, ...tenantFilter(req) }).populate("items.inventoryId")
           : null) ||
         (req.body?.khaltiPayment?.pidx
-          ? await Sale.findOne({ "khaltiPayment.pidx": req.body.khaltiPayment.pidx }).populate("items.inventoryId")
+          ? await Sale.findOne({ "khaltiPayment.pidx": req.body.khaltiPayment.pidx, ...tenantFilter(req) }).populate("items.inventoryId")
           : null);
       if (existingSale) return res.status(200).json(existingSale);
     }
@@ -325,7 +351,7 @@ exports.createBill = async (req, res) => {
 exports.getAllBills = async (req, res) => {
   try {
     const { limit = 50, skip = 0 } = req.query;
-    const sales = await Sale.find().populate("items.inventoryId").sort({ createdAt: 1 }).limit(parseInt(limit)).skip(parseInt(skip));
+    const sales = await Sale.find(tenantFilter(req)).populate("items.inventoryId").sort({ createdAt: 1 }).limit(parseInt(limit)).skip(parseInt(skip));
     res.json(sales);
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -334,7 +360,7 @@ exports.getAllBills = async (req, res) => {
 
 exports.getBillById = async (req, res) => {
   try {
-    const sale = await Sale.findById(req.params.id).populate("items.inventoryId");
+    const sale = await Sale.findOne({ _id: req.params.id, ...tenantFilter(req) }).populate("items.inventoryId");
     if (!sale) return res.status(404).json({ error: "Bill not found" });
     res.json(sale);
   } catch (err) {
@@ -344,18 +370,28 @@ exports.getBillById = async (req, res) => {
 
 // ==================== KHALTI PAYMENT ENDPOINTS ====================
 
+exports.getKhaltiBankList = async (req, res) => {
+  try {
+    const banks = await getBankList();
+    res.json({ success: true, banks });
+  } catch (err) {
+    console.error("Khalti bank list error:", err);
+    res.status(500).json({ error: err.message || "Failed to fetch bank list" });
+  }
+};
+
 exports.initiateKhaltiPayment = async (req, res) => {
   try {
-    const { customerId, customer, items, total, invoiceNumber } = req.body;
+    const { customerId, customer, items, total, invoiceNumber, bank, modes } = req.body;
 
     if (!items || items.length === 0) return res.status(400).json({ error: "Items are required" });
     if (!total || total <= 0) return res.status(400).json({ error: "Total must be greater than 0" });
 
     let customerInfo;
     try {
-      customerInfo = await resolveCustomerInfo(customerId, customer);
+      customerInfo = await resolveCustomerInfo(req, customerId, customer);
     } catch (e) {
-      return res.status(e.status).json({ error: e.message });
+      return res.status(getErrorStatus(e, 400)).json({ error: e.message || "Invalid customer information" });
     }
 
     if (!customerInfo.customerPhone) {
@@ -363,10 +399,11 @@ exports.initiateKhaltiPayment = async (req, res) => {
     }
 
     const purchaseOrderId = invoiceNumber || `ORD-${Date.now().toString().slice(-8)}`;
-    const khaltiResponse = await initiateKhaltiPayment({
+    const khaltiPayload = {
       amount: total,
       purchaseOrderId,
       purchaseOrderName: `BizTrack Invoice ${purchaseOrderId}`,
+      allowSandboxAutoCap: true,
       customerInfo: { name: customerInfo.customerName, email: customerInfo.customerEmail, phone: customerInfo.customerPhone },
       productDetails: items.map(item => ({
         id: item.id,
@@ -375,7 +412,13 @@ exports.initiateKhaltiPayment = async (req, res) => {
         quantity: item.quantity,
         unit_price: item.price,
       })),
-    });
+    };
+
+    // Add DIY banking parameters if provided
+    if (bank) khaltiPayload.bank = bank;
+    if (modes && Array.isArray(modes) && modes.length > 0) khaltiPayload.modes = modes;
+
+    const khaltiResponse = await initiateKhaltiPayment(khaltiPayload);
 
     res.json({
       success: true,
@@ -384,6 +427,10 @@ exports.initiateKhaltiPayment = async (req, res) => {
       expires_at: khaltiResponse.expires_at,
       expires_in: khaltiResponse.expires_in,
       purchaseOrderId,
+      requestedAmount: khaltiResponse.requestedAmount,
+      payableAmount: khaltiResponse.payableAmount,
+      remainingAmount: khaltiResponse.remainingAmount,
+      sandboxCapped: khaltiResponse.sandboxCapped,
     });
   } catch (err) {
     console.error("Khalti payment initiation error:", err);

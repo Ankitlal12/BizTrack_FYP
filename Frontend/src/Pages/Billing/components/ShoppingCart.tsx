@@ -44,19 +44,34 @@ const ShoppingCart: React.FC<ShoppingCartProps> = ({
               <p className="text-xs text-gray-400 mt-0.5">Rs {item.price.toFixed(2)}</p>
             </div>
 
-            {/* Qty stepper */}
+            {/* Qty stepper with direct typing support */}
             <div className="flex items-center bg-white border border-gray-200 rounded-lg overflow-hidden flex-shrink-0">
               <button
                 onClick={() => onUpdateQuantity(item.id, item.quantity - 1)}
+                title="Decrease quantity"
+                aria-label="Decrease quantity"
                 className="w-6 h-6 flex items-center justify-center text-gray-500 hover:bg-teal-50 hover:text-teal-600 transition-colors"
               >
                 <Minus className="w-3 h-3" />
               </button>
-              <span className="w-7 text-center text-xs font-bold text-gray-800 select-none">
-                {item.quantity}
-              </span>
+              <input
+                type="number"
+                min={1}
+                value={item.quantity}
+                onChange={(e) => {
+                  const parsed = parseInt(e.target.value, 10)
+                  if (Number.isNaN(parsed)) return
+                  onUpdateQuantity(item.id, parsed)
+                }}
+                title="Quantity"
+                aria-label="Quantity"
+                placeholder="Qty"
+                className="w-10 text-center text-xs font-bold text-gray-800 outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+              />
               <button
                 onClick={() => onUpdateQuantity(item.id, item.quantity + 1)}
+                title="Increase quantity"
+                aria-label="Increase quantity"
                 className="w-6 h-6 flex items-center justify-center text-gray-500 hover:bg-teal-50 hover:text-teal-600 transition-colors"
               >
                 <Plus className="w-3 h-3" />
@@ -71,6 +86,8 @@ const ShoppingCart: React.FC<ShoppingCartProps> = ({
             {/* Remove */}
             <button
               onClick={() => onRemoveItem(item.id)}
+              title="Remove item"
+              aria-label="Remove item"
               className="w-6 h-6 flex items-center justify-center text-gray-300 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors flex-shrink-0"
             >
               <Trash2 className="w-3.5 h-3.5" />

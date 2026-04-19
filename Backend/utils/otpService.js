@@ -217,6 +217,69 @@ const sendCredentialsEmail = async (email, userName, username, password, role = 
   }
 };
 
+/**
+ * Send SaaS signup confirmation email
+ * @param {string} email
+ * @param {string} ownerName
+ * @param {string} businessName
+ * @returns {Promise<{ success: boolean, message: string, previewUrl?: string }>}
+ */
+const sendSignupConfirmationEmail = async (email, ownerName, businessName) => {
+  try {
+    const transporter = await createTransporter();
+
+    const mailOptions = {
+      from: process.env.EMAIL_USER || 'noreply@biztrack.com',
+      to: email,
+      subject: 'Your BizTrack workspace is ready',
+      html: `
+        <!DOCTYPE html>
+        <html>
+        <head>
+          <style>
+            body { font-family: Arial, sans-serif; background-color: #f4f4f4; margin: 0; padding: 0; }
+            .container { max-width: 640px; margin: 20px auto; background: white; border-radius: 10px; overflow: hidden; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
+            .header { background: linear-gradient(135deg, #14b8a6 0%, #0d9488 100%); padding: 30px; text-align: center; }
+            .header h1 { color: white; margin: 0; font-size: 28px; }
+            .content { padding: 34px 30px; }
+            .box { background: #f0fdfa; border: 1px solid #99f6e4; border-radius: 8px; padding: 18px; margin: 18px 0; }
+            .footer { background: #f9fafb; padding: 18px; text-align: center; color: #6b7280; font-size: 12px; }
+          </style>
+        </head>
+        <body>
+          <div class="container">
+            <div class="header"><h1>Welcome to BizTrack</h1></div>
+            <div class="content">
+              <h2 style="margin-top:0;color:#111827;">Hi ${ownerName},</h2>
+              <p style="color:#4b5563;line-height:1.6;">Your BizTrack workspace for <strong>${businessName}</strong> has been created successfully.</p>
+              <div class="box">
+                <p style="margin:0;color:#111827;font-weight:600;">You can now log in using your Google account and the password you set during signup.</p>
+              </div>
+              <p style="color:#4b5563;line-height:1.6;">Start by adding your staff, inventory, customers, and suppliers. Your workspace data is isolated from other businesses.</p>
+            </div>
+            <div class="footer">
+              <p>© ${new Date().getFullYear()} BizTrack - Inventory & Business Management System</p>
+            </div>
+          </div>
+        </body>
+        </html>
+      `,
+      text: `Welcome to BizTrack\n\nHi ${ownerName},\n\nYour BizTrack workspace for ${businessName} has been created successfully.\nYou can now log in using your Google account and the password you set during signup.\n\n© ${new Date().getFullYear()} BizTrack`,
+    };
+
+    const info = await transporter.sendMail(mailOptions);
+    console.log('✅ Signup confirmation email sent to:', email, '| Message ID:', info.messageId);
+
+    const previewUrl = !process.env.EMAIL_SERVICE ? nodemailer.getTestMessageUrl(info) : undefined;
+    if (previewUrl) console.log('📧 Preview email at:', previewUrl);
+
+    return { success: true, message: 'Signup confirmation email sent successfully', previewUrl };
+  } catch (error) {
+    console.error('❌ Error sending signup confirmation email:', error);
+    return { success: false, message: 'Failed to send signup confirmation email', error: error.message };
+  }
+};
+
 // ==================== SMS SENDING (stub) ====================
 
 /**
@@ -244,5 +307,6 @@ module.exports = {
   verifyOTP,
   sendOTPEmail,
   sendCredentialsEmail,
+  sendSignupConfirmationEmail,
   sendOTPSMS,
 };

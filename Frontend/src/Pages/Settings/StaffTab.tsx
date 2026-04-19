@@ -65,6 +65,23 @@ const StaffTab: React.FC<StaffTabProps> = ({
   const [editSuccess, setEditSuccess] = useState(false)
 
   const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+  const passwordRegex = /^(?=.*[A-Za-z])(?=.*\d)(?=.*[^A-Za-z\d]).+$/
+
+  const validateStaffPassword = (password: string) => {
+    if (!password) {
+      return 'Password is required'
+    }
+
+    if (password.length < 6) {
+      return 'Password must be at least 6 characters long'
+    }
+
+    if (!passwordRegex.test(password)) {
+      return 'Password must include at least one letter, one number, and one special character'
+    }
+
+    return ''
+  }
 
   const validateEmail = (email: string) => {
     const normalized = email.trim().toLowerCase()
@@ -145,9 +162,8 @@ const StaffTab: React.FC<StaffTabProps> = ({
 
     // Validate password if provided
     if (editFormData.password) {
-      if (editFormData.password.length < 6) {
-        errors.password = 'Password must be at least 6 characters'
-      }
+      const passwordError = validateStaffPassword(editFormData.password)
+      if (passwordError) errors.password = passwordError
       if (editFormData.password !== editFormData.confirmPassword) {
         errors.confirmPassword = 'Passwords do not match'
       }
@@ -246,10 +262,8 @@ const StaffTab: React.FC<StaffTabProps> = ({
     if (emailError) errors.email = emailError
 
     if (!trimmedUsername) errors.username = 'Username is required'
-    if (!newStaff.password) errors.password = 'Password is required'
-    if (newStaff.password.length < 6) {
-      errors.password = 'Password must be at least 6 characters'
-    }
+    const passwordError = validateStaffPassword(newStaff.password)
+    if (passwordError) errors.password = passwordError
     if (newStaff.password !== newStaff.confirmPassword) {
       errors.confirmPassword = 'Passwords do not match'
     }
@@ -552,6 +566,9 @@ const StaffTab: React.FC<StaffTabProps> = ({
                   {formErrors.password}
                 </p>
               )}
+              <p className="mt-1 text-xs text-gray-500">
+                Use at least 6 characters with one letter, one number, and one special character.
+              </p>
             </div>
             <div>
               <label htmlFor="staff-confirm-password" className="block text-sm font-medium text-gray-700 mb-1">
@@ -721,6 +738,9 @@ const StaffTab: React.FC<StaffTabProps> = ({
                   {editFormErrors.password && (
                     <p className="mt-1 text-sm text-red-600">{editFormErrors.password}</p>
                   )}
+                  <p className="mt-1 text-xs text-gray-500">
+                    Use at least 6 characters with one letter, one number, and one special character.
+                  </p>
                 </div>
 
                 {editFormData.password && (

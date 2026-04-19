@@ -1,6 +1,7 @@
 // ==================== IMPORTS ====================
 const { verifyToken, extractTokenFromHeader } = require("../utils/jwt");
 const User = require("../models/User");
+const WORKSPACE_TENANT_KEY = String(process.env.WORKSPACE_TENANT_KEY || '').trim();
 
 // ==================== HELPERS ====================
 
@@ -23,6 +24,21 @@ const resolveUserFromRequest = async (req) => {
   return user || null;
 };
 
+const resolveTenantOwner = async (user) => {
+  if (!user) return null;
+  if (user.role === "owner") return user;
+  if (!user.tenantKey) return null;
+  return User.findOne({ tenantKey: user.tenantKey, role: "owner" }).select('-password');
+};
+
+const normalizeRequestHost = (req) => {
+  const hostHeader = req?.headers?.['x-forwarded-host'] || req?.get?.('host') || '';
+  const host = String(hostHeader).split(',')[0].trim().toLowerCase();
+  return host.split(':')[0];
+};
+
+const isLocalHost = (host = '') => host === 'localhost' || host === '127.0.0.1';
+
 // ==================== MIDDLEWARE ====================
 
 /**
@@ -39,6 +55,39 @@ const authenticate = async (req, res, next) => {
 
     if (!user.active) {
       return res.status(401).json({ error: "Account is inactive. Please contact administrator." });
+    }
+
+    if (user.role !== "admin") {
+      if (WORKSPACE_TENANT_KEY && user.tenantKey !== WORKSPACE_TENANT_KEY) {
+        return res.status(403).json({
+          error: "This account belongs to another workspace and cannot be used here.",
+        });
+      }
+
+      const owner = await resolveTenantOwner(user);
+
+      if (!owner) {
+        return res.status(403).json({ error: "Workspace owner not found for this account." });
+      }
+
+      if (owner.accountStatus === "frozen") {
+        return res.status(403).json({ error: "Your account has been freezed. Contact admin." });
+      }
+
+      if (owner.accountStatus === "deleted") {
+        return res.status(403).json({ error: "Your workspace is deleted and cannot be accessed." });
+      }
+
+      if (owner.isSaasCustomer && owner.subscriptionExpiresAt && new Date(owner.subscriptionExpiresAt) < new Date()) {
+        return res.status(402).json({ error: "Your monthly subscription has expired. Please renew to continue." });
+      }
+
+      const requestHost = normalizeRequestHost(req);
+      if (requestHost && !isLocalHost(requestHost) && owner.workspaceHost && owner.workspaceHost !== requestHost) {
+        return res.status(403).json({
+          error: "This account belongs to another workspace and cannot be used here.",
+        });
+      }
     }
 
     req.user = user;

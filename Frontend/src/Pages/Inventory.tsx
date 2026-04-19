@@ -103,10 +103,16 @@ const Inventory = () => {
     setIsLoading(true)
     try {
       const items = await inventoryAPI.getAll()
-      setInventoryItems(items)
+      const inStockItems = items.filter((item: InventoryItem) => Number(item.stock) > 0)
+      setInventoryItems(inStockItems)
+
       if (items.length === 0) {
         toast.info('Inventory is empty', {
           description: 'Click "Add Item" to add your first inventory item.',
+        })
+      } else if (inStockItems.length === 0) {
+        toast.info('No in-stock items in inventory', {
+          description: 'All out-of-stock items are available from the Low Stock page.',
         })
       }
     } catch (error: any) {
@@ -183,6 +189,11 @@ const Inventory = () => {
   const filteredItems = useMemo(
     () => {
       let filtered = inventoryItems.filter((item) => {
+        // Keep inventory page limited to available stock only.
+        if (item.stock <= 0) {
+          return false
+        }
+
         // Search filter
         const matchesSearch =
           item.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -195,7 +206,7 @@ const Inventory = () => {
         // Status filter
         let matchesStatus = true
         if (statusFilter !== 'all') {
-          const itemStatus = item.stock <= 0 ? 'out-of-stock' : item.stock < 5 ? 'low' : 'in-stock'
+          const itemStatus = item.stock < 5 ? 'low' : 'in-stock'
           matchesStatus = itemStatus === statusFilter
         }
 

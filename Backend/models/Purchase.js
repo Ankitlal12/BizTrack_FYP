@@ -1,10 +1,14 @@
 const mongoose = require("mongoose");
 
 const purchaseSchema = new mongoose.Schema({
+  tenantKey: {
+    type: String,
+    required: true,
+    index: true,
+  },
   purchaseNumber: {
     type: String,
     required: true,
-    unique: true,
   },
   supplierName: {
     type: String,
@@ -137,11 +141,15 @@ const purchaseSchema = new mongoose.Schema({
   timestamps: true,
 });
 
+// Purchase numbers are tenant-scoped in SaaS mode.
+purchaseSchema.index({ tenantKey: 1, purchaseNumber: 1 }, { unique: true });
+
 // Generate purchase number automatically
 purchaseSchema.pre('save', async function(next) {
   if (this.isNew && !this.purchaseNumber) {
     try {
-      const count = await this.constructor.countDocuments();
+      const scopeQuery = this.tenantKey ? { tenantKey: this.tenantKey } : {};
+      const count = await this.constructor.countDocuments(scopeQuery);
       this.purchaseNumber = `PO-${String(count + 1).padStart(6, '0')}`;
     } catch (error) {
       console.error('Error generating purchase number:', error);
@@ -152,6 +160,25 @@ purchaseSchema.pre('save', async function(next) {
   }
   next();
 });
+
+purchaseSchema.statics.ensureTenantScopedPurchaseNumberIndex = async function() {
+  try {
+    const indexes = await this.collection.indexes();
+    const hasLegacyGlobal = indexes.some((idx) => idx.name === 'purchaseNumber_1' && idx.unique);
+
+    if (hasLegacyGlobal) {
+      await this.collection.dropIndex('purchaseNumber_1');
+      console.log('Dropped legacy global unique index purchaseNumber_1 on purchases');
+    }
+
+    await this.collection.createIndex(
+      { tenantKey: 1, purchaseNumber: 1 },
+      { unique: true, name: 'tenantKey_1_purchaseNumber_1' }
+    );
+  } catch (error) {
+    console.error('Failed to ensure tenant-scoped purchase number index:', error.message);
+  }
+};
 
 module.exports = mongoose.model("Purchase", purchaseSchema);
 

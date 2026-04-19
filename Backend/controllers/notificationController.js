@@ -2,12 +2,13 @@
 const Notification = require("../models/Notification");
 const NotificationArchive = require("../models/NotificationArchive");
 const { dismissFromLayoutBar, createNotification: createNotificationHelper } = require("../utils/notificationHelper");
+const tenantFilter = (req) => ({ tenantKey: req.user.tenantKey });
 
 // ==================== READ ENDPOINTS ====================
 exports.getAllNotifications = async (req, res) => {
   try {
     const { read } = req.query;
-    const query = {};
+    const query = { ...tenantFilter(req) };
     
     if (read !== undefined) {
       query.read = read === 'true';
@@ -34,7 +35,7 @@ exports.getAllNotifications = async (req, res) => {
 // Get unread count
 exports.getUnreadCount = async (req, res) => {
   try {
-    const count = await Notification.countDocuments({ read: false });
+    const count = await Notification.countDocuments({ ...tenantFilter(req), read: false });
     res.json({ count });
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -44,7 +45,7 @@ exports.getUnreadCount = async (req, res) => {
 // Get single notification
 exports.getNotificationById = async (req, res) => {
   try {
-    const notification = await Notification.findById(req.params.id);
+    const notification = await Notification.findOne({ _id: req.params.id, ...tenantFilter(req) });
     if (!notification) {
       return res.status(404).json({ error: "Notification not found" });
     }
@@ -59,7 +60,7 @@ exports.getNotificationById = async (req, res) => {
 // Create notification
 exports.createNotification = async (req, res) => {
   try {
-    const result = await createNotificationHelper(req.body);
+    const result = await createNotificationHelper({ ...req.body, tenantKey: req.user.tenantKey });
     res.status(201).json(result.temp); // Return the temp notification for backward compatibility
   } catch (err) {
     res.status(400).json({ error: err.message });
@@ -70,8 +71,8 @@ exports.createNotification = async (req, res) => {
 exports.markAsRead = async (req, res) => {
   try {
     // Update in temp storage
-    const notification = await Notification.findByIdAndUpdate(
-      req.params.id,
+    const notification = await Notification.findOneAndUpdate(
+      { _id: req.params.id, ...tenantFilter(req) },
       { read: true },
       { new: true }
     );
@@ -80,8 +81,8 @@ exports.markAsRead = async (req, res) => {
     }
     
     // Also update in archive (same ID)
-    await NotificationArchive.findByIdAndUpdate(
-      req.params.id,
+    await NotificationArchive.findOneAndUpdate(
+      { _id: req.params.id, ...tenantFilter(req) },
       { read: true }
     );
     
@@ -95,7 +96,7 @@ exports.markAsRead = async (req, res) => {
 exports.markAllAsRead = async (req, res) => {
   try {
     // Get all unread notifications from temp storage
-    const unreadNotifications = await Notification.find({ read: false });
+    const unreadNotifications = await Notification.find({ ...tenantFilter(req), read: false });
     const unreadIds = unreadNotifications.map(n => n._id);
     
     // Update in temp storage
@@ -122,7 +123,7 @@ exports.markAllAsRead = async (req, res) => {
 // Delete notification from layout bar (dismiss, but keep in archive)
 exports.deleteNotification = async (req, res) => {
   try {
-    await dismissFromLayoutBar(req.params.id);
+    await dismissFromLayoutBar(req.params.id, req.user.tenantKey);
     res.json({ message: "Notification dismissed from layout bar" });
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -132,7 +133,7 @@ exports.deleteNotification = async (req, res) => {
 // Delete all read notifications from layout bar
 exports.deleteAllRead = async (req, res) => {
   try {
-    const readNotifications = await Notification.find({ read: true });
+    const readNotifications = await Notification.find({ ...tenantFilter(req), read: true });
     
     // Dismiss each one (removes from layout bar, keeps in archive)
     await Promise.all(
@@ -153,11 +154,13 @@ exports.deleteAllExpiryNotifications = async (req, res) => {
   try {
     // Delete from temp storage
     const tempResult = await Notification.deleteMany({
+      ...tenantFilter(req),
       type: { $in: ['expiring_soon', 'expired'] }
     });
     
     // Delete from archive
     const archiveResult = await NotificationArchive.deleteMany({
+      ...tenantFilter(req),
       type: { $in: ['expiring_soon', 'expired'] }
     });
     

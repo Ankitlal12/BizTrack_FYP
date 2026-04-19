@@ -2,6 +2,97 @@
 @tailwind components;
 @tailwind utilities;
 
+:root {
+	--biz-font-brand: "Sora", "Segoe UI", sans-serif;
+	--biz-font-heading: "Fraunces", "Georgia", serif;
+}
+
+.biz-home {
+	font-family: var(--biz-font-brand);
+	background:
+		radial-gradient(circle at 90% 8%, rgba(243, 204, 127, 0.22), transparent 30%),
+		radial-gradient(circle at 6% 24%, rgba(146, 220, 196, 0.22), transparent 34%),
+		linear-gradient(180deg, #f7fbf8 0%, #eef6f2 46%, #f7fcfb 100%);
+}
+
+.biz-grid-overlay {
+	position: absolute;
+	inset: 0;
+	background-image:
+		linear-gradient(to right, rgba(19, 70, 56, 0.07) 1px, transparent 1px),
+		linear-gradient(to bottom, rgba(19, 70, 56, 0.07) 1px, transparent 1px);
+	background-size: 22px 22px;
+	opacity: 0.5;
+	pointer-events: none;
+	-webkit-mask-image: radial-gradient(circle at 50% 40%, rgba(0, 0, 0, 0.72) 0%, rgba(0, 0, 0, 0) 78%);
+	mask-image: radial-gradient(circle at 50% 40%, rgba(0, 0, 0, 0.72) 0%, rgba(0, 0, 0, 0) 78%);
+}
+
+.biz-brand {
+	font-family: var(--biz-font-brand);
+	font-weight: 800;
+	letter-spacing: -0.02em;
+}
+
+.biz-heading {
+	font-family: var(--biz-font-heading);
+	font-weight: 700;
+	letter-spacing: -0.01em;
+}
+
+@keyframes floatingCard {
+	0% {
+		transform: translateY(0px);
+	}
+	50% {
+		transform: translateY(-8px);
+	}
+	100% {
+		transform: translateY(0px);
+	}
+}
+
+@keyframes revealUp {
+	0% {
+		opacity: 0;
+		transform: translateY(18px);
+	}
+	100% {
+		opacity: 1;
+		transform: translateY(0);
+	}
+}
+
+.biz-float {
+	animation: floatingCard 3.6s ease-in-out infinite;
+}
+
+.biz-float-delayed {
+	animation: floatingCard 4.1s ease-in-out infinite;
+	animation-delay: 0.5s;
+}
+
+.reveal-card {
+	opacity: 0;
+	animation: revealUp 0.6s ease-out forwards;
+}
+
+.reveal-card:nth-child(1) {
+	animation-delay: 0.03s;
+}
+
+.reveal-card:nth-child(2) {
+	animation-delay: 0.08s;
+}
+
+.reveal-card:nth-child(3) {
+	animation-delay: 0.13s;
+}
+
+.reveal-card:nth-child(4) {
+	animation-delay: 0.18s;
+}
+
 @keyframes loginBorderSpin {
 	0% {
 		background-position: 0% 50%;
@@ -35,5 +126,13 @@
 @media (prefers-reduced-motion: reduce) {
 	.login-card-animated-border::before {
 		animation: none;
+	}
+
+	.biz-float,
+	.biz-float-delayed,
+	.reveal-card {
+		animation: none;
+		opacity: 1;
+		transform: none;
 	}
 }
