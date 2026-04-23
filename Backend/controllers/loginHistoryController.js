@@ -149,13 +149,11 @@ exports.recordLogin = async (req, res) => {
       success = true
     } = req.body;
     
+    // For admin users, tenantKey may be null/undefined - that's OK
     const tenantKey = await resolveTenantKey(req, userId);
-    if (!tenantKey) {
-      return res.status(400).json({ error: "Tenant key is required for login history" });
-    }
 
     const loginRecord = await LoginHistory.create({
-      tenantKey,
+      tenantKey,  // Can be null for admin users
       userId,
       userName,
       userRole,
@@ -273,16 +271,23 @@ exports.recordLogout = async (req, res) => {
       return res.status(400).json({ error: "User ID is required" });
     }
     
-    // Find the most recent login record for this user that doesn't have a logout time
-    const loginRecord = await LoginHistory.findOne({
-      ...tenantFilter(req),
+    // Build filter - for admin users, don't filter by tenantKey
+    const filter = {
       userId: userId,
       success: true,
       logoutTime: null
-    }).sort({ loginTime: -1 });
+    };
+
+    // Only add tenantKey filter if user has a tenantKey (non-admin users)
+    if (req.user?.tenantKey) {
+      filter.tenantKey = req.user.tenantKey;
+    }
+    
+    // Find the most recent login record for this user that doesn't have a logout time
+    const loginRecord = await LoginHistory.findOne(filter).sort({ loginTime: -1 });
     
     if (!loginRecord) {
-      console.log('❌ No active session found for user:', userId);
+      console.log('❌ No active session found for user:', userId, 'Filter:', filter);
       return res.status(404).json({ 
         error: "No active login session found for this user" 
       });
@@ -318,8 +323,8 @@ exports.recordLogout = async (req, res) => {
       }
     });
   } catch (err) {
-    console.error('❌ Logout error:', err);
-    res.status(500).json({ error: err.message });
+    console.error('❌ Error recording logout:', err);
+    res.status(500).json({ error: err.message || "Failed to record logout" });
   }
 };
 
@@ -332,13 +337,20 @@ exports.updateHeartbeat = async (req, res) => {
       return res.status(400).json({ error: "User ID is required" });
     }
     
-    // Find the most recent active login session
-    const loginRecord = await LoginHistory.findOne({
-      ...tenantFilter(req),
+    // Build filter - for admin users, don't filter by tenantKey
+    const filter = {
       userId: userId,
       success: true,
       logoutTime: null
-    }).sort({ loginTime: -1 });
+    };
+
+    // Only add tenantKey filter if user has a tenantKey (non-admin users)
+    if (req.user?.tenantKey) {
+      filter.tenantKey = req.user.tenantKey;
+    }
+    
+    // Find the most recent active login session
+    const loginRecord = await LoginHistory.findOne(filter).sort({ loginTime: -1 });
     
     if (!loginRecord) {
       return res.status(404).json({ 

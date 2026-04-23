@@ -16,6 +16,7 @@ const notificationSchema = new mongoose.Schema({
       "low_stock_purchase", "login_failed", "login_success", "security_change",
       "expiring_soon", "expired",
       "installment_due", "scheduled_payment_processed", "delivery_received",
+      "subscription_expiring_soon", "subscription_expired", "subscription_renewed",
     ],
   },
   title: {

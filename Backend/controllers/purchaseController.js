@@ -1115,19 +1115,53 @@ exports.verifyKhaltiPurchasePayment = async (req, res) => {
 exports.getKhaltiBalance = async (req, res) => {
   try {
     const Sale = require("../models/Sale");
+    const userId = req.user?._id;
+    const tenantKey = req.user?.tenantKey;
+
+    if (!tenantKey) {
+      return res.status(400).json({ error: "Tenant context missing for this user." });
+    }
+
+    const scope = String(req.query.scope || 'tenant').toLowerCase();
+    const useTenantScope = scope === 'tenant';
+
+    const saleBaseMatch = { tenantKey };
+    const purchaseBaseMatch = { tenantKey };
+
+    if (!useTenantScope) {
+      saleBaseMatch["createdBy.userId"] = userId;
+      purchaseBaseMatch["createdBy.userId"] = userId;
+    }
 
     // Sum all completed Khalti payments received from sales
     const salesResult = await Sale.aggregate([
+      { $match: saleBaseMatch },
       { $unwind: "$payments" },
-      { $match: { "payments.method": "khalti", "payments.status": "completed" } },
+      {
+        $match: {
+          "payments.method": { $regex: /^khalti$/i },
+          $or: [
+            { "payments.status": { $regex: /^completed$/i } },
+            { "payments.status": { $exists: false } },
+          ],
+        },
+      },
       { $group: { _id: null, total: { $sum: "$payments.amount" } } },
     ]);
 
     // Sum all completed Khalti payments made for purchases
     const purchasesResult = await Purchase.aggregate([
-      { $match: { tenantKey: req.user.tenantKey } },
+      { $match: purchaseBaseMatch },
       { $unwind: "$payments" },
-      { $match: { "payments.method": "khalti", "payments.status": "completed" } },
+      {
+        $match: {
+          "payments.method": { $regex: /^khalti$/i },
+          $or: [
+            { "payments.status": { $regex: /^completed$/i } },
+            { "payments.status": { $exists: false } },
+          ],
+        },
+      },
       { $group: { _id: null, total: { $sum: "$payments.amount" } } },
     ]);
 
@@ -1135,7 +1169,7 @@ exports.getKhaltiBalance = async (req, res) => {
     const khaltiOut = purchasesResult[0]?.total || 0;
     const balance = khaltiIn - khaltiOut;
 
-    res.json({ khaltiIn, khaltiOut, balance });
+    res.json({ khaltiIn, khaltiOut, balance, scope: useTenantScope ? 'tenant' : 'user' });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }

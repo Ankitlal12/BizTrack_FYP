@@ -31,6 +31,9 @@ const notificationArchiveSchema = new mongoose.Schema({
       "installment_due",
       "scheduled_payment_processed",
       "delivery_received",
+      "subscription_expiring_soon",
+      "subscription_expired",
+      "subscription_renewed",
     ],
   },
   title: {

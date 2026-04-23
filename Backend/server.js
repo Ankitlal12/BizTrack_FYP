@@ -4,6 +4,7 @@ const cors = require("cors");
 const mongoose = require("mongoose");
 const connectDB = require("./config/db");
 const { processAllScheduledPayments, processDeliveries } = require("./services/paymentScheduler");
+const { startSubscriptionScheduler } = require("./services/subscriptionScheduler");
 const { sendDailyOwnerSummaryEmail } = require("./utils/notificationHelper");
 const Purchase = require("./models/Purchase");
 
@@ -73,6 +74,7 @@ const loginHistoryRoutes = require("./routes/loginHistoryRoutes");
 const supplierRoutes = require("./routes/supplierRoutes");
 const customerRoutes = require("./routes/customerRoutes");
 const reorderRoutes = require("./routes/reorderRoutes");
+const adminAuditRoutes = require("./routes/adminAuditRoutes");
 
 app.use("/api/users", userRoutes);
 app.use("/api/inventory", inventoryRoutes);
@@ -91,6 +93,7 @@ app.use("/api/login-history", loginHistoryRoutes);
 app.use("/api/suppliers", supplierRoutes);
 app.use("/api/customers", customerRoutes);
 app.use("/api/reorders", reorderRoutes);
+app.use("/api/admin/audit", adminAuditRoutes);
 
 // ==================== SERVER START ====================
 
@@ -207,6 +210,9 @@ app.listen(PORT, () => {
   }, 10000); // Run after 10 seconds to let server fully initialize
 
   scheduleDailyOwnerSummary();
+  
+  // Start subscription scheduler
+  startSubscriptionScheduler();
   
   // console.log("✅ Payment scheduler & delivery processor initialized successfully");
 });

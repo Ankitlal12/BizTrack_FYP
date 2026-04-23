@@ -301,6 +301,350 @@ const sendOTPSMS = async (phoneNumber, otp, userName) => {
   }
 };
 
+/**
+ * Send payment confirmation email
+ * @param {string} email - Recipient email
+ * @param {string} name - Recipient name
+ * @param {number} amount - Payment amount
+ * @param {string} paymentType - "initial" or "renewal"
+ * @param {Date} expiryDate - Subscription expiry date
+ * @param {number} days - Days granted
+ * @returns {Promise<{success: boolean, message: string}>}
+ */
+const sendPaymentConfirmationEmail = async (email, name, amount, paymentType, expiryDate, days) => {
+  try {
+    const transporter = await createTransporter();
+    const isInitial = paymentType === "initial";
+    
+    const mailOptions = {
+      from: `"BizTrack" <${process.env.EMAIL_USER || 'noreply@biztrack.com'}>`,
+      to: email,
+      subject: isInitial ? '✅ Payment Successful - Welcome to BizTrack!' : '✅ Subscription Renewed - BizTrack',
+      html: `
+        <!DOCTYPE html>
+        <html>
+        <head>
+          <style>
+            body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
+            .container { max-width: 600px; margin: 0 auto; padding: 20px; }
+            .header { background: linear-gradient(135deg, #0d9488 0%, #14b8a6 100%); color: white; padding: 30px; text-align: center; border-radius: 10px 10px 0 0; }
+            .content { background: #f9fafb; padding: 30px; border-radius: 0 0 10px 10px; }
+            .success-badge { background: #10b981; color: white; padding: 10px 20px; border-radius: 20px; display: inline-block; margin: 20px 0; }
+            .info-box { background: white; padding: 20px; border-radius: 8px; margin: 20px 0; border-left: 4px solid #0d9488; }
+            .info-row { display: flex; justify-content: space-between; padding: 10px 0; border-bottom: 1px solid #e5e7eb; }
+            .info-label { font-weight: bold; color: #6b7280; }
+            .info-value { color: #111827; }
+            .button { background: #0d9488; color: white; padding: 12px 30px; text-decoration: none; border-radius: 6px; display: inline-block; margin: 20px 0; }
+            .footer { text-align: center; color: #6b7280; font-size: 12px; margin-top: 30px; }
+          </style>
+        </head>
+        <body>
+          <div class="container">
+            <div class="header">
+              <h1>🎉 ${isInitial ? 'Welcome to BizTrack!' : 'Subscription Renewed!'}</h1>
+            </div>
+            <div class="content">
+              <p>Hi ${name},</p>
+              
+              <div class="success-badge">
+                ✅ Payment Successful
+              </div>
+              
+              <p>${isInitial 
+                ? 'Thank you for choosing BizTrack! Your payment has been successfully processed and your account is now active.' 
+                : 'Your subscription has been successfully renewed. Thank you for continuing with BizTrack!'
+              }</p>
+              
+              <div class="info-box">
+                <h3 style="margin-top: 0; color: #0d9488;">Payment Details</h3>
+                <div class="info-row">
+                  <span class="info-label">Amount Paid:</span>
+                  <span class="info-value">NPR ${amount}</span>
+                </div>
+                <div class="info-row">
+                  <span class="info-label">Payment Type:</span>
+                  <span class="info-value">${isInitial ? 'Initial Subscription' : 'Renewal'}</span>
+                </div>
+                <div class="info-row">
+                  <span class="info-label">Subscription Period:</span>
+                  <span class="info-value">${days} Days</span>
+                </div>
+                <div class="info-row" style="border-bottom: none;">
+                  <span class="info-label">Valid Until:</span>
+                  <span class="info-value">${new Date(expiryDate).toLocaleDateString('en-US', { 
+                    year: 'numeric', 
+                    month: 'long', 
+                    day: 'numeric' 
+                  })}</span>
+                </div>
+              </div>
+              
+              ${isInitial ? `
+                <p><strong>What's Next?</strong></p>
+                <ul>
+                  <li>Login to your BizTrack dashboard</li>
+                  <li>Set up your inventory</li>
+                  <li>Add your team members</li>
+                  <li>Start managing your business!</li>
+                </ul>
+                
+                <a href="${process.env.FRONTEND_URL || 'http://localhost:5173'}/login" class="button">
+                  Go to Dashboard
+                </a>
+              ` : `
+                <p>Your subscription has been extended and you can continue using all BizTrack features without interruption.</p>
+                
+                <a href="${process.env.FRONTEND_URL || 'http://localhost:5173'}/dashboard" class="button">
+                  Go to Dashboard
+                </a>
+              `}
+              
+              <div style="background: #fef3c7; padding: 15px; border-radius: 6px; margin-top: 20px; border-left: 4px solid #f59e0b;">
+                <p style="margin: 0;"><strong>⏰ Reminder:</strong> Your subscription will expire on ${new Date(expiryDate).toLocaleDateString()}. We'll send you a reminder before it expires.</p>
+              </div>
+              
+              <p style="margin-top: 30px;">If you have any questions or need assistance, feel free to contact our support team.</p>
+              
+              <p>Best regards,<br><strong>The BizTrack Team</strong></p>
+            </div>
+            
+            <div class="footer">
+              <p>This is an automated email. Please do not reply to this message.</p>
+              <p>&copy; ${new Date().getFullYear()} BizTrack. All rights reserved.</p>
+            </div>
+          </div>
+        </body>
+        </html>
+      `,
+    };
+
+    const info = await transporter.sendMail(mailOptions);
+    console.log(`✅ Payment confirmation email sent to ${email}:`, info.messageId);
+    
+    if (process.env.NODE_ENV !== 'production' && info.messageId) {
+      console.log('📧 Preview URL:', nodemailer.getTestMessageUrl(info));
+    }
+    
+    return { success: true, message: 'Payment confirmation email sent successfully' };
+  } catch (error) {
+    console.error('❌ Failed to send payment confirmation email:', error);
+    return { success: false, message: 'Failed to send payment confirmation email' };
+  }
+};
+
+/**
+ * Send account status change email (frozen/deleted/reactivated)
+ * @param {string} email - Recipient email
+ * @param {string} name - Recipient name
+ * @param {string} status - "frozen", "deleted", or "reactivated"
+ * @param {string} message - Additional message
+ * @returns {Promise<{success: boolean, message: string}>}
+ */
+const sendAccountStatusEmail = async (email, name, status, message) => {
+  try {
+    const transporter = await createTransporter();
+    
+    const statusConfig = {
+      frozen: {
+        subject: '⚠️ Account Frozen - BizTrack',
+        color: '#f59e0b',
+        icon: '❄️',
+        title: 'Account Frozen',
+        action: 'Contact support to reactivate your account.',
+      },
+      deleted: {
+        subject: '🗑️ Account Deleted - BizTrack',
+        color: '#ef4444',
+        icon: '🗑️',
+        title: 'Account Deleted',
+        action: 'If you believe this is an error, please contact support immediately.',
+      },
+      reactivated: {
+        subject: '✅ Account Reactivated - BizTrack',
+        color: '#10b981',
+        icon: '✅',
+        title: 'Account Reactivated',
+        action: 'You can now login and access all features.',
+      },
+    };
+
+    const config = statusConfig[status] || statusConfig.frozen;
+    
+    const mailOptions = {
+      from: `"BizTrack" <${process.env.EMAIL_USER || 'noreply@biztrack.com'}>`,
+      to: email,
+      subject: config.subject,
+      html: `
+        <!DOCTYPE html>
+        <html>
+        <head>
+          <style>
+            body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
+            .container { max-width: 600px; margin: 0 auto; padding: 20px; }
+            .header { background: ${config.color}; color: white; padding: 30px; text-align: center; border-radius: 10px 10px 0 0; }
+            .content { background: #f9fafb; padding: 30px; border-radius: 0 0 10px 10px; }
+            .alert-box { background: white; padding: 20px; border-radius: 8px; margin: 20px 0; border-left: 4px solid ${config.color}; }
+            .button { background: ${config.color}; color: white; padding: 12px 30px; text-decoration: none; border-radius: 6px; display: inline-block; margin: 20px 0; }
+            .footer { text-align: center; color: #6b7280; font-size: 12px; margin-top: 30px; }
+          </style>
+        </head>
+        <body>
+          <div class="container">
+            <div class="header">
+              <h1>${config.icon} ${config.title}</h1>
+            </div>
+            <div class="content">
+              <p>Hi ${name},</p>
+              
+              <div class="alert-box">
+                <p><strong>${message}</strong></p>
+              </div>
+              
+              <p>${config.action}</p>
+              
+              ${status === 'reactivated' ? `
+                <a href="${process.env.FRONTEND_URL || 'http://localhost:5173'}/login" class="button">
+                  Login to Dashboard
+                </a>
+              ` : `
+                <p>If you have any questions or concerns, please contact our support team.</p>
+              `}
+              
+              <p style="margin-top: 30px;">Best regards,<br><strong>The BizTrack Team</strong></p>
+            </div>
+            
+            <div class="footer">
+              <p>This is an automated email. Please do not reply to this message.</p>
+              <p>&copy; ${new Date().getFullYear()} BizTrack. All rights reserved.</p>
+            </div>
+          </div>
+        </body>
+        </html>
+      `,
+    };
+
+    const info = await transporter.sendMail(mailOptions);
+    console.log(`✅ Account status email sent to ${email}:`, info.messageId);
+    
+    if (process.env.NODE_ENV !== 'production' && info.messageId) {
+      console.log('📧 Preview URL:', nodemailer.getTestMessageUrl(info));
+    }
+    
+    return { success: true, message: 'Account status email sent successfully' };
+  } catch (error) {
+    console.error('❌ Failed to send account status email:', error);
+    return { success: false, message: 'Failed to send account status email' };
+  }
+};
+
+/**
+ * Send subscription expiry warning email
+ * @param {string} email - Recipient email
+ * @param {string} name - Recipient name
+ * @param {number} daysLeft - Days remaining until expiry
+ * @param {Date} expiryDate - Subscription expiry date
+ * @returns {Promise<{success: boolean, message: string}>}
+ */
+const sendSubscriptionExpiryWarningEmail = async (email, name, daysLeft, expiryDate) => {
+  try {
+    const transporter = await createTransporter();
+    
+    const renewalUrl = process.env.SAAS_RENEWAL_URL || 'http://localhost:5173/renew';
+    const formattedDate = expiryDate.toLocaleDateString('en-US', { 
+      weekday: 'long', 
+      year: 'numeric', 
+      month: 'long', 
+      day: 'numeric' 
+    });
+
+    const htmlContent = `
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <style>
+          body { font-family: Arial, sans-serif; background-color: #f4f4f4; margin: 0; padding: 0; }
+          .container { max-width: 600px; margin: 24px auto; background: #ffffff; border-radius: 12px; overflow: hidden; box-shadow: 0 8px 24px rgba(0,0,0,0.08); }
+          .header { background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%); padding: 32px; color: #ffffff; text-align: center; }
+          .content { padding: 32px; }
+          .warning-box { background: #fef3c7; border-left: 4px solid #f59e0b; padding: 16px; margin: 20px 0; border-radius: 8px; }
+          .info-card { background: #f9fafb; border: 1px solid #e5e7eb; border-radius: 10px; padding: 20px; margin: 20px 0; }
+          .cta-button { display: inline-block; margin-top: 20px; padding: 14px 28px; background: #f59e0b; color: #ffffff; text-decoration: none; border-radius: 8px; font-weight: 600; font-size: 16px; }
+          .cta-button:hover { background: #d97706; }
+          .footer { padding: 20px 32px; color: #6b7280; font-size: 12px; border-top: 1px solid #e5e7eb; text-align: center; }
+        </style>
+      </head>
+      <body>
+        <div class="container">
+          <div class="header">
+            <h1 style="margin: 0; font-size: 28px;">⚠️ Subscription Expiring Soon</h1>
+            <p style="margin: 10px 0 0; font-size: 16px; opacity: 0.95;">Action Required</p>
+          </div>
+          <div class="content">
+            <p style="margin: 0 0 16px; font-size: 16px; color: #111827;">Hi ${name},</p>
+            
+            <div class="warning-box">
+              <p style="margin: 0; font-weight: 600; color: #92400e; font-size: 15px;">
+                Your BizTrack subscription expires in ${daysLeft} day${daysLeft === 1 ? '' : 's'}!
+              </p>
+            </div>
+
+            <p style="margin: 0 0 16px; color: #4b5563; line-height: 1.6;">
+              Your 10-day subscription will expire on <strong>${formattedDate}</strong>. 
+              After expiry, your account will be automatically frozen and you won't be able to access your workspace.
+            </p>
+
+            <div class="info-card">
+              <h3 style="margin: 0 0 12px; color: #111827; font-size: 18px;">What happens next?</h3>
+              <ul style="margin: 0; padding-left: 20px; color: #4b5563; line-height: 1.8;">
+                <li>Your account will be frozen after expiry</li>
+                <li>All team members will lose access</li>
+                <li>Your data will be preserved</li>
+                <li>You can reactivate anytime by renewing</li>
+              </ul>
+            </div>
+
+            <p style="margin: 20px 0 0; color: #111827; font-weight: 600; font-size: 16px;">
+              Renew now to continue using BizTrack without interruption:
+            </p>
+
+            <div style="text-align: center;">
+              <a href="${renewalUrl}" class="cta-button">
+                Renew Subscription (NPR 999)
+              </a>
+            </div>
+
+            <p style="margin: 24px 0 0; color: #6b7280; font-size: 14px; line-height: 1.6;">
+              The renewal will extend your subscription by another 10 days from your current expiry date.
+            </p>
+          </div>
+          <div class="footer">
+            <p style="margin: 0;">This is an automated message from BizTrack.</p>
+            <p style="margin: 8px 0 0;">If you have any questions, please contact support.</p>
+          </div>
+        </div>
+      </body>
+      </html>
+    `;
+
+    const info = await transporter.sendMail({
+      from: process.env.EMAIL_USER || 'noreply@biztrack.com',
+      to: email,
+      subject: `⚠️ Your BizTrack subscription expires in ${daysLeft} day${daysLeft === 1 ? '' : 's'}`,
+      text: `Hi ${name},\n\nYour BizTrack subscription expires in ${daysLeft} day(s) on ${formattedDate}.\n\nRenew now to avoid service interruption: ${renewalUrl}\n\nAfter expiry, your account will be frozen and you won't be able to access your workspace.\n\nBest regards,\nBizTrack Team`,
+      html: htmlContent,
+    });
+
+    if (!process.env.EMAIL_SERVICE) {
+      console.log('📧 Preview URL:', nodemailer.getTestMessageUrl(info));
+    }
+    
+    return { success: true, message: 'Expiry warning email sent successfully' };
+  } catch (error) {
+    console.error('❌ Failed to send expiry warning email:', error);
+    return { success: false, message: 'Failed to send expiry warning email' };
+  }
+};
+
 module.exports = {
   generateOTP,
   getOTPExpiration,
@@ -308,5 +652,8 @@ module.exports = {
   sendOTPEmail,
   sendCredentialsEmail,
   sendSignupConfirmationEmail,
+  sendPaymentConfirmationEmail,
+  sendAccountStatusEmail,
+  sendSubscriptionExpiryWarningEmail,
   sendOTPSMS,
 };

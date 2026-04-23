@@ -155,13 +155,13 @@ exports.deleteAllExpiryNotifications = async (req, res) => {
     // Delete from temp storage
     const tempResult = await Notification.deleteMany({
       ...tenantFilter(req),
-      type: { $in: ['expiring_soon', 'expired'] }
+      type: { $in: ['expiring_soon', 'expired', 'subscription_expiring_soon', 'subscription_expired', 'subscription_renewed'] }
     });
     
     // Delete from archive
     const archiveResult = await NotificationArchive.deleteMany({
       ...tenantFilter(req),
-      type: { $in: ['expiring_soon', 'expired'] }
+      type: { $in: ['expiring_soon', 'expired', 'subscription_expiring_soon', 'subscription_expired', 'subscription_renewed'] }
     });
     
     res.json({ 

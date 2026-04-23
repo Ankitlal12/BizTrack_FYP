@@ -67,16 +67,26 @@ const ensureWorkspaceLoginAllowed = async (user, req) => {
     throw { status: 403, message: "Workspace owner not found for this account." };
   }
 
+  const subscriptionExpired =
+    owner.isSaasCustomer &&
+    owner.subscriptionExpiresAt &&
+    new Date(owner.subscriptionExpiresAt) < new Date();
+
+  // Surface renewal-required state first, even if the account was auto-frozen/inactivated.
+  if (subscriptionExpired) {
+    throw {
+      status: 402,
+      message: "Your subscription has expired. Please renew to continue using the service.",
+      code: "SUBSCRIPTION_EXPIRED",
+    };
+  }
+
   if (owner.accountStatus === "frozen") {
     throw { status: 403, message: "Your account has been freezed. Contact admin." };
   }
 
   if (owner.accountStatus === "deleted") {
     throw { status: 403, message: "Your workspace is deleted and cannot be accessed." };
-  }
-
-  if (owner.isSaasCustomer && owner.subscriptionExpiresAt && new Date(owner.subscriptionExpiresAt) < new Date()) {
-    throw { status: 402, message: "Your monthly subscription has expired. Please renew to continue." };
   }
 
   const requestHost = normalizeRequestHost(req);
@@ -116,26 +126,38 @@ const findOrCreateGoogleUser = async (googleId, email, name, picture) => {
     return user;
   }
 
-  // Generate unique username
-  const baseUsername = email.split('@')[0].toLowerCase().replace(/[^a-z0-9]/g, '');
-  let username = baseUsername || `user${Date.now()}`;
-  let counter = 1;
-  while (await User.findOne({ username })) {
-    username = `${baseUsername}${counter++}`;
-    if (counter > 1000) { username = `user${Date.now()}`; break; }
+  // User doesn't exist - check if they have a pending signup
+  const SaasSignup = require('../models/SaasSignup');
+  const pendingSignup = await SaasSignup.findOne({ 
+    $or: [{ email }, { googleId }],
+    paymentStatus: { $in: ['initiated', 'pending'] }
+  });
+
+  if (pendingSignup) {
+    const error = new Error('Please complete your signup payment before logging in. You have a pending payment.');
+    error.code = 'PENDING_PAYMENT';
+    error.status = 402; // Payment Required
+    throw error;
   }
 
-  return User.create({
-    name: name || email.split('@')[0],
-    email,
-    username,
-    googleId,
-    avatar: picture,
-    role: 'owner',
-    tenantKey: `tenant_${Date.now()}`,
-    active: true,
-    dateAdded: new Date(),
+  // Check if they have a failed signup - they should signup again
+  const failedSignup = await SaasSignup.findOne({ 
+    $or: [{ email }, { googleId }],
+    paymentStatus: 'failed'
   });
+
+  if (failedSignup) {
+    const error = new Error('Your previous signup payment failed. Please sign up again to create your workspace.');
+    error.code = 'FAILED_PAYMENT';
+    error.status = 402; // Payment Required
+    throw error;
+  }
+
+  // No user and no signup record - they need to signup first
+  const error = new Error('No account found. Please sign up first to create your workspace.');
+  error.code = 'NO_ACCOUNT';
+  error.status = 404; // Not Found
+  throw error;
 };
 
 // Record a login history entry
@@ -377,18 +399,18 @@ exports.login = async (req, res) => {
       });
     }
 
-    // Check if user is active
-    if (!user.active) {
-      return res.status(401).json({ 
-        error: "Account is inactive. Please contact administrator." 
-      });
-    }
-
     try {
       await ensureWorkspaceLoginAllowed(user, req);
     } catch (workspaceError) {
       return res.status(workspaceError.status || 403).json({
         error: workspaceError.message || "Workspace login is not allowed.",
+      });
+    }
+
+    // Check if user is active after workspace/subscription validation.
+    if (!user.active) {
+      return res.status(401).json({
+        error: "Account is inactive. Please contact administrator."
       });
     }
 
@@ -703,6 +725,29 @@ exports.googleLogin = async (req, res) => {
     try {
       user = await findOrCreateGoogleUser(googleId, email, name, picture);
     } catch (createError) {
+      // Handle specific error codes
+      if (createError.code === 'PENDING_PAYMENT') {
+        return res.status(402).json({ 
+          error: createError.message,
+          code: 'PENDING_PAYMENT',
+          action: 'complete_payment'
+        });
+      }
+      if (createError.code === 'FAILED_PAYMENT') {
+        return res.status(402).json({ 
+          error: createError.message,
+          code: 'FAILED_PAYMENT',
+          action: 'signup_again'
+        });
+      }
+      if (createError.code === 'NO_ACCOUNT') {
+        return res.status(404).json({ 
+          error: createError.message,
+          code: 'NO_ACCOUNT',
+          action: 'signup_required'
+        });
+      }
+      // Handle duplicate key error (shouldn't happen now, but keep for safety)
       if (createError.code === 11000) {
         user = await User.findOne({ $or: [{ email }, { googleId }] });
         if (!user) throw new Error('Failed to create user and user not found');
@@ -711,8 +756,6 @@ exports.googleLogin = async (req, res) => {
       }
     }
 
-    if (!user.active) return res.status(401).json({ error: "Account is inactive. Please contact administrator." });
-
     try {
       await ensureWorkspaceLoginAllowed(user, req);
     } catch (workspaceError) {
@@ -720,6 +763,8 @@ exports.googleLogin = async (req, res) => {
         error: workspaceError.message || "Workspace login is not allowed.",
       });
     }
+
+    if (!user.active) return res.status(401).json({ error: "Account is inactive. Please contact administrator." });
 
     await recordLoginHistory(user, req, "google", true);
     const token = generateToken(user);
@@ -750,8 +795,34 @@ exports.googleLoginWithOTP = async (req, res) => {
     const { sub: googleId, email, name, picture } = payload;
     if (!email) return res.status(400).json({ error: "Email not provided by Google" });
 
-    const user = await findOrCreateGoogleUser(googleId, email, name, picture);
-    if (!user.active) return res.status(401).json({ error: "Account is inactive. Please contact administrator." });
+    let user;
+    try {
+      user = await findOrCreateGoogleUser(googleId, email, name, picture);
+    } catch (createError) {
+      // Handle specific error codes
+      if (createError.code === 'PENDING_PAYMENT') {
+        return res.status(402).json({ 
+          error: createError.message,
+          code: 'PENDING_PAYMENT',
+          action: 'complete_payment'
+        });
+      }
+      if (createError.code === 'FAILED_PAYMENT') {
+        return res.status(402).json({ 
+          error: createError.message,
+          code: 'FAILED_PAYMENT',
+          action: 'signup_again'
+        });
+      }
+      if (createError.code === 'NO_ACCOUNT') {
+        return res.status(404).json({ 
+          error: createError.message,
+          code: 'NO_ACCOUNT',
+          action: 'signup_required'
+        });
+      }
+      throw createError;
+    }
 
     try {
       await ensureWorkspaceLoginAllowed(user, req);
@@ -760,6 +831,8 @@ exports.googleLoginWithOTP = async (req, res) => {
         error: workspaceError.message || "Workspace login is not allowed.",
       });
     }
+
+    if (!user.active) return res.status(401).json({ error: "Account is inactive. Please contact administrator." });
 
     // Generate and save OTP
     const otp = generateOTP();

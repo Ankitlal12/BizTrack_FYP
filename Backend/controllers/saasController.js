@@ -2,6 +2,10 @@ const bcrypt = require("bcryptjs");
 const { OAuth2Client } = require("google-auth-library");
 const SaasSignup = require("../models/SaasSignup");
 const User = require("../models/User");
+const LoginHistory = require("../models/LoginHistory");
+const AdminAuditLog = require("../models/AdminAuditLog");
+const AdminContactMessage = require("../models/AdminContactMessage");
+const SubscriptionPayment = require("../models/SubscriptionPayment");
 const { initiateKhaltiPayment, verifyKhaltiPayment } = require("../utils/khaltiService");
 const { generateToken } = require("../utils/jwt");
 const { verifyToken, extractTokenFromHeader } = require("../utils/jwt");
@@ -19,6 +23,8 @@ const getSubscriptionExpiry = () => {
   expires.setDate(expires.getDate() + SAAS_SUBSCRIPTION_DAYS);
   return expires;
 };
+
+// Admin session times removed - no longer tracking in audit logs
 
 const verifyGoogleToken = async (credential) => {
   const client = new OAuth2Client(GOOGLE_CLIENT_ID);
@@ -111,21 +117,36 @@ exports.initiateGoogleSignup = async (req, res) => {
     }
 
     const normalizedEmail = String(email).toLowerCase();
-    const existingUserQuery = await findExistingOwnerAccount({ email: normalizedEmail, googleId });
-    const existingUser = existingUserQuery
-      ? await existingUserQuery.select("_id email role active googleId")
-      : null;
+    const existingUser = await findExistingOwnerAccount({ email: normalizedEmail, googleId });
+    
+    // If user exists, don't allow signup
     if (existingUser) {
       return res.status(409).json({
         error: "This email is already registered. Please log in instead of signing up.",
       });
     }
 
+    // Check for existing signup, but only block if user still exists
     const existingSignup = await findExistingSignup({ email: normalizedEmail, googleId });
     if (existingSignup && existingSignup.paymentStatus !== "failed") {
-      return res.status(409).json({
-        error: "This Google account already has a pending or completed workspace signup. Please log in instead.",
-      });
+      // If signup exists but user was deleted, allow re-signup
+      if (existingSignup.ownerUserId) {
+        const signupUser = await User.findById(existingSignup.ownerUserId);
+        if (!signupUser) {
+          console.log(`ℹ️ Previous signup found but user deleted, allowing re-signup for ${normalizedEmail}`);
+          // User was deleted, allow re-signup by not blocking
+        } else {
+          // User still exists, block signup
+          return res.status(409).json({
+            error: "This Google account already has a pending or completed workspace signup. Please log in instead.",
+          });
+        }
+      } else {
+        // Signup exists but no user created yet (payment pending/failed)
+        return res.status(409).json({
+          error: "This Google account already has a pending or completed workspace signup. Please log in instead.",
+        });
+      }
     }
 
     const passwordHash = await bcrypt.hash(String(password), 10);
@@ -153,12 +174,13 @@ exports.initiateGoogleSignup = async (req, res) => {
       productDetails: [
         {
           id: "biztrack-saas-plan",
-          name: "BizTrack SaaS Subscription",
+          name: "BizTrack SaaS 10-Day Subscription",
           quantity: 1,
           unit_price: SAAS_SIGNUP_AMOUNT,
           total_price: SAAS_SIGNUP_AMOUNT,
         },
       ],
+      paymentType: 'admin',
       returnUrl: process.env.SAAS_RETURN_URL || "http://localhost:5173/signup/payment-success",
     });
 
@@ -191,7 +213,69 @@ exports.verifyGoogleSignupPayment = async (req, res) => {
       return res.status(404).json({ error: "Signup record not found for this payment." });
     }
 
-    const verification = await verifyKhaltiPayment(pidx);
+    let owner = await User.findOne({
+      $or: [{ email: signup.email }, { googleId: signup.googleId }],
+    });
+
+    // Idempotency: if this signup payment was already completed, do not process it again.
+    if (signup.paymentStatus === "completed") {
+      if (!owner && signup.ownerUserId) {
+        owner = await User.findById(signup.ownerUserId);
+      }
+      if (!owner) {
+        return res.status(409).json({ error: "Signup already processed but owner account was not found." });
+      }
+
+      const token = generateToken(owner);
+      const ownerResponse = owner.toObject();
+      delete ownerResponse.password;
+
+      return res.json({
+        message: "Signup payment already processed.",
+        user: ownerResponse,
+        token,
+        workspace: {
+          businessName: signup.businessName,
+          ownerEmail: signup.email,
+        },
+        alreadyProcessed: true,
+      });
+    }
+
+    // Secondary idempotency guard for duplicate callbacks on the same pidx.
+    const existingPayment = await SubscriptionPayment.findOne({ pidx });
+    if (existingPayment) {
+      signup.paymentStatus = "completed";
+      signup.status = "completed";
+      if (!signup.ownerUserId && owner?._id) {
+        signup.ownerUserId = owner._id;
+      }
+      await signup.save();
+
+      if (!owner && existingPayment.ownerId) {
+        owner = await User.findById(existingPayment.ownerId);
+      }
+      if (!owner) {
+        return res.status(409).json({ error: "Signup already processed but owner account was not found." });
+      }
+
+      const token = generateToken(owner);
+      const ownerResponse = owner.toObject();
+      delete ownerResponse.password;
+
+      return res.json({
+        message: "Signup payment already processed.",
+        user: ownerResponse,
+        token,
+        workspace: {
+          businessName: signup.businessName,
+          ownerEmail: signup.email,
+        },
+        alreadyProcessed: true,
+      });
+    }
+
+    const verification = await verifyKhaltiPayment(pidx, 'admin');
 
     if (!verification.isCompleted) {
       signup.paymentStatus = "failed";
@@ -199,10 +283,6 @@ exports.verifyGoogleSignupPayment = async (req, res) => {
       await signup.save();
       return res.status(400).json({ error: verification.message || "Payment not completed." });
     }
-
-    let owner = await User.findOne({
-      $or: [{ email: signup.email }, { googleId: signup.googleId }],
-    });
 
     if (!owner) {
       const username = await generateUniqueUsername(signup.email);
@@ -273,6 +353,105 @@ exports.verifyGoogleSignupPayment = async (req, res) => {
     signup.ownerUserId = owner._id;
     await signup.save();
 
+    // Record payment history (check for duplicates first)
+    try {
+      const existingPayment = await SubscriptionPayment.findOne({ pidx: pidx });
+      
+      if (existingPayment) {
+        console.log(`ℹ️ Payment already recorded for pidx: ${pidx}, skipping duplicate`);
+      } else {
+        const newPayment = await SubscriptionPayment.create({
+          ownerId: owner._id,
+          ownerEmail: owner.email,
+          ownerName: owner.name,
+          businessName: signup.businessName,
+          amount: SAAS_SIGNUP_AMOUNT,
+          currency: "NPR",
+          paymentMethod: "khalti",
+          pidx: pidx,
+          paymentStatus: "completed",
+          paymentType: "initial",
+          subscriptionStartDate: owner.subscriptionLastPaidAt,
+          subscriptionEndDate: owner.subscriptionExpiresAt,
+          daysGranted: SAAS_SUBSCRIPTION_DAYS,
+          metadata: {
+            signupId: signup._id,
+            verificationData: verification,
+          },
+        });
+        console.log(`✅ Payment history recorded for initial signup: ${newPayment._id}`);
+      }
+    } catch (paymentError) {
+      if (paymentError.code === 11000) {
+        console.log(`ℹ️ Duplicate key error for pidx: ${pidx}, payment already exists`);
+      } else {
+        console.error("Failed to record payment history:", paymentError);
+      }
+    }
+
+    // Send email notification
+    try {
+      const { sendPaymentConfirmationEmail } = require("../utils/otpService");
+      await sendPaymentConfirmationEmail(
+        owner.email,
+        owner.name,
+        SAAS_SIGNUP_AMOUNT,
+        "initial",
+        owner.subscriptionExpiresAt,
+        SAAS_SUBSCRIPTION_DAYS
+      );
+      console.log("✅ Payment confirmation email sent");
+    } catch (emailError) {
+      console.error("Failed to send payment confirmation email:", emailError);
+    }
+
+    // Create in-app notification for user on successful first payment
+    try {
+      if (!owner.tenantKey) {
+        owner.tenantKey = `tenant_${owner._id}`;
+        await owner.save();
+      }
+
+      const { createNotification } = require("../utils/notificationHelper");
+      await createNotification({
+        tenantKey: owner.tenantKey,
+        type: "subscription_renewed",
+        title: "Subscription Payment Successful",
+        message: `Your payment of NPR ${SAAS_SIGNUP_AMOUNT} was successful. Your subscription is now active until ${new Date(owner.subscriptionExpiresAt).toLocaleDateString()}.`,
+        metadata: {
+          amount: SAAS_SIGNUP_AMOUNT,
+          paymentType: "initial",
+          expiresAt: owner.subscriptionExpiresAt,
+          daysGranted: SAAS_SUBSCRIPTION_DAYS,
+        },
+      });
+      console.log("✅ In-app notification created for initial payment");
+    } catch (notifError) {
+      console.error("Failed to create initial payment notification:", notifError);
+    }
+
+    // Create admin contact message
+    try {
+      await AdminContactMessage.create({
+        type: "payment_received",
+        clientId: owner._id,
+        clientEmail: owner.email,
+        clientName: owner.name,
+        title: `New Payment Received - ${owner.email}`,
+        message: `Initial subscription payment of NPR ${SAAS_SIGNUP_AMOUNT} received. 10-day subscription activated until ${owner.subscriptionExpiresAt.toLocaleDateString()}.`,
+        actionUrl: `/admin/payment-history`,
+        metadata: {
+          amount: SAAS_SIGNUP_AMOUNT,
+          paymentType: "initial",
+          subscriptionDays: SAAS_SUBSCRIPTION_DAYS,
+          expiryDate: owner.subscriptionExpiresAt,
+        },
+      });
+      console.log("✅ Admin contact message created");
+    } catch (contactError) {
+      console.error("Failed to create admin contact message:", contactError);
+    }
+
     try {
       await sendSignupConfirmationEmail(owner.email, owner.name || signup.ownerName, signup.businessName);
     } catch (emailError) {
@@ -314,6 +493,23 @@ exports.initiateRenewalGoogle = async (req, res) => {
       return res.status(404).json({ error: "Owner account not found for this Google email." });
     }
 
+    // Prevent accidental duplicate renewal attempts in a short period.
+    const recentInitiatedRenewal = await SaasSignup.findOne({
+      email: normalizedEmail,
+      paymentStatus: "initiated",
+      createdAt: { $gte: new Date(Date.now() - 15 * 60 * 1000) },
+    }).sort({ createdAt: -1 });
+
+    if (recentInitiatedRenewal) {
+      return res.status(409).json({
+        error: "A renewal payment is already in progress. Please complete that payment first.",
+      });
+    }
+
+    if (owner.accountStatus === "deleted") {
+      return res.status(403).json({ error: "This owner account is no longer available for renewal." });
+    }
+
     const signup = await SaasSignup.create({
       businessName: owner.name || "BizTrack Workspace",
       email: normalizedEmail,
@@ -327,7 +523,7 @@ exports.initiateRenewalGoogle = async (req, res) => {
     const paymentInit = await initiateKhaltiPayment({
       amount: SAAS_SIGNUP_AMOUNT,
       purchaseOrderId: `RENEW-${signup._id}`,
-      purchaseOrderName: `BizTrack Monthly Renewal - ${owner.name}`,
+      purchaseOrderName: `BizTrack 10-Day Renewal - ${owner.name}`,
       customerInfo: {
         name: name || owner.name,
         email: normalizedEmail,
@@ -335,14 +531,15 @@ exports.initiateRenewalGoogle = async (req, res) => {
       },
       productDetails: [
         {
-          id: "biztrack-monthly-renewal",
-          name: "BizTrack Monthly Renewal",
+          id: "biztrack-10day-renewal",
+          name: "BizTrack 10-Day Subscription Renewal",
           quantity: 1,
           unit_price: SAAS_SIGNUP_AMOUNT,
           total_price: SAAS_SIGNUP_AMOUNT,
         },
       ],
-      returnUrl: process.env.SAAS_RENEW_RETURN_URL || "http://localhost:5173/signup/payment-success",
+      paymentType: 'admin',
+      returnUrl: process.env.SAAS_RENEW_RETURN_URL || "http://localhost:5173/renew/payment-success",
     });
 
     signup.pidx = paymentInit.pidx;
@@ -361,17 +558,248 @@ exports.initiateRenewalGoogle = async (req, res) => {
   }
 };
 
+exports.verifyRenewalPayment = async (req, res) => {
+  try {
+    const { pidx } = req.body;
+
+    if (!pidx) {
+      return res.status(400).json({ error: "Payment identifier is required." });
+    }
+
+    const signup = await SaasSignup.findOne({ pidx });
+    if (!signup) {
+      return res.status(404).json({ error: "Renewal record not found for this payment." });
+    }
+
+    const owner = await User.findOne({ email: signup.email, role: "owner" });
+    if (!owner) {
+      return res.status(404).json({ error: "Owner account not found." });
+    }
+
+    // Idempotency: if this renewal was already processed, don't apply extension again.
+    if (signup.paymentStatus === "completed") {
+      const token = generateToken(owner);
+      const ownerResponse = owner.toObject();
+      delete ownerResponse.password;
+
+      return res.json({
+        message: "Subscription renewal already processed.",
+        user: ownerResponse,
+        token,
+        subscriptionExpiresAt: owner.subscriptionExpiresAt,
+        daysGranted: SAAS_SUBSCRIPTION_DAYS,
+        alreadyProcessed: true,
+      });
+    }
+
+    // Secondary idempotency guard for duplicate callbacks on the same payment identifier.
+    const existingPayment = await SubscriptionPayment.findOne({ pidx });
+    if (existingPayment) {
+      signup.paymentStatus = "completed";
+      signup.status = "completed";
+      signup.ownerUserId = owner._id;
+      await signup.save();
+
+      const token = generateToken(owner);
+      const ownerResponse = owner.toObject();
+      delete ownerResponse.password;
+
+      return res.json({
+        message: "Subscription renewal already processed.",
+        user: ownerResponse,
+        token,
+        subscriptionExpiresAt: owner.subscriptionExpiresAt,
+        daysGranted: existingPayment.daysGranted || SAAS_SUBSCRIPTION_DAYS,
+        alreadyProcessed: true,
+      });
+    }
+
+    const verification = await verifyKhaltiPayment(pidx, 'admin');
+
+    if (!verification.isCompleted) {
+      signup.paymentStatus = "failed";
+      signup.status = "failed";
+      await signup.save();
+      return res.status(400).json({ error: verification.message || "Payment not completed." });
+    }
+
+    // Update subscription dates
+    const now = new Date();
+    const currentExpiry = owner.subscriptionExpiresAt ? new Date(owner.subscriptionExpiresAt) : now;
+    
+    // If already expired, start from now, otherwise extend from current expiry
+    const startDate = currentExpiry > now ? currentExpiry : now;
+    const newExpiry = new Date(startDate);
+    newExpiry.setDate(newExpiry.getDate() + SAAS_SUBSCRIPTION_DAYS);
+
+    owner.subscriptionLastPaidAt = now;
+    owner.subscriptionExpiresAt = newExpiry;
+    owner.accountStatus = "active";
+    owner.active = true;
+    await owner.save();
+
+    // Reactivate all team members
+    await User.updateMany(
+      { tenantKey: owner.tenantKey, _id: { $ne: owner._id } },
+      { $set: { active: true } }
+    );
+
+    signup.paymentStatus = "completed";
+    signup.status = "completed";
+    signup.ownerUserId = owner._id;
+    await signup.save();
+
+    // Record payment history (check for duplicates first)
+    try {
+      const existingPayment = await SubscriptionPayment.findOne({ pidx: pidx });
+      
+      if (existingPayment) {
+        console.log(`ℹ️ Payment already recorded for pidx: ${pidx}, skipping duplicate`);
+      } else {
+        const newPayment = await SubscriptionPayment.create({
+          ownerId: owner._id,
+          ownerEmail: owner.email,
+          ownerName: owner.name,
+          businessName: signup.businessName,
+          amount: SAAS_SIGNUP_AMOUNT,
+          currency: "NPR",
+          paymentMethod: "khalti",
+          pidx: pidx,
+          paymentStatus: "completed",
+          paymentType: "renewal",
+          subscriptionStartDate: startDate,
+          subscriptionEndDate: newExpiry,
+          daysGranted: SAAS_SUBSCRIPTION_DAYS,
+          metadata: {
+            signupId: signup._id,
+            verificationData: verification,
+            previousExpiry: currentExpiry,
+          },
+        });
+        console.log(`✅ Payment history recorded for renewal: ${newPayment._id}`);
+      }
+    } catch (paymentError) {
+      if (paymentError.code === 11000) {
+        console.log(`ℹ️ Duplicate key error for pidx: ${pidx}, payment already exists`);
+      } else {
+        console.error("Failed to record payment history:", paymentError);
+      }
+    }
+
+    // Send email notification to user
+    try {
+      const { sendPaymentConfirmationEmail } = require("../utils/otpService");
+      await sendPaymentConfirmationEmail(
+        owner.email,
+        owner.name,
+        SAAS_SIGNUP_AMOUNT,
+        "renewal",
+        newExpiry,
+        SAAS_SUBSCRIPTION_DAYS
+      );
+      console.log("✅ Renewal confirmation email sent to user");
+    } catch (emailError) {
+      console.error("Failed to send renewal confirmation email:", emailError);
+    }
+
+    // Create in-app notification for user
+    try {
+      const { createNotification } = require("../utils/notificationHelper");
+      await createNotification({
+        tenantKey: owner.tenantKey,
+        type: "subscription_renewed",
+        title: "Subscription Renewed Successfully",
+        message: `Your subscription has been renewed for ${SAAS_SUBSCRIPTION_DAYS} more days. New expiry date: ${newExpiry.toLocaleDateString()}. Thank you for continuing with BizTrack!`,
+        metadata: {
+          amount: SAAS_SIGNUP_AMOUNT,
+          newExpiryDate: newExpiry,
+          daysGranted: SAAS_SUBSCRIPTION_DAYS,
+          previousExpiry: currentExpiry,
+        },
+      });
+      console.log("✅ In-app notification created for user");
+    } catch (notifError) {
+      console.error("Failed to create user notification:", notifError);
+    }
+
+    // Create admin contact message
+    try {
+      const daysRemaining = Math.ceil((newExpiry - now) / (1000 * 60 * 60 * 24));
+      const wasExpired = currentExpiry < now;
+      
+      await AdminContactMessage.create({
+        type: "subscription_renewed",
+        clientId: owner._id,
+        clientEmail: owner.email,
+        clientName: owner.name,
+        title: `User Renewed Subscription - ${owner.email}`,
+        message: wasExpired 
+          ? `User ${owner.name} (${owner.email}) renewed their expired subscription. Payment: NPR ${SAAS_SIGNUP_AMOUNT}. New expiry: ${newExpiry.toLocaleDateString()} (${daysRemaining} days from now).`
+          : `User ${owner.name} (${owner.email}) renewed their subscription early. Payment: NPR ${SAAS_SIGNUP_AMOUNT}. Extended from ${currentExpiry.toLocaleDateString()} to ${newExpiry.toLocaleDateString()} (${daysRemaining} total days remaining).`,
+        actionUrl: `/admin/payment-history`,
+        metadata: {
+          amount: SAAS_SIGNUP_AMOUNT,
+          paymentType: "renewal",
+          subscriptionDays: SAAS_SUBSCRIPTION_DAYS,
+          newExpiryDate: newExpiry,
+          previousExpiry: currentExpiry,
+          wasExpired: wasExpired,
+          totalDaysRemaining: daysRemaining,
+        },
+      });
+      console.log("✅ Admin contact message created for renewal");
+    } catch (contactError) {
+      console.error("Failed to create admin contact message:", contactError);
+    }
+
+    const token = generateToken(owner);
+    const ownerResponse = owner.toObject();
+    delete ownerResponse.password;
+
+    return res.json({
+      message: "Subscription renewed successfully.",
+      user: ownerResponse,
+      token,
+      subscriptionExpiresAt: newExpiry,
+      daysGranted: SAAS_SUBSCRIPTION_DAYS,
+    });
+  } catch (error) {
+    console.error("Failed to verify renewal payment:", error);
+    return res.status(500).json({ error: error.message || "Failed to verify payment." });
+  }
+};
+
 exports.getSaasClients = async (req, res) => {
   try {
-    const owners = await User.find({ role: "owner" }).select("name email active tenantKey subscriptionExpiresAt accountStatus subscriptionLastPaidAt createdAt");
+    // No need to filter deleted users - they're permanently removed from database
+    const owners = await User.find({ 
+      role: "owner"
+    }).select("name email active tenantKey subscriptionExpiresAt accountStatus subscriptionLastPaidAt createdAt");
 
+    const now = new Date();
     const result = await Promise.all(
       owners.map(async (owner) => {
         const staffCount = await User.countDocuments({ tenantKey: owner.tenantKey, role: { $in: ["manager", "staff"] } });
+        const lastLoginRecord = await LoginHistory.findOne({ userId: owner._id, success: true })
+          .sort({ loginTime: -1 })
+          .select("loginTime");
+        
+        let daysRemaining = null;
+        let subscriptionExpired = false;
+        
+        if (owner.subscriptionExpiresAt) {
+          const expiryDate = new Date(owner.subscriptionExpiresAt);
+          const diffTime = expiryDate - now;
+          daysRemaining = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+          subscriptionExpired = expiryDate < now;
+        }
+
         return {
           ...owner.toObject(),
           staffCount,
-          subscriptionExpired: owner.subscriptionExpiresAt ? new Date(owner.subscriptionExpiresAt) < new Date() : false,
+          subscriptionExpired,
+          daysRemaining,
+          lastLoginAt: lastLoginRecord?.loginTime || null,
         };
       })
     );
@@ -387,11 +815,15 @@ exports.freezeSaasClient = async (req, res) => {
   try {
     const { ownerId } = req.params;
     const { frozen } = req.body;
+    const adminUser = req.user; // Set by authenticate middleware
 
     const owner = await User.findById(ownerId);
     if (!owner || owner.role !== "owner") {
       return res.status(404).json({ error: "Owner client not found." });
     }
+
+    const previousStatus = owner.accountStatus;
+    const previousActive = owner.active;
 
     owner.accountStatus = frozen ? "frozen" : "active";
     owner.active = !frozen;
@@ -401,6 +833,60 @@ exports.freezeSaasClient = async (req, res) => {
       { tenantKey: owner.tenantKey, _id: { $ne: owner._id } },
       { $set: { active: !frozen } }
     );
+
+    // Log the action
+    try {
+      const action = frozen ? "freeze_client" : "unfreeze_client";
+
+      await AdminAuditLog.create({
+        adminId: adminUser?._id,
+        adminEmail: adminUser?.email || "admin@gmail.com",
+        action,
+        targetClientId: owner._id,
+        targetClientEmail: owner.email,
+        targetClientName: owner.name,
+        details: {
+          previousValue: { status: previousStatus, active: previousActive },
+          newValue: { status: owner.accountStatus, active: owner.active },
+          changes: [
+            { field: "accountStatus", oldValue: previousStatus, newValue: owner.accountStatus },
+            { field: "active", oldValue: previousActive, newValue: owner.active },
+          ],
+        },
+        ipAddress: req.ip || req.connection.remoteAddress,
+        userAgent: req.get("user-agent"),
+        status: "success",
+      });
+
+      // Create a contact message for audit trail
+      await AdminContactMessage.create({
+        type: frozen ? "client_frozen" : "account_reactivated",
+        clientId: owner._id,
+        clientEmail: owner.email,
+        clientName: owner.name,
+        title: frozen ? `Client ${owner.email} has been frozen` : `Client ${owner.email} has been reactivated`,
+        message: frozen
+          ? `Admin action: Client workspace frozen by admin. All team members access revoked.`
+          : `Admin action: Client workspace reactivated. Team members regain access.`,
+        actionUrl: `/admin/users`,
+        metadata: {
+          previousStatus,
+          currentStatus: owner.accountStatus,
+        },
+      });
+
+      // Send email notification to user
+      const { sendAccountStatusEmail } = require("../utils/otpService");
+      await sendAccountStatusEmail(
+        owner.email,
+        owner.name,
+        frozen ? "frozen" : "reactivated",
+        frozen ? "Your account has been temporarily frozen by the administrator." : "Your account has been reactivated and you can now access all features."
+      );
+      console.log(`✅ ${frozen ? 'Freeze' : 'Reactivation'} email sent to ${owner.email}`);
+    } catch (auditError) {
+      console.error("Failed to log freeze/unfreeze action:", auditError);
+    }
 
     return res.json({ message: frozen ? "Client frozen successfully." : "Client unfrozen successfully." });
   } catch (error) {
@@ -412,19 +898,212 @@ exports.freezeSaasClient = async (req, res) => {
 exports.deleteSaasClient = async (req, res) => {
   try {
     const { ownerId } = req.params;
+    const adminUser = req.user; // Set by authenticate middleware
+
     const owner = await User.findById(ownerId);
     if (!owner || owner.role !== "owner") {
       return res.status(404).json({ error: "Owner client not found." });
     }
 
-    await User.updateMany(
-      { tenantKey: owner.tenantKey },
-      { $set: { accountStatus: "deleted", active: false } }
-    );
+    const previousStatus = owner.accountStatus;
+    const previousActive = owner.active;
+    const ownerEmail = owner.email;
+    const ownerName = owner.name;
+    const tenantKey = owner.tenantKey;
 
-    return res.json({ message: "Client deleted (soft delete) successfully." });
+    // Log the action BEFORE deleting
+    try {
+      await AdminAuditLog.create({
+        adminId: adminUser?._id,
+        adminEmail: adminUser?.email || "admin@gmail.com",
+        action: "delete_client",
+        targetClientId: owner._id,
+        targetClientEmail: ownerEmail,
+        targetClientName: ownerName,
+        details: {
+          previousValue: { status: previousStatus, active: previousActive },
+          newValue: { status: "deleted", active: false },
+          changes: [
+            { field: "accountStatus", oldValue: previousStatus, newValue: "deleted" },
+            { field: "active", oldValue: previousActive, newValue: false },
+          ],
+          deletionType: "hard_delete",
+          tenantKey: tenantKey,
+        },
+        ipAddress: req.ip || req.connection.remoteAddress,
+        userAgent: req.get("user-agent"),
+        status: "success",
+      });
+
+      // Create a contact message for audit trail
+      await AdminContactMessage.create({
+        type: "client_deleted",
+        clientId: owner._id,
+        clientEmail: ownerEmail,
+        clientName: ownerName,
+        title: `Client ${ownerEmail} has been permanently deleted`,
+        message: `Admin action: Client workspace and all team members permanently deleted from database. This action is irreversible.`,
+        actionUrl: `/admin/users`,
+        metadata: {
+          previousStatus,
+          currentStatus: "deleted",
+          deletedDate: new Date(),
+          deletionType: "hard_delete",
+          tenantKey: tenantKey,
+        },
+      });
+
+      // Send email notification to user BEFORE deleting
+      const { sendAccountStatusEmail } = require("../utils/otpService");
+      await sendAccountStatusEmail(
+        ownerEmail,
+        ownerName,
+        "deleted",
+        "Your account has been permanently deleted by the administrator. All your data has been removed from our system."
+      );
+      console.log(`✅ Deletion email sent to ${ownerEmail}`);
+    } catch (auditError) {
+      console.error("Failed to log delete action:", auditError);
+    }
+
+    // HARD DELETE: Permanently remove from database
+    // Delete all team members first
+    const teamMembersDeleted = await User.deleteMany({ 
+      tenantKey: tenantKey, 
+      _id: { $ne: owner._id } 
+    });
+    console.log(`🗑️ Deleted ${teamMembersDeleted.deletedCount} team member(s)`);
+
+    // Delete the owner
+    await User.findByIdAndDelete(ownerId);
+    console.log(`🗑️ Permanently deleted owner: ${ownerEmail}`);
+
+    // Clean up SaasSignup records to allow re-signup
+    const signupsDeleted = await SaasSignup.deleteMany({ 
+      $or: [
+        { ownerUserId: ownerId },
+        { email: ownerEmail }
+      ]
+    });
+    console.log(`🗑️ Deleted ${signupsDeleted.deletedCount} signup record(s) for ${ownerEmail}`);
+
+    return res.json({ 
+      message: "Client and all team members permanently deleted from database.",
+      deletedOwner: ownerEmail,
+      deletedTeamMembers: teamMembersDeleted.deletedCount,
+      deletedSignupRecords: signupsDeleted.deletedCount,
+    });
   } catch (error) {
     console.error("Failed to delete client:", error);
     return res.status(500).json({ error: error.message || "Failed to delete client." });
+  }
+};
+
+exports.getPaymentHistory = async (req, res) => {
+  try {
+    const { ownerId } = req.query;
+
+    let filter = { paymentStatus: "completed" };
+    
+    // If ownerId provided, filter by that owner
+    if (ownerId) {
+      filter.ownerId = ownerId;
+    }
+
+    const payments = await SubscriptionPayment.find(filter)
+      .sort({ createdAt: -1 })
+      .populate("ownerId", "name email accountStatus active")
+      .lean();
+
+    // Legacy safety: dedupe records by pidx in case older data contains duplicates.
+    const uniqueByPidx = [];
+    const seen = new Set();
+    for (const payment of payments) {
+      const key = payment.pidx || String(payment._id);
+      if (seen.has(key)) continue;
+      seen.add(key);
+      uniqueByPidx.push(payment);
+    }
+
+    const now = new Date();
+    const enrichedPayments = uniqueByPidx.map(payment => {
+      const nextRenewalDate = new Date(payment.subscriptionEndDate);
+      const daysUntilRenewal = Math.ceil((nextRenewalDate - now) / (1000 * 60 * 60 * 24));
+      
+      return {
+        ...payment,
+        // Ensure ownerId is properly formatted
+        ownerId: payment.ownerId || { 
+          _id: payment.ownerId, 
+          name: payment.ownerName, 
+          email: payment.ownerEmail 
+        },
+        nextRenewalDate,
+        daysUntilRenewal,
+        isExpired: nextRenewalDate < now,
+      };
+    });
+
+    return res.json(enrichedPayments);
+  } catch (error) {
+    console.error("Failed to get payment history:", error);
+    return res.status(500).json({ error: error.message || "Failed to fetch payment history." });
+  }
+};
+
+exports.getOwnerPaymentHistory = async (req, res) => {
+  try {
+    const userId = req.user._id;
+    
+    // Verify user is an owner
+    const user = await User.findById(userId);
+    if (!user || user.role !== "owner") {
+      return res.status(403).json({ error: "Only owners can view their payment history." });
+    }
+
+    const payments = await SubscriptionPayment.find({ 
+      ownerId: userId,
+      paymentStatus: "completed" 
+    })
+      .sort({ createdAt: -1 })
+      .lean();
+
+    // Legacy safety: dedupe records by pidx in case older data contains duplicates.
+    const uniqueByPidx = [];
+    const seen = new Set();
+    for (const payment of payments) {
+      const key = payment.pidx || String(payment._id);
+      if (seen.has(key)) continue;
+      seen.add(key);
+      uniqueByPidx.push(payment);
+    }
+
+    const now = new Date();
+    const enrichedPayments = uniqueByPidx.map(payment => {
+      const nextRenewalDate = new Date(payment.subscriptionEndDate);
+      const daysUntilRenewal = Math.ceil((nextRenewalDate - now) / (1000 * 60 * 60 * 24));
+      
+      return {
+        ...payment,
+        nextRenewalDate,
+        daysUntilRenewal,
+        isExpired: nextRenewalDate < now,
+      };
+    });
+
+    return res.json({
+      payments: enrichedPayments,
+      currentSubscription: {
+        expiresAt: user.subscriptionExpiresAt,
+        lastPaidAt: user.subscriptionLastPaidAt,
+        status: user.accountStatus,
+        daysRemaining: user.subscriptionExpiresAt 
+          ? Math.ceil((new Date(user.subscriptionExpiresAt) - now) / (1000 * 60 * 60 * 24))
+          : null,
+      },
+    });
+  } catch (error) {
+    console.error("Failed to get owner payment history:", error);
+    return res.status(500).json({ error: error.message || "Failed to fetch payment history." });
   }
 };
