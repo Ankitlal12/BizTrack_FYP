@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react'
-import { Eye, Pencil, X } from 'lucide-react'
+import { Eye, Pencil, X, Trash2, Zap, CheckCircle, RotateCw } from 'lucide-react'
 import Layout from '../layout/Layout'
 import { saasAPI, usersAPI } from '../services/api'
 
@@ -14,8 +14,11 @@ type UserRow = {
   role: string
   active: boolean
   dateAdded?: string
+  lastLoginAt?: string | null
   accountStatus?: 'active' | 'frozen' | 'deleted'
   subscriptionExpiresAt?: string
+  subscriptionExpired?: boolean
+  daysRemaining?: number | null
   staffCount?: number
 }
 
@@ -143,8 +146,11 @@ const AdminUsers = () => {
           </div>
           <button
             onClick={loadUsers}
-            className="rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-50"
+            disabled={isLoading}
+            title="Refresh users"
+            className="inline-flex items-center gap-2 rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-50 disabled:opacity-50 transition-all"
           >
+            <RotateCw size={16} className={isLoading ? 'animate-spin' : ''} />
             Refresh
           </button>
         </div>
@@ -176,9 +182,10 @@ const AdminUsers = () => {
               <tr>
                 <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500">Owner Name</th>
                 <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500">Owner Email</th>
-                <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500">Owner Username</th>
+                <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500">Last Login</th>
                 <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500">Staff</th>
                 <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500">Subscription</th>
+                <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500">Days Left</th>
                 <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500">Status</th>
                 <th className="px-4 py-3 text-right text-xs font-semibold uppercase tracking-wide text-gray-500">Actions</th>
               </tr>
@@ -186,53 +193,86 @@ const AdminUsers = () => {
             <tbody className="divide-y divide-gray-100">
               {!isLoading && users.length === 0 && (
                 <tr>
-                  <td className="px-4 py-6 text-sm text-gray-500" colSpan={7}>No SaaS clients found.</td>
+                  <td className="px-4 py-6 text-sm text-gray-500" colSpan={8}>No SaaS clients found.</td>
                 </tr>
               )}
-              {users.map((user) => (
+              {users.map((user) => {
+                const daysLeft = user.daysRemaining ?? null;
+                const isExpiringSoon = daysLeft !== null && daysLeft < 2 && daysLeft >= 0;
+                const isExpired = user.subscriptionExpired || (daysLeft !== null && daysLeft < 0);
+                
+                return (
                 <tr key={toId(user) || user.email} className="hover:bg-gray-50">
                   <td className="px-4 py-3 text-sm font-medium text-gray-900">{user.name}</td>
                   <td className="px-4 py-3 text-sm text-gray-600">{user.email}</td>
-                  <td className="px-4 py-3 text-sm text-gray-600">{user.username || '-'}</td>
+                  <td className="px-4 py-3 text-sm text-gray-600">
+                    {user.lastLoginAt ? new Date(user.lastLoginAt).toLocaleString() : '-'}
+                  </td>
                   <td className="px-4 py-3 text-sm text-gray-600">{user.staffCount ?? 0}</td>
-                  <td className="px-4 py-3 text-sm text-gray-600">{user.subscriptionExpiresAt ? new Date(user.subscriptionExpiresAt).toLocaleDateString() : '-'}</td>
+                  <td className="px-4 py-3 text-sm text-gray-600">
+                    {user.subscriptionExpiresAt ? new Date(user.subscriptionExpiresAt).toLocaleDateString() : '-'}
+                  </td>
                   <td className="px-4 py-3 text-sm">
-                    <span className={`inline-flex rounded-full px-2 py-1 text-xs font-semibold ${user.accountStatus === 'frozen' ? 'bg-yellow-100 text-yellow-700' : user.accountStatus === 'deleted' ? 'bg-red-100 text-red-700' : 'bg-green-100 text-green-700'}`}>
+                    {daysLeft === null ? (
+                      <span className="text-gray-400">-</span>
+                    ) : isExpired ? (
+                      <span className="inline-flex items-center gap-1 px-2 py-1 text-xs font-semibold bg-red-100 text-red-700 rounded">
+                        Expired {Math.abs(daysLeft)} days ago
+                      </span>
+                    ) : isExpiringSoon ? (
+                      <span className="inline-flex items-center gap-1 px-2 py-1 text-xs font-semibold bg-yellow-100 text-yellow-700 rounded">
+                        {daysLeft} {daysLeft === 1 ? 'day' : 'days'} left
+                      </span>
+                    ) : (
+                      <span className="text-gray-600">{daysLeft} days</span>
+                    )}
+                  </td>
+                  <td className="px-4 py-3 text-sm">
+                    <span className={`inline-flex rounded-full px-2 py-1 text-xs font-semibold ${
+                      user.accountStatus === 'frozen' 
+                        ? 'bg-yellow-100 text-yellow-700' 
+                        : user.accountStatus === 'deleted' 
+                        ? 'bg-red-100 text-red-700' 
+                        : 'bg-green-100 text-green-700'
+                    }`}>
                       {user.accountStatus || (user.active ? 'active' : 'inactive')}
                     </span>
                   </td>
                   <td className="px-4 py-3 text-right text-sm">
-                    <div className="inline-flex items-center gap-2">
+                    <div className="inline-flex items-center gap-1">
                       <button
                         onClick={() => setSelectedUser(user)}
-                        className="inline-flex items-center gap-1 rounded-md border border-gray-200 bg-white px-2.5 py-1.5 text-xs font-semibold text-gray-700 hover:bg-gray-50"
+                        title="View user details"
+                        className="inline-flex items-center justify-center p-2 rounded-md border border-gray-200 bg-white text-gray-700 hover:bg-gray-50 transition-colors"
                       >
-                        <Eye size={14} />
-                        View
+                        <Eye size={16} />
                       </button>
                       <button
                         onClick={() => openEditModal(user)}
-                        className="inline-flex items-center gap-1 rounded-md border border-blue-200 bg-blue-50 px-2.5 py-1.5 text-xs font-semibold text-blue-700 hover:bg-blue-100"
+                        title="Edit user"
+                        className="inline-flex items-center justify-center p-2 rounded-md border border-blue-200 bg-blue-50 text-blue-700 hover:bg-blue-100 transition-colors"
                       >
-                        <Pencil size={14} />
-                        Edit
+                        <Pencil size={16} />
                       </button>
                       <button
                         onClick={() => handleFreezeToggle(user)}
-                        className="inline-flex items-center gap-1 rounded-md border border-amber-200 bg-amber-50 px-2.5 py-1.5 text-xs font-semibold text-amber-700 hover:bg-amber-100"
+                        title={user.accountStatus === 'frozen' ? 'Unfreeze client' : 'Freeze client'}
+                        className="inline-flex items-center justify-center p-2 rounded-md border border-amber-200 bg-amber-50 text-amber-700 hover:bg-amber-100 transition-colors"
                       >
-                        {user.accountStatus === 'frozen' ? 'Unfreeze' : 'Freeze'}
+                        {user.accountStatus === 'frozen' ? <CheckCircle size={16} /> : <Zap size={16} />}
                       </button>
                       <button
                         onClick={() => handleDeleteClient(user)}
-                        className="inline-flex items-center gap-1 rounded-md border border-red-200 bg-red-50 px-2.5 py-1.5 text-xs font-semibold text-red-700 hover:bg-red-100"
+                        title="Delete client"
+                        className="inline-flex items-center justify-center p-2 rounded-md border border-red-200 bg-red-50 text-red-700 hover:bg-red-100 transition-colors"
                       >
-                        Delete
+                        <Trash2 size={16} />
                       </button>
                     </div>
                   </td>
                 </tr>
-              ))}
+                );
+              })}
             </tbody>
           </table>
         </div>
@@ -255,7 +295,7 @@ const AdminUsers = () => {
             <div className="space-y-3 px-4 py-4 text-sm">
               <p><span className="font-semibold">Name:</span> {selectedUser.name}</p>
               <p><span className="font-semibold">Email:</span> {selectedUser.email}</p>
-              <p><span className="font-semibold">Username:</span> {selectedUser.username || '-'}</p>
+              <p><span className="font-semibold">Last Login:</span> {selectedUser.lastLoginAt ? new Date(selectedUser.lastLoginAt).toLocaleString() : '-'}</p>
               <p><span className="font-semibold">Role:</span> SaaS Owner</p>
               <p><span className="font-semibold">Status:</span> {selectedUser.active ? 'Active' : 'Inactive'}</p>
               <p><span className="font-semibold">Date Added:</span> {selectedUser.dateAdded ? new Date(selectedUser.dateAdded).toLocaleDateString() : '-'}</p>

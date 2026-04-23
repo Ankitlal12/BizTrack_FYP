@@ -17,7 +17,7 @@ import {
 
 interface Notification {
   _id: string
-  type: 'purchase' | 'sale' | 'low_stock' | 'out_of_stock' | 'system' | 'payment_received' | 'payment_made' | 'payment_scheduled' | 'reorder_needed' | 'reorder_created' | 'reorder_approved' | 'auto_reorder' | 'low_stock_purchase' | 'login_failed' | 'login_success' | 'security_change' | 'installment_due' | 'scheduled_payment_processed' | 'delivery_received' | 'expiring_soon' | 'expired'
+  type: 'purchase' | 'sale' | 'low_stock' | 'out_of_stock' | 'system' | 'payment_received' | 'payment_made' | 'payment_scheduled' | 'reorder_needed' | 'reorder_created' | 'reorder_approved' | 'auto_reorder' | 'low_stock_purchase' | 'login_failed' | 'login_success' | 'security_change' | 'installment_due' | 'scheduled_payment_processed' | 'delivery_received' | 'expiring_soon' | 'expired' | 'subscription_expiring_soon' | 'subscription_expired' | 'subscription_renewed'
   title: string
   message: string
   read: boolean
@@ -225,6 +225,12 @@ const NotificationsTab: React.FC = () => {
         navigate('/low-stock');
         break;
 
+      case 'subscription_expiring_soon':
+      case 'subscription_expired':
+      case 'subscription_renewed':
+        navigate('/renew');
+        break;
+
       case 'reorder_needed':
       case 'reorder_created':
       case 'reorder_approved':
@@ -310,6 +316,12 @@ const NotificationsTab: React.FC = () => {
         return <FiCheckCircle className="h-5 w-5 text-green-600" />
       case 'security_change':
         return <FiAlertCircle className="h-5 w-5 text-blue-600" />
+      case 'subscription_expiring_soon':
+        return <FiAlertCircle className="h-5 w-5 text-amber-500" />
+      case 'subscription_expired':
+        return <FiAlertCircle className="h-5 w-5 text-red-600" />
+      case 'subscription_renewed':
+        return <FiCheckCircle className="h-5 w-5 text-emerald-600" />
       default:
         return <FiAlertCircle className="h-5 w-5 text-gray-500" />
     }

@@ -18,6 +18,7 @@ const Login = () => {
   const [error, setError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [isGoogleLoading, setIsGoogleLoading] = useState(false);
+  const [showRenewAction, setShowRenewAction] = useState(false);
   
   // OTP state
   const [showOTP, setShowOTP] = useState(false);
@@ -31,6 +32,12 @@ const Login = () => {
   
   const { login, setUser, setIsAuthenticated } = useAuth();
   const navigate = useNavigate();
+
+  const isSubscriptionExpiredError = (err: any) => {
+    const status = err?.status;
+    const message = String(err?.message || err?.data?.message || err?.data?.error || '').toLowerCase();
+    return status === 402 || message.includes('subscription expired') || message.includes('subscription has expired');
+  };
 
   const validateLoginFields = () => {
     const nextErrors: { username?: string; password?: string } = {};
@@ -51,6 +58,7 @@ const Login = () => {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
+    setShowRenewAction(false);
 
     const { isValid, trimmedUsername } = validateLoginFields();
     if (!isValid) {
@@ -66,7 +74,12 @@ const Login = () => {
       }
       // Navigation is handled inside AuthContext.login() based on role
     } catch (err: any) {
-      setError(err?.message || 'An error occurred. Please try again.');
+      if (isSubscriptionExpiredError(err)) {
+        setError('Your subscription expired');
+        setShowRenewAction(true);
+      } else {
+        setError(err?.message || 'An error occurred. Please try again.');
+      }
     } finally {
       setIsLoading(false);
     }
@@ -75,6 +88,7 @@ const Login = () => {
   const handleGoogleLoginWithOTP = async (credential: string) => {
     setIsGoogleLoading(true);
     setError('');
+    setShowRenewAction(false);
     
     try {
       const response = await usersAPI.googleLoginWithOTP(credential);
@@ -92,7 +106,12 @@ const Login = () => {
       }
     } catch (err: any) {
       console.error("Google login error:", err);
-      setError(err.message || 'Google authentication failed. Please try again.');
+      if (isSubscriptionExpiredError(err)) {
+        setError('Your subscription expired');
+        setShowRenewAction(true);
+      } else {
+        setError(err.message || 'Google authentication failed. Please try again.');
+      }
       toast.error(err.message || 'Failed to send OTP');
     } finally {
       setIsGoogleLoading(false);
@@ -205,7 +224,16 @@ const Login = () => {
         {/* Error Message */}
         {error && (
           <div className="mb-4 bg-red-50 border border-red-200 text-red-700 rounded-lg p-3 text-sm">
-            {error}
+            <p>{error}</p>
+            {showRenewAction && (
+              <button
+                type="button"
+                onClick={() => navigate('/renew')}
+                className="mt-3 inline-flex items-center rounded-lg bg-teal-600 px-3 py-2 text-xs font-semibold text-white transition-colors hover:bg-teal-700"
+              >
+                Renew Subscription
+              </button>
+            )}
           </div>
         )}
 

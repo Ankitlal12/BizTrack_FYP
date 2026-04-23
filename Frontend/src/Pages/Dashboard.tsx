@@ -99,7 +99,7 @@ const Dashboard = () => {
         invoicesAPI.getAll('limit=100'),
         customersAPI.getAll(),
         suppliersAPI.getAll(),
-        purchasesAPI.getKhaltiBalance().catch(() => ({ khaltiIn: 0, khaltiOut: 0, balance: 0 })),
+        purchasesAPI.getKhaltiBalance({ scope: 'tenant' }).catch(() => ({ khaltiIn: 0, khaltiOut: 0, balance: 0 })),
       ])
 
       // Calculate inventory stats (cost basis to match Inventory page summary)
@@ -434,9 +434,9 @@ const Dashboard = () => {
                 <span className="text-gray-600">Khalti Out</span>
                 <span className="font-semibold text-gray-900">Rs {stats.khaltiOut.toLocaleString()}</span>
               </div>
-              <div className="flex items-center justify-between rounded-lg bg-gray-900 px-3 py-2.5 text-white">
-                <span className="text-gray-200">Net Khalti Balance</span>
-                <span className="font-semibold">Rs {stats.khaltiBalance.toLocaleString()}</span>
+              <div className="flex items-center justify-between rounded-lg bg-gray-50 px-3 py-2.5">
+                <span className="text-gray-600">Net Khalti Balance</span>
+                <span className="font-semibold text-gray-900">Rs {stats.khaltiBalance.toLocaleString()}</span>
               </div>
               <div className="flex items-center justify-between rounded-lg bg-gray-50 px-3 py-2.5">
                 <span className="text-gray-600">Transactions</span>

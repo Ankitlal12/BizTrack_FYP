@@ -22,6 +22,10 @@ export interface User {
   email: string
   role: UserRole
   avatar?: string
+  subscriptionExpiresAt?: string
+  subscriptionLastPaidAt?: string
+  accountStatus?: string
+  isSaasCustomer?: boolean
 }
 
 export interface StaffMember extends User {
@@ -152,6 +156,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           email: loggedInUser.email,
           role: loggedInUser.role,
           avatar: loggedInUser.avatar,
+          subscriptionExpiresAt: loggedInUser.subscriptionExpiresAt,
+          subscriptionLastPaidAt: loggedInUser.subscriptionLastPaidAt,
+          accountStatus: loggedInUser.accountStatus,
+          isSaasCustomer: loggedInUser.isSaasCustomer,
         }
 
         setUser(userObj)
@@ -225,6 +233,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           email: loggedInUser.email,
           role: loggedInUser.role,
           avatar: loggedInUser.avatar,
+          subscriptionExpiresAt: loggedInUser.subscriptionExpiresAt,
+          subscriptionLastPaidAt: loggedInUser.subscriptionLastPaidAt,
+          accountStatus: loggedInUser.accountStatus,
+          isSaasCustomer: loggedInUser.isSaasCustomer,
         }
 
         setUser(userObj)
@@ -280,11 +292,16 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       // Record logout in login history if user is logged in
       if (user?.id) {
         const { loginHistoryAPI } = await import('../services/api');
-        await loginHistoryAPI.recordLogout(user.id);
+        try {
+          await loginHistoryAPI.recordLogout(user.id);
+        } catch (logoutError: any) {
+          // Don't block logout if recording fails
+          // This can happen if session was already terminated
+          console.debug('Note: Logout session record failed (non-critical):', logoutError?.message);
+        }
       }
     } catch (error) {
-      console.error('Failed to record logout:', error);
-      // Don't block logout if recording fails
+      console.error('Logout error:', error);
     } finally {
       setUser(null)
       setIsAuthenticated(false)

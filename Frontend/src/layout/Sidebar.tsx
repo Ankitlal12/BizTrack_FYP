@@ -8,7 +8,7 @@ import { CiDeliveryTruck, CiSettings } from 'react-icons/ci'
 import { LuShoppingBag } from 'react-icons/lu'
 import { IoBarChartSharp } from 'react-icons/io5'
 import { RxCross2 } from 'react-icons/rx'
-import { AlertTriangle, Users, ChevronDown, ChevronRight, Calendar, Truck } from 'lucide-react'
+import { AlertTriangle, Users, ChevronDown, ChevronRight, Calendar, Truck, LogOut, MessageSquare, CreditCard } from 'lucide-react'
 import { useAuth } from '../contexts/AuthContext'
 import { reorderAPI } from '../services/api'
 
@@ -58,6 +58,9 @@ const buildNavStructure = (role: string): NavEntry[] => {
     return [
       { name: 'Admin Overview', path: '/admin', icon: <TbLayoutDashboard size={20} /> },
       { name: 'SaaS Clients', path: '/admin/users', icon: <Users size={20} /> },
+      { name: 'Payment History', path: '/admin/payment-history', icon: <CreditCard size={20} /> },
+      { name: 'Contact Messages', path: '/admin/contact-messages', icon: <MessageSquare size={20} /> },
+      { name: 'Audit Log', path: '/admin/audit-log', icon: <FaHistory size={20} /> },
     ]
   }
 

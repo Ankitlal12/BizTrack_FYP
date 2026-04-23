@@ -248,6 +248,8 @@ const Sales: React.FC = () => {
                   <label className="text-sm text-gray-600">Per page:</label>
                   <select
                     value={pagination.limit}
+                    title="Sales rows per page"
+                    aria-label="Sales rows per page"
                     onChange={(e) => {
                       const newLimit = parseInt(e.target.value)
                       setPagination(prev => ({ ...prev, limit: newLimit, current: 1, pages: Math.ceil(prev.total / newLimit) }))

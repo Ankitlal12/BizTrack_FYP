@@ -1,8 +1,10 @@
 // ==================== IMPORTS ====================
 import React, { memo, useState, useRef, useEffect } from 'react'
+import { useNavigate } from 'react-router-dom'
 import Sidebar from './Sidebar'
 import { FaBell } from 'react-icons/fa'
 import { FiLogOut, FiUser, FiMail, FiShield, FiHash } from 'react-icons/fi'
+import { AlertCircle, CheckCircle, CreditCard, X } from 'lucide-react'
 import { useAuth } from '../contexts/AuthContext'
 import NotificationDropdown from '../components/NotificationDropdown'
 import { notificationsAPI } from '../services/api'
@@ -19,6 +21,109 @@ const getInitials = (name: string) =>
   name.split(' ').map(p => p.charAt(0)).join('').toUpperCase()
 
 // ==================== SUB-COMPONENTS ====================
+
+/** Subscription banner shown at the top for owners */
+const SubscriptionBanner = ({ user }: { user: any }) => {
+  const navigate = useNavigate()
+  const [dismissed, setDismissed] = useState(false)
+
+  if (!user?.subscriptionExpiresAt || !user?.isSaasCustomer || dismissed) {
+    return null
+  }
+
+  const expiryDate = new Date(user.subscriptionExpiresAt)
+  const now = new Date()
+  const diffTime = expiryDate.getTime() - now.getTime()
+  const daysRemaining = Math.ceil(diffTime / (1000 * 60 * 60 * 24))
+  const isExpired = expiryDate < now
+
+  // Show banner if expired or less than 5 days remaining
+  const showWarning = isExpired || daysRemaining < 5
+
+  const getStatusColor = () => {
+    if (isExpired) return 'red'
+    if (daysRemaining < 2) return 'yellow'
+    if (daysRemaining < 5) return 'orange'
+    return 'blue'
+  }
+
+  const getMessage = () => {
+    if (isExpired) {
+      return `Your subscription expired ${Math.abs(daysRemaining)} day${Math.abs(daysRemaining) === 1 ? '' : 's'} ago. Renew now to regain access.`
+    }
+    if (daysRemaining === 1) {
+      return 'Your subscription expires tomorrow! Renew now to avoid service interruption.'
+    }
+    if (daysRemaining < 5) {
+      return `Your subscription expires in ${daysRemaining} days. Renew now to extend by 10 more days.`
+    }
+    return `You have ${daysRemaining} days remaining in your subscription.`
+  }
+
+  const colorClasses = {
+    red: {
+      bg: 'bg-red-50 border-red-200',
+      text: 'text-red-900',
+      icon: 'text-red-600',
+      button: 'bg-red-600 hover:bg-red-700',
+    },
+    yellow: {
+      bg: 'bg-yellow-50 border-yellow-200',
+      text: 'text-yellow-900',
+      icon: 'text-yellow-600',
+      button: 'bg-yellow-600 hover:bg-yellow-700',
+    },
+    orange: {
+      bg: 'bg-orange-50 border-orange-200',
+      text: 'text-orange-900',
+      icon: 'text-orange-600',
+      button: 'bg-orange-600 hover:bg-orange-700',
+    },
+    blue: {
+      bg: 'bg-blue-50 border-blue-200',
+      text: 'text-blue-900',
+      icon: 'text-blue-600',
+      button: 'bg-blue-600 hover:bg-blue-700',
+    },
+  }
+
+  const colors = colorClasses[getStatusColor() as keyof typeof colorClasses]
+  const Icon = showWarning ? AlertCircle : CheckCircle
+
+  return (
+    <div className={`${colors.bg} border-b ${colors.text} px-4 py-2.5`}>
+      <div className="max-w-7xl mx-auto flex items-center justify-between gap-4">
+        <div className="flex items-center gap-3 flex-1">
+          <Icon className={colors.icon} size={20} />
+          <div className="flex items-center gap-2">
+            <p className="text-sm font-medium">{getMessage()}</p>
+            <span className="text-xs opacity-75">
+              (Expires: {expiryDate.toLocaleDateString()})
+            </span>
+          </div>
+        </div>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => navigate('/renew')}
+            className={`flex items-center gap-2 px-3 py-1.5 ${colors.button} text-white text-sm font-semibold rounded-lg transition-colors whitespace-nowrap`}
+          >
+            <CreditCard size={14} />
+            Renew
+          </button>
+          {showWarning && (
+            <button
+              onClick={() => setDismissed(true)}
+              className="p-1.5 hover:bg-black/5 rounded-lg transition-colors"
+              title="Dismiss"
+            >
+              <X size={16} />
+            </button>
+          )}
+        </div>
+      </div>
+    </div>
+  )
+}
 
 /** Profile info card shown in the header dropdown */
 const ProfileCard = ({ user }: { user: any }) => (
@@ -65,8 +170,63 @@ const Layout: React.FC<LayoutProps> = memo(({ children }) => {
   const [showProfile, setShowProfile] = useState(false)
   const [showNotifications, setShowNotifications] = useState(false)
   const [unreadCount, setUnreadCount] = useState(0)
+  const [ownerSubscription, setOwnerSubscription] = useState<any>(null)
   const profileRef = useRef<HTMLDivElement>(null)
   const notificationRef = useRef<HTMLDivElement>(null)
+
+  // ==================== FETCH OWNER SUBSCRIPTION ====================
+
+  useEffect(() => {
+    // Fetch owner's subscription data for all users in the workspace
+    const fetchOwnerSubscription = async () => {
+      if (!user?.role || user.role === 'admin') return
+
+      try {
+        // If user is owner, use their own data
+        if (user.role === 'owner') {
+          setOwnerSubscription({
+            subscriptionExpiresAt: user.subscriptionExpiresAt,
+            isSaasCustomer: user.isSaasCustomer,
+            ownerName: user.name,
+            ownerEmail: user.email,
+          })
+        } else {
+          // For managers and staff, fetch owner's subscription data from API
+          const token = localStorage.getItem('biztrack_token')
+          if (!token) return
+
+          const apiUrl = window.location.origin.includes('localhost') 
+            ? 'http://localhost:5000' 
+            : window.location.origin
+
+          const response = await fetch(`${apiUrl}/api/users`, {
+            headers: {
+              'Authorization': `Bearer ${token}`,
+              'Content-Type': 'application/json',
+            },
+          })
+
+          if (response.ok) {
+            const users = await response.json()
+            const owner = users.find((u: any) => u.role === 'owner')
+            
+            if (owner) {
+              setOwnerSubscription({
+                subscriptionExpiresAt: owner.subscriptionExpiresAt,
+                isSaasCustomer: owner.isSaasCustomer,
+                ownerName: owner.name,
+                ownerEmail: owner.email,
+              })
+            }
+          }
+        }
+      } catch (error) {
+        console.error('Failed to fetch owner subscription:', error)
+      }
+    }
+
+    fetchOwnerSubscription()
+  }, [user])
 
   // ==================== UNREAD COUNT ====================
 
@@ -149,6 +309,11 @@ const Layout: React.FC<LayoutProps> = memo(({ children }) => {
             </div>
           </div>
         </header>
+
+        {/* Subscription Banner - Show for all users (owner, manager, staff) with owner's subscription data */}
+        {user?.role !== 'admin' && ownerSubscription && (
+          <SubscriptionBanner user={ownerSubscription} />
+        )}
 
         <main className="flex-1 overflow-y-auto p-3 sm:p-4 bg-gray-50">
           {children}

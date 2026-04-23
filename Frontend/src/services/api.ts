@@ -114,7 +114,15 @@ async function apiRequest<T>(
     return payload as T;
   } catch (error: any) {
     if (error instanceof ApiRequestError) {
-      console.error('API request failed:', error);
+      // Don't log expected authentication errors (401, 404 for session endpoints)
+      // These are normal when sessions expire or users log out
+      const isSessionEndpoint = endpoint.includes('/login-history/heartbeat') || 
+                                 endpoint.includes('/login-history/logout');
+      const isExpectedAuthError = (error.status === 401 || error.status === 404) && isSessionEndpoint;
+      
+      if (!isExpectedAuthError) {
+        console.error('API request failed:', error);
+      }
       throw error;
     }
 
@@ -235,7 +243,10 @@ export const purchasesAPI = {
       method: 'POST',
       body: JSON.stringify({ pidx, ...(context || {}) }),
     }),
-  getKhaltiBalance: () => apiRequest<any>('/purchases/khalti/balance'),
+  getKhaltiBalance: (params?: { scope?: 'user' | 'tenant' }) => {
+    const query = params?.scope ? `?scope=${params.scope}` : '';
+    return apiRequest<any>(`/purchases/khalti/balance${query}`);
+  },
   initiateKhaltiInstallmentPayment: (data: { purchaseId: string; installmentIndex: number }) =>
     apiRequest<any>('/purchases/khalti/installment/initiate', {
       method: 'POST',
@@ -436,7 +447,6 @@ export const billingAPI = {
   getBillById: (id: string) => apiRequest<any>(`/billing/bills/${id}`),
   
   // Khalti payment endpoints
-  getKhaltiBankList: () => apiRequest<{ success: boolean; banks: any[] }>('/billing/khalti/banks'),
   initiateKhaltiPayment: (data: any) => apiRequest<any>('/billing/khalti/initiate', {
     method: 'POST',
     body: JSON.stringify(data),
@@ -509,6 +519,14 @@ export const saasAPI = {
         body: JSON.stringify(data),
       }
     ),
+  verifyRenewalPayment: (pidx: string) =>
+    apiRequest<{ message: string; user: any; token: string; subscriptionExpiresAt: string; daysGranted: number }>(
+      '/saas/renew/google/verify',
+      {
+        method: 'POST',
+        body: JSON.stringify({ pidx }),
+      }
+    ),
   getClients: () => apiRequest<any[]>('/saas/clients'),
   freezeClient: (ownerId: string, frozen: boolean) =>
     apiRequest<{ message: string }>(`/saas/clients/${ownerId}/freeze`, {
@@ -519,6 +537,12 @@ export const saasAPI = {
     apiRequest<{ message: string }>(`/saas/clients/${ownerId}`, {
       method: 'DELETE',
     }),
+  getPaymentHistory: (ownerId?: string) => {
+    const query = ownerId ? `?ownerId=${ownerId}` : '';
+    return apiRequest<any[]>(`/saas/payments/history${query}`);
+  },
+  getMyPaymentHistory: () =>
+    apiRequest<{ payments: any[]; currentSubscription: any }>('/saas/payments/my-history'),
 };
 
 // Login History API
@@ -747,6 +771,49 @@ export const staffAnalyticsAPI = {
     const query = q.toString() ? `?${q.toString()}` : '';
     return apiRequest<any>(`/users/staff-analytics${query}`);
   },
+};
+
+// Admin Audit API
+export const adminAuditAPI = {
+  getAuditLogs: (params?: { page?: number; limit?: number; action?: string; status?: string }) => {
+    const query = new URLSearchParams();
+    if (params?.page) query.append('page', params.page.toString());
+    if (params?.limit) query.append('limit', params.limit.toString());
+    if (params?.action) query.append('action', params.action);
+    if (params?.status) query.append('status', params.status);
+    const queryString = query.toString() ? `?${query.toString()}` : '';
+    return apiRequest<any>(`/admin/audit/logs${queryString}`);
+  },
+
+  getAuditLogDetails: (logId: string) =>
+    apiRequest<any>(`/admin/audit/logs/${logId}`),
+
+  getContactMessages: (params?: { page?: number; limit?: number; type?: string }) => {
+    const query = new URLSearchParams();
+    if (params?.page) query.append('page', params.page.toString());
+    if (params?.limit) query.append('limit', params.limit.toString());
+    if (params?.type) query.append('type', params.type);
+    const queryString = query.toString() ? `?${query.toString()}` : '';
+    return apiRequest<any>(`/admin/audit/messages${queryString}`);
+  },
+
+  getUnreadMessageCount: () =>
+    apiRequest<{ unreadCount: number }>('/admin/audit/messages/unread/count'),
+
+  markMessageAsRead: (messageId: string) =>
+    apiRequest<any>(`/admin/audit/messages/${messageId}/read`, {
+      method: 'PATCH',
+    }),
+
+  dismissMessage: (messageId: string) =>
+    apiRequest<any>(`/admin/audit/messages/${messageId}/dismiss`, {
+      method: 'PATCH',
+    }),
+
+  markAllMessagesAsRead: () =>
+    apiRequest<any>('/admin/audit/messages/read/all', {
+      method: 'PATCH',
+    }),
 };
 
 export default api;

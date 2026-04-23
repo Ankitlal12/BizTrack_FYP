@@ -10,10 +10,14 @@ import { canAccess, ROLE_HOME, UserRole } from './config/roles'
 const Login               = lazy(() => import('./Pages/Login'))
 const WebsiteHome         = lazy(() => import('./Pages/WebsiteHome'))
 const SaasSignup          = lazy(() => import('./Pages/SaasSignup'))
+const SubscriptionRenewal = lazy(() => import('./Pages/SubscriptionRenewal'))
 const SaasPaymentSuccess  = lazy(() => import('./Pages/SaasPaymentSuccess'))
 const Dashboard           = lazy(() => import('./Pages/Dashboard'))
 const AdminOverview       = lazy(() => import('./Pages/AdminOverview'))
 const AdminUsers          = lazy(() => import('./Pages/AdminUsers'))
+const PaymentHistory      = lazy(() => import('./Pages/PaymentHistory'))
+const AdminAuditLog       = lazy(() => import('./Pages/AdminAuditLog'))
+const AdminContactMessages = lazy(() => import('./Pages/AdminContactMessages'))
 const Inventory           = lazy(() => import('./Pages/Inventory'))
 const Invoices            = lazy(() => import('./Pages/Invoices'))
 const InvoiceDetail       = lazy(() => import('./Pages/Invoices/InvoiceDetail'))
@@ -120,7 +124,9 @@ export const App = () => {
 
           {/* ── Public SaaS website ── */}
           <Route path="/signup" element={!isAuthenticated ? <SaasSignup /> : <Navigate to="/" replace />} />
+          <Route path="/renew" element={<SubscriptionRenewal />} />
           <Route path="/signup/payment-success" element={<SaasPaymentSuccess />} />
+          <Route path="/renew/payment-success" element={<SaasPaymentSuccess />} />
 
           {/* ── Root: role-based home redirect ── */}
           <Route
@@ -158,6 +164,9 @@ export const App = () => {
           {/* ── Admin only ── */}
           <Route path="/admin"             element={<RoleGuard element={<AdminOverview />}    roles={['admin']} />} />
           <Route path="/admin/users"       element={<RoleGuard element={<AdminUsers />}       roles={['admin']} />} />
+          <Route path="/admin/payment-history" element={<RoleGuard element={<PaymentHistory />} roles={['admin']} />} />
+          <Route path="/admin/audit-log"   element={<RoleGuard element={<AdminAuditLog />}    roles={['admin']} />} />
+          <Route path="/admin/contact-messages" element={<RoleGuard element={<AdminContactMessages />} roles={['admin']} />} />
 
           {/* ── Owner only ── */}
           <Route path="/reports"           element={<RoleGuard element={<Reports />}          roles={['owner']} />} />

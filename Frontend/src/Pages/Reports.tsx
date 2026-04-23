@@ -9,7 +9,7 @@ import {
 import { 
   TrendingUp, TrendingDown, Package, ShoppingCart, DollarSign, 
   Calendar, Download, RefreshCw, ArrowUpRight, ArrowDownRight,
-  AlertCircle, CreditCard, Clock, Warehouse
+  AlertCircle, CreditCard, Clock, Warehouse, MessageCircle, X
 } from 'lucide-react';
 import ReportChatbot from './Reports/ReportAssistant';
 import DatePresets from '../components/DatePresets';
@@ -27,6 +27,7 @@ interface SaleItem {
 }
 
 interface DailySales {
+  dateKey: string;
   date: string;
   sales: number;
   orders: number;
@@ -51,12 +52,27 @@ interface SupplierSpend {
 }
 
 interface PurchaseVsSales {
+  dateKey: string;
   date: string;
   purchases: number;
   sales: number;
 }
 
 const toLocalDate = (d: Date) => d.toLocaleDateString('en-CA');
+const toDateKey = (value: string | Date) => new Date(value).toLocaleDateString('en-CA');
+const toChartDateLabel = (dateKey: string) => new Date(`${dateKey}T00:00:00`).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+
+const buildDateKeysInRange = (fromDate: string, toDate: string) => {
+  const keys: string[] = [];
+  const start = new Date(`${fromDate}T00:00:00`);
+  const end = new Date(`${toDate}T00:00:00`);
+
+  for (let cursor = new Date(start); cursor <= end; cursor.setDate(cursor.getDate() + 1)) {
+    keys.push(toLocalDate(cursor));
+  }
+
+  return keys;
+};
 
 const buildProductInsights = (sales: SaleItem[], inventory: any[]) => {
   const costMap = new Map<string, number>();
@@ -111,6 +127,7 @@ const buildProductInsights = (sales: SaleItem[], inventory: any[]) => {
 const Reports: React.FC = () => {
   const [loading, setLoading] = useState(false);
   const [initialLoading, setInitialLoading] = useState(true);
+  const [isChatbotOpen, setIsChatbotOpen] = useState(false);
 
   // Date range filter (default: last 7 days)
   const defaultTo = toLocalDate(new Date());
@@ -165,6 +182,7 @@ const Reports: React.FC = () => {
     }));
 
   const reportChatbotContext = {
+    assistantMode: 'sales',
     dateRange: { from: dateFrom, to: dateTo },
     summary: {
       totalSales,
@@ -192,6 +210,50 @@ const Reports: React.FC = () => {
     loadReportsData();
   }, [dateFrom, dateTo]);
 
+  const fetchAllSalesInRange = async (baseParams: URLSearchParams) => {
+    const allSales: any[] = [];
+    let currentPage = 1;
+    const pageLimit = 500;
+
+    while (true) {
+      const params = new URLSearchParams(baseParams.toString());
+      params.set('page', String(currentPage));
+      params.set('limit', String(pageLimit));
+
+      const response = await salesAPI.getAll(params.toString());
+      const pageSales = response?.sales || [];
+      allSales.push(...pageSales);
+
+      const totalPages = response?.pagination?.pages || 1;
+      if (currentPage >= totalPages) break;
+      currentPage += 1;
+    }
+
+    return allSales;
+  };
+
+  const fetchAllPurchasesInRange = async (baseParams: URLSearchParams) => {
+    const allPurchases: any[] = [];
+    let currentPage = 1;
+    const pageLimit = 500;
+
+    while (true) {
+      const params = new URLSearchParams(baseParams.toString());
+      params.set('page', String(currentPage));
+      params.set('limit', String(pageLimit));
+
+      const response = await purchasesAPI.getAll(params.toString());
+      const pagePurchases = response?.purchases || [];
+      allPurchases.push(...pagePurchases);
+
+      const totalPages = response?.pagination?.pages || 1;
+      if (currentPage >= totalPages) break;
+      currentPage += 1;
+    }
+
+    return allPurchases;
+  };
+
   const loadReportsData = async () => {
     try {
       setLoading(true);
@@ -218,19 +280,16 @@ const Reports: React.FC = () => {
       retentionParams.append('dateFrom', startDate.toISOString());
       retentionParams.append('dateTo', endDate.toISOString());
 
-      const [salesResponse, inventoryResponse, retentionResponse, purchasesResponse, prevSalesResponse] = await Promise.all([
-        salesAPI.getAll(params.toString()),
+      const [sales, inventoryResponse, retentionResponse, purchases, prevSalesData] = await Promise.all([
+        fetchAllSalesInRange(params),
         inventoryAPI.getAll(),
         customersAPI.getRetentionAnalytics(retentionParams.toString()),
-        purchasesAPI.getAll(params.toString()),
-        salesAPI.getAll(prevParams.toString()),
+        fetchAllPurchasesInRange(params),
+        fetchAllSalesInRange(prevParams),
       ]);
 
-      const sales = salesResponse.sales || [];
       const inventory = inventoryResponse || [];
       const retention = retentionResponse.data || null;
-      const purchases = purchasesResponse.purchases || [];
-      const prevSalesData = prevSalesResponse.sales || [];
 
       setSalesData(sales);
       setInventoryData(inventory);
@@ -248,7 +307,7 @@ const Reports: React.FC = () => {
       setPrevAvgOrder(prevOrderCount > 0 ? prevRevenue / prevOrderCount : 0);
 
       // Calculate analytics
-      calculateAnalytics(sales, inventory, purchases);
+      calculateAnalytics(sales, inventory, purchases, dateFrom, dateTo);
 
     } finally {
       setLoading(false);
@@ -256,7 +315,13 @@ const Reports: React.FC = () => {
     }
   };
 
-  const calculateAnalytics = (sales: SaleItem[], inventory: any[], purchases: any[] = []) => {
+  const calculateAnalytics = (
+    sales: SaleItem[],
+    inventory: any[],
+    purchases: any[] = [],
+    rangeFrom?: string,
+    rangeTo?: string
+  ) => {
     // Total sales revenue
     const revenue = sales.reduce((sum, sale) => sum + sale.total, 0);
     setTotalSales(revenue);
@@ -332,22 +397,32 @@ const Reports: React.FC = () => {
     // Purchase vs Sales daily chart
     const pvsDailyMap = new Map<string, { purchases: number; sales: number }>();
     sales.forEach((sale: any) => {
-      const date = new Date(sale.createdAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
-      const existing = pvsDailyMap.get(date) || { purchases: 0, sales: 0 };
-      pvsDailyMap.set(date, { ...existing, sales: existing.sales + sale.total });
+      const dateKey = toDateKey(sale.createdAt);
+      const existing = pvsDailyMap.get(dateKey) || { purchases: 0, sales: 0 };
+      pvsDailyMap.set(dateKey, { ...existing, sales: existing.sales + sale.total });
     });
     purchases.forEach((p: any) => {
-      const date = new Date(p.createdAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
-      const existing = pvsDailyMap.get(date) || { purchases: 0, sales: 0 };
-      pvsDailyMap.set(date, { ...existing, purchases: existing.purchases + p.total });
+      const dateKey = toDateKey(p.createdAt);
+      const existing = pvsDailyMap.get(dateKey) || { purchases: 0, sales: 0 };
+      pvsDailyMap.set(dateKey, { ...existing, purchases: existing.purchases + p.total });
     });
-    const pvsData = Array.from(pvsDailyMap.entries())
-      .map(([date, data]) => ({ date, ...data }))
-      .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+    const rangeKeys = rangeFrom && rangeTo
+      ? buildDateKeysInRange(rangeFrom, rangeTo)
+      : Array.from(pvsDailyMap.keys()).sort((a, b) => a.localeCompare(b));
+
+    const pvsData = rangeKeys.map((dateKey) => {
+      const data = pvsDailyMap.get(dateKey) || { purchases: 0, sales: 0 };
+      return {
+        dateKey,
+        date: toChartDateLabel(dateKey),
+        purchases: data.purchases,
+        sales: data.sales,
+      };
+    });
     setPurchaseVsSalesData(pvsData);
 
     // Daily sales data for bar chart
-    const dailyData = calculateDailySales(sales);
+    const dailyData = calculateDailySales(sales, rangeFrom || dateFrom, rangeTo || dateTo);
     setDailySalesData(dailyData);
 
     // Top products
@@ -359,29 +434,34 @@ const Reports: React.FC = () => {
     setCategorySales(categoryData);
   };
 
-  const calculateDailySales = (sales: SaleItem[]): DailySales[] => {
+  const calculateDailySales = (sales: SaleItem[], fromDate: string, toDate: string): DailySales[] => {
     const dailyMap = new Map<string, { sales: number; orders: number; items: number }>();
 
     sales.forEach(sale => {
-      const date = new Date(sale.createdAt).toLocaleDateString('en-US', { 
-        month: 'short', 
-        day: 'numeric' 
-      });
+      const dateKey = toDateKey(sale.createdAt);
       
-      const existing = dailyMap.get(date) || { sales: 0, orders: 0, items: 0 };
+      const existing = dailyMap.get(dateKey) || { sales: 0, orders: 0, items: 0 };
       const itemCount = sale.items.reduce((sum, item) => sum + item.quantity, 0);
       
-      dailyMap.set(date, {
+      dailyMap.set(dateKey, {
         sales: existing.sales + sale.total,
         orders: existing.orders + 1,
         items: existing.items + itemCount
       });
     });
 
-    return Array.from(dailyMap.entries())
-      .map(([date, data]) => ({ date, ...data }))
-      .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime())
-      .slice(-10); // Last 10 days
+    const keys = buildDateKeysInRange(fromDate, toDate);
+
+    return keys.map((dateKey) => {
+      const data = dailyMap.get(dateKey) || { sales: 0, orders: 0, items: 0 };
+      return {
+        dateKey,
+        date: toChartDateLabel(dateKey),
+        sales: data.sales,
+        orders: data.orders,
+        items: data.items,
+      };
+    });
   };
 
   const calculateTopProducts = (sales: SaleItem[]): ProductSales[] => {
@@ -977,8 +1057,38 @@ const Reports: React.FC = () => {
           </div>
         </div>
 
-        <ReportChatbot reportContext={reportChatbotContext} />
       </div>
+
+      {/* Floating Chatbot Launcher */}
+      <button
+        type="button"
+        onClick={() => setIsChatbotOpen(true)}
+        className="fixed bottom-6 right-6 z-40 inline-flex h-14 w-14 items-center justify-center rounded-full bg-teal-600 text-white shadow-xl transition-colors hover:bg-teal-700"
+        title="Open Chat"
+        aria-label="Open Chat"
+      >
+        <MessageCircle className="h-6 w-6" />
+      </button>
+
+      {/* Chatbot Popup */}
+      {isChatbotOpen && (
+        <div className="fixed inset-0 z-50 flex items-end justify-end bg-black/40 p-4 sm:items-center sm:justify-center">
+          <div className="relative h-[85vh] w-full max-w-6xl overflow-hidden rounded-2xl border border-teal-200/80 bg-gradient-to-br from-white via-teal-50/60 to-slate-50 shadow-2xl">
+            <button
+              type="button"
+              onClick={() => setIsChatbotOpen(false)}
+              className="absolute right-3 top-3 z-10 inline-flex h-9 w-9 items-center justify-center rounded-full bg-white/80 text-slate-700 shadow transition-colors hover:bg-white"
+              title="Close chatbot"
+              aria-label="Close chatbot"
+            >
+              <X className="h-5 w-5" />
+            </button>
+            <div className="h-full overflow-y-auto p-2 sm:p-4">
+              <ReportChatbot reportContext={reportChatbotContext} mode="sales" />
+            </div>
+          </div>
+        </div>
+      )}
 
     </Layout>
   );

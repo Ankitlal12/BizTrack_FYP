@@ -56,7 +56,7 @@ const getSandboxAmountValidationMessage = (amountInRupees: number): string | nul
     amountInRupees < KHALTI_SANDBOX_MIN_RUPEES ||
     amountInRupees > KHALTI_SANDBOX_MAX_RUPEES
   ) {
-    return 'Test mode only supports Khalti payments between Rs 10 and Rs 1000.'
+    return 'Test mode only supports Khalti payments between Rs 10 and Rs 100000000.'
   }
   return null
 }

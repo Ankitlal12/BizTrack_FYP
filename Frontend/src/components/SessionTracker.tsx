@@ -14,22 +14,26 @@ const API_BASE_URL: string = import.meta.env?.VITE_API_URL || 'http://localhost:
 /** Send a logout beacon when the page is closing (sendBeacon or keepalive fetch fallback) */
 const sendLogoutBeacon = (userId: string) => {
   const token = localStorage.getItem('biztrack_token')
+  if (!token) return // Don't send beacon if no token
+  
   const url = `${API_BASE_URL}/login-history/logout`
   const body = JSON.stringify({ userId })
   const blob = new Blob([body], { type: 'application/json' })
 
   if (navigator.sendBeacon) {
     // sendBeacon doesn't support custom headers — append token as query param
-    navigator.sendBeacon(token ? `${url}?token=${token}` : url, blob)
+    navigator.sendBeacon(`${url}?token=${token}`, blob)
   } else {
     fetch(url, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        ...(token && { Authorization: `Bearer ${token}` }),
+        Authorization: `Bearer ${token}`,
       },
       body,
       keepalive: true,
+    }).catch(() => {
+      // Silently fail on logout beacon errors
     })
   }
 }
@@ -49,12 +53,38 @@ const SessionTracker: React.FC = () => {
   useEffect(() => {
     if (!user?.id) return
 
+    // Check if token exists before starting heartbeat
+    const token = localStorage.getItem('biztrack_token')
+    if (!token) return
+
     // ---- Heartbeat ----
     const sendHeartbeat = async () => {
+      // Verify token still exists before sending heartbeat
+      const currentToken = localStorage.getItem('biztrack_token')
+      if (!currentToken) {
+        if (heartbeatRef.current) {
+          clearInterval(heartbeatRef.current)
+          heartbeatRef.current = null
+        }
+        return
+      }
+
       try {
         await loginHistoryAPI.updateHeartbeat(user.id)
-      } catch (error) {
-        console.error('Failed to send heartbeat:', error)
+      } catch (error: any) {
+        // Silently handle authentication errors (user logged out or session expired)
+        // These are expected when the session ends, so we don't log them
+        if (error?.status === 401 || error?.status === 404) {
+          if (heartbeatRef.current) {
+            clearInterval(heartbeatRef.current)
+            heartbeatRef.current = null
+          }
+          return
+        }
+        // Only log unexpected errors (not auth-related)
+        if (error?.status !== 403 && error?.status !== 402) {
+          console.warn('Heartbeat failed:', error?.message || 'Unknown error')
+        }
       }
     }
 
@@ -68,12 +98,18 @@ const SessionTracker: React.FC = () => {
 
     // ---- Tab visibility ----
     const handleVisibilityChange = () => {
-      if (document.visibilityState === 'visible') sendHeartbeat()
+      if (document.visibilityState === 'visible') {
+        const currentToken = localStorage.getItem('biztrack_token')
+        if (currentToken) sendHeartbeat()
+      }
     }
     document.addEventListener('visibilitychange', handleVisibilityChange)
 
     // ---- Page close / unload ----
-    const handleClose = () => sendLogoutBeacon(user.id)
+    const handleClose = () => {
+      const currentToken = localStorage.getItem('biztrack_token')
+      if (currentToken) sendLogoutBeacon(user.id)
+    }
     window.addEventListener('beforeunload', handleClose)
     window.addEventListener('unload', handleClose)
     window.addEventListener('pagehide', handleClose)

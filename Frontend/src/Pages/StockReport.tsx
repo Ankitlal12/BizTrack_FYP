@@ -11,6 +11,8 @@ import {
   RefreshCw, Download, DollarSign, BarChart2, Calendar
 } from 'lucide-react';
 import DatePresets from '../components/DatePresets';
+import ReportChatbot from './Reports/ReportAssistant';
+import { MessageCircle, X } from 'lucide-react';
 
 const COLORS = ['#0d9488', '#3b82f6', '#8b5cf6', '#f59e0b', '#ef4444', '#10b981'];
 
@@ -68,6 +70,7 @@ interface TopSoldItem {
 
 const StockReport: React.FC = () => {
   const [loading, setLoading] = useState(true);
+  const [isChatbotOpen, setIsChatbotOpen] = useState(false);
   const [inventory, setInventory] = useState<StockItem[]>([]);
 
   // Date range (default: last 30 days)
@@ -302,6 +305,58 @@ const StockReport: React.FC = () => {
   }
 
   const potentialProfit = totalStockSellValue - totalStockCostValue;
+  const grossMargin = totalStockSellValue > 0 ? (potentialProfit / totalStockSellValue) * 100 : 0;
+
+  const stockReportChatbotContext = {
+    assistantMode: 'stock',
+    dateRange: { from: dateFrom, to: dateTo },
+    summary: {
+      totalSales: totalStockSellValue,
+      totalOrders: topValueItems.reduce((sum, item) => sum + item.soldQty, 0),
+      totalItemsSold: totalUnits,
+      avgOrderValue: totalUnits > 0 ? totalStockSellValue / totalUnits : 0,
+      cogs: totalStockCostValue,
+      grossProfit: potentialProfit,
+      grossMargin,
+      totalPurchaseCost: totalStockCostValue,
+      outstandingReceivables: 0,
+      outstandingPayables: 0,
+      scheduledTotal: 0,
+    },
+    fastMovingProducts: turnoverData.map((item) => ({
+      name: item.name,
+      quantity: item.soldQty,
+      revenue: (topValueItems.find((t) => t.sku === item.sku)?.revenue) || 0,
+    })),
+    profitableProducts: topValueItems.map((item) => {
+      const invItem = inventory.find((i) => i.sku === item.sku || i.name === item.name);
+      const estimatedCost = (invItem?.cost || 0) * item.soldQty;
+      const estimatedProfit = item.revenue - estimatedCost;
+      return {
+        name: item.name,
+        quantity: item.soldQty,
+        revenue: item.revenue,
+        estimatedCost,
+        estimatedProfit,
+        margin: item.revenue > 0 ? (estimatedProfit / item.revenue) * 100 : 0,
+      };
+    }),
+    lowStockItems: inventory
+      .filter((item) => item.stock > 0 && item.stock <= item.reorderLevel)
+      .map((item) => ({
+        name: item.name,
+        stock: item.stock,
+        reorderLevel: item.reorderLevel,
+        category: item.category,
+      })),
+    topSuppliers: [],
+    categorySales: categoryBreakdown.map((item) => ({
+      name: item.name,
+      value: item.sellValue,
+    })),
+    dailySalesData: [],
+    customerRetention: null,
+  };
 
   return (
     <Layout>
@@ -594,6 +649,35 @@ const StockReport: React.FC = () => {
         </div>
 
       </div>
+
+      <button
+        type="button"
+        onClick={() => setIsChatbotOpen(true)}
+        className="fixed bottom-6 right-6 z-40 inline-flex h-14 w-14 items-center justify-center rounded-full bg-teal-600 text-white shadow-xl transition-colors hover:bg-teal-700"
+        title="Open Chat"
+        aria-label="Open Chat"
+      >
+        <MessageCircle className="h-6 w-6" />
+      </button>
+
+      {isChatbotOpen && (
+        <div className="fixed inset-0 z-50 flex items-end justify-end bg-black/40 p-4 sm:items-center sm:justify-center">
+          <div className="relative h-[85vh] w-full max-w-6xl overflow-hidden rounded-2xl border border-teal-200/80 bg-gradient-to-br from-white via-teal-50/60 to-slate-50 shadow-2xl">
+            <button
+              type="button"
+              onClick={() => setIsChatbotOpen(false)}
+              className="absolute right-3 top-3 z-10 inline-flex h-9 w-9 items-center justify-center rounded-full bg-white/80 text-slate-700 shadow transition-colors hover:bg-white"
+              title="Close chatbot"
+              aria-label="Close chatbot"
+            >
+              <X className="h-5 w-5" />
+            </button>
+            <div className="h-full overflow-y-auto p-2 sm:p-4">
+              <ReportChatbot reportContext={stockReportChatbotContext} mode="stock" />
+            </div>
+          </div>
+        </div>
+      )}
     </Layout>
   );
 };

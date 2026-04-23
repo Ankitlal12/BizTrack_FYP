@@ -16,7 +16,8 @@ interface Notification {
   type: 'purchase' | 'sale' | 'low_stock' | 'out_of_stock' | 'system' | 'payment_received' |
         'payment_made' | 'reorder_needed' | 'reorder_created' | 'reorder_approved' |
         'auto_reorder' | 'low_stock_purchase' | 'login_failed' | 'login_success' |
-        'security_change' | 'expiring_soon' | 'expired' | 'installment_due'
+  'security_change' | 'expiring_soon' | 'expired' | 'installment_due' |
+  'subscription_expiring_soon' | 'subscription_expired' | 'subscription_renewed'
   title: string
   message: string
   read: boolean
@@ -46,6 +47,9 @@ const getNotificationIcon = (type: string) => {
     case 'out_of_stock':    return <FiPackage className="h-5 w-5 text-red-500" />
     case 'expiring_soon':   return <FiAlertCircle className="h-5 w-5 text-orange-500" />
     case 'expired':         return <FiAlertCircle className="h-5 w-5 text-red-600" />
+    case 'subscription_expiring_soon': return <FiAlertCircle className="h-5 w-5 text-amber-500" />
+    case 'subscription_expired': return <FiAlertCircle className="h-5 w-5 text-red-600" />
+    case 'subscription_renewed': return <FiCheckCircle className="h-5 w-5 text-emerald-600" />
     case 'reorder_needed':
     case 'reorder_created':
     case 'reorder_approved':
@@ -272,6 +276,11 @@ const NotificationDropdown: React.FC<NotificationDropdownProps> = ({ isOpen, onC
       case 'expiring_soon':
       case 'expired':
         return navigate(relatedId ? `/inventory?highlight=${relatedId}` : '/inventory')
+
+      case 'subscription_expiring_soon':
+      case 'subscription_expired':
+      case 'subscription_renewed':
+        return navigate('/renew')
 
       case 'reorder_needed':
       case 'reorder_created':

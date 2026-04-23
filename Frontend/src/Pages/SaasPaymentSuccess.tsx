@@ -1,16 +1,18 @@
 import React, { useEffect, useState } from 'react'
-import { Link, useNavigate, useSearchParams } from 'react-router-dom'
+import { Link, useLocation, useNavigate, useSearchParams } from 'react-router-dom'
 import { CheckCircle2, Loader2 } from 'lucide-react'
 import { saasAPI, tokenManager } from '../services/api'
 import { useAuth } from '../contexts/AuthContext'
 
 const SaasPaymentSuccess = () => {
   const [searchParams] = useSearchParams()
+  const location = useLocation()
   const navigate = useNavigate()
   const { setUser, setIsAuthenticated } = useAuth()
 
   const [isVerifying, setIsVerifying] = useState(true)
   const [error, setError] = useState('')
+  const isRenewalFlow = location.pathname === '/renew/payment-success'
 
   useEffect(() => {
     const pidx = searchParams.get('pidx')
@@ -22,7 +24,9 @@ const SaasPaymentSuccess = () => {
 
     const verify = async () => {
       try {
-        const response = await saasAPI.verifyGoogleSignupPayment(pidx)
+        const response = isRenewalFlow
+          ? await saasAPI.verifyRenewalPayment(pidx)
+          : await saasAPI.verifyGoogleSignupPayment(pidx)
 
         tokenManager.setToken(response.token)
         const userObj = {
@@ -39,14 +43,14 @@ const SaasPaymentSuccess = () => {
 
         navigate('/', { replace: true })
       } catch (err: any) {
-        setError(err?.message || 'Payment verification failed.')
+        setError(err?.message || (isRenewalFlow ? 'Renewal verification failed.' : 'Payment verification failed.'))
       } finally {
         setIsVerifying(false)
       }
     }
 
     void verify()
-  }, [navigate, searchParams, setIsAuthenticated, setUser])
+  }, [isRenewalFlow, navigate, searchParams, setIsAuthenticated, setUser])
 
   return (
     <div className="flex min-h-screen items-center justify-center bg-gradient-to-b from-[#f3fbf9] via-white to-[#eef8ff] px-4">
@@ -55,21 +59,36 @@ const SaasPaymentSuccess = () => {
           <div className="space-y-4">
             <Loader2 className="mx-auto h-8 w-8 animate-spin text-teal-600" />
             <h1 className="text-xl font-bold text-slate-900">Verifying your payment...</h1>
-            <p className="text-sm text-slate-600">Please wait while we activate your BizTrack workspace.</p>
+            <p className="text-sm text-slate-600">
+              {isRenewalFlow
+                ? 'Please wait while we restore your BizTrack subscription access.'
+                : 'Please wait while we activate your BizTrack workspace.'}
+            </p>
           </div>
         ) : error ? (
           <div className="space-y-4">
-            <h1 className="text-xl font-bold text-red-700">Signup failed</h1>
+            <h1 className="text-xl font-bold text-red-700">
+              {isRenewalFlow ? 'Renewal failed' : 'Signup failed'}
+            </h1>
             <p className="text-sm text-slate-600">{error}</p>
-            <Link to="/signup" className="inline-block rounded-lg bg-teal-600 px-4 py-2 text-sm font-semibold text-white hover:bg-teal-700">
-              Try Signup Again
+            <Link
+              to={isRenewalFlow ? '/renew' : '/signup'}
+              className="inline-block rounded-lg bg-teal-600 px-4 py-2 text-sm font-semibold text-white hover:bg-teal-700"
+            >
+              {isRenewalFlow ? 'Try Renewal Again' : 'Try Signup Again'}
             </Link>
           </div>
         ) : (
           <div className="space-y-4">
             <CheckCircle2 className="mx-auto h-10 w-10 text-green-600" />
-            <h1 className="text-xl font-bold text-slate-900">Workspace Activated</h1>
-            <p className="text-sm text-slate-600">Redirecting you to your BizTrack owner dashboard...</p>
+            <h1 className="text-xl font-bold text-slate-900">
+              {isRenewalFlow ? 'Subscription Renewed' : 'Workspace Activated'}
+            </h1>
+            <p className="text-sm text-slate-600">
+              {isRenewalFlow
+                ? 'Redirecting you to your BizTrack dashboard...'
+                : 'Redirecting you to your BizTrack owner dashboard...'}
+            </p>
           </div>
         )}
       </div>

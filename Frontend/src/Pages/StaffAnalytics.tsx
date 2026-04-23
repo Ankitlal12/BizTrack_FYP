@@ -11,6 +11,8 @@ import {
   RefreshCw, Crown, Timer, BarChart2, Activity, Star, CheckCircle, XCircle, Calendar
 } from 'lucide-react';
 import DatePresets from '../components/DatePresets';
+import ReportChatbot from './Reports/ReportAssistant';
+import { MessageCircle, X } from 'lucide-react';
 
 const ROLE_COLORS: Record<string, string> = {
   owner: '#6366f1',
@@ -48,6 +50,7 @@ const toLocalDate = (d: Date) => d.toLocaleDateString('en-CA');
 
 const StaffAnalytics: React.FC = () => {
   const [loading, setLoading] = useState(true);
+  const [isChatbotOpen, setIsChatbotOpen] = useState(false);
 
   const defaultTo = toLocalDate(new Date());
   const defaultFrom = (() => { const d = new Date(); d.setDate(d.getDate() - 29); return toLocalDate(d); })();
@@ -143,6 +146,62 @@ const StaffAnalytics: React.FC = () => {
     .sort((a, b) => a[0].localeCompare(b[0]))
     .map(([date, logins]) => ({ date: date.slice(5), logins }));
 
+  const totalRevenue = filteredStaff.reduce((sum: number, st: any) => sum + (st.totalRevenue || 0), 0);
+  const totalSales = filteredStaff.reduce((sum: number, st: any) => sum + (st.totalSales || 0), 0);
+  const totalSessions = filteredStaff.reduce((sum: number, st: any) => sum + (st.totalSessions || 0), 0);
+
+  const staffAnalyticsChatbotContext = {
+    assistantMode: 'staff',
+    dateRange: { from: dateFrom, to: dateTo },
+    summary: {
+      totalSales: totalRevenue,
+      totalOrders: totalSales,
+      totalItemsSold: totalSales,
+      avgOrderValue: totalSales > 0 ? totalRevenue / totalSales : 0,
+      cogs: 0,
+      grossProfit: totalRevenue,
+      grossMargin: 100,
+      totalPurchaseCost: 0,
+      outstandingReceivables: 0,
+      outstandingPayables: 0,
+      scheduledTotal: 0,
+    },
+    fastMovingProducts: filteredStaff.map((staff: any) => ({
+      name: staff.name,
+      quantity: staff.totalSales || 0,
+      revenue: staff.totalRevenue || 0,
+    })),
+    profitableProducts: filteredStaff.map((staff: any) => ({
+      name: staff.name,
+      quantity: staff.totalSales || 0,
+      revenue: staff.totalRevenue || 0,
+      estimatedCost: 0,
+      estimatedProfit: staff.totalRevenue || 0,
+      margin: 100,
+    })),
+    lowStockItems: [],
+    topSuppliers: filteredStaff.map((staff: any) => ({
+      name: staff.name,
+      spend: staff.totalSessionDuration || 0,
+      orders: staff.totalSessions || 0,
+    })),
+    categorySales: roleData.map((role) => ({
+      name: role.name,
+      value: role.value,
+    })),
+    dailySalesData: trendData.map((day) => ({
+      date: day.date,
+      sales: day.Revenue,
+      orders: day.Orders,
+      items: 0,
+    })),
+    customerRetention: {
+      overview,
+      loginActivityByDate: activityData,
+      totalSessions,
+    },
+  };
+
   return (
     <Layout>
       <div className="p-4 md:p-6 space-y-6">
@@ -159,6 +218,8 @@ const StaffAnalytics: React.FC = () => {
                 type="date"
                 value={dateFrom}
                 max={dateTo}
+                aria-label="Staff analytics start date"
+                title="Staff analytics start date"
                 onChange={e => setDateFrom(e.target.value)}
                 className="text-sm border border-gray-200 rounded-lg px-3 py-2 bg-white focus:outline-none focus:ring-2 focus:ring-teal-500"
               />
@@ -168,6 +229,8 @@ const StaffAnalytics: React.FC = () => {
                 value={dateTo}
                 min={dateFrom}
                 max={toLocalDate(new Date())}
+                aria-label="Staff analytics end date"
+                title="Staff analytics end date"
                 onChange={e => setDateTo(e.target.value)}
                 className="text-sm border border-gray-200 rounded-lg px-3 py-2 bg-white focus:outline-none focus:ring-2 focus:ring-teal-500"
               />
@@ -528,6 +591,35 @@ const StaffAnalytics: React.FC = () => {
           )}
         </div>
       </div>
+
+      <button
+        type="button"
+        onClick={() => setIsChatbotOpen(true)}
+        className="fixed bottom-6 right-6 z-40 inline-flex h-14 w-14 items-center justify-center rounded-full bg-teal-600 text-white shadow-xl transition-colors hover:bg-teal-700"
+        title="Open Chat"
+        aria-label="Open Chat"
+      >
+        <MessageCircle className="h-6 w-6" />
+      </button>
+
+      {isChatbotOpen && (
+        <div className="fixed inset-0 z-50 flex items-end justify-end bg-black/40 p-4 sm:items-center sm:justify-center">
+          <div className="relative h-[85vh] w-full max-w-6xl overflow-hidden rounded-2xl border border-teal-200/80 bg-gradient-to-br from-white via-teal-50/60 to-slate-50 shadow-2xl">
+            <button
+              type="button"
+              onClick={() => setIsChatbotOpen(false)}
+              className="absolute right-3 top-3 z-10 inline-flex h-9 w-9 items-center justify-center rounded-full bg-white/80 text-slate-700 shadow transition-colors hover:bg-white"
+              title="Close chatbot"
+              aria-label="Close chatbot"
+            >
+              <X className="h-5 w-5" />
+            </button>
+            <div className="h-full overflow-y-auto p-2 sm:p-4">
+              <ReportChatbot reportContext={staffAnalyticsChatbotContext} mode="staff" />
+            </div>
+          </div>
+        </div>
+      )}
     </Layout>
   );
 };
