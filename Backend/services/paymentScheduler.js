@@ -330,7 +330,10 @@ const processDeliveries = async () => {
 
           if (!inv) {
             // Try to find by name (item may not have been linked at purchase creation)
-            inv = await Inventory.findOne({ name: item.name });
+            inv = await Inventory.findOne({
+              tenantKey: purchase.tenantKey,
+              name: item.name,
+            });
           }
 
           if (inv) {
@@ -358,6 +361,7 @@ const processDeliveries = async () => {
             );
 
             const invData = {
+              tenantKey: purchase.tenantKey,
               name: item.name,
               sku,
               category: item.category || 'Other',
@@ -384,6 +388,7 @@ const processDeliveries = async () => {
         // Notification
         try {
           await createNotification({
+            tenantKey: purchase.tenantKey,
             type: "delivery_received",
             title: "Delivery Received",
             message: `Purchase ${purchase.purchaseNumber} from ${purchase.supplierName} has been automatically received — ${purchase.items.length} item(s) added to inventory.`,

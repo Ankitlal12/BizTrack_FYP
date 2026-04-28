@@ -308,13 +308,56 @@ exports.createUser = async (req, res) => {
   }
 };
 
-// Get all users
+// Get all users with their last login times
 exports.getAllUsers = async (req, res) => {
   try {
     const filter = isPlatformAdmin(req.user)
       ? {}
       : { tenantKey: resolveTenantKey(req.user) };
-    const users = await User.find(filter).select('-password').sort({ dateAdded: -1 });
+
+    // Use aggregation to join with LoginHistory and get the most recent login
+    const users = await User.aggregate([
+      { $match: filter },
+      { $sort: { dateAdded: -1 } },
+      {
+        $lookup: {
+          from: "loginhistories", // MongoDB collection name (lowercase, pluralized)
+          localField: "_id",
+          foreignField: "userId",
+          as: "loginHistory",
+        },
+      },
+      {
+        $addFields: {
+          // Get the most recent login from the joined loginHistory array
+          lastLogin: {
+            $arrayElemAt: [
+              {
+                $sortArray: {
+                  input: "$loginHistory",
+                  sortBy: { loginTime: -1 },
+                },
+              },
+              0,
+            ],
+          },
+        },
+      },
+      {
+        $addFields: {
+          // Extract loginTime from lastLogin and rename to lastLoginAt for frontend compatibility
+          lastLoginAt: "$lastLogin.loginTime",
+        },
+      },
+      {
+        $project: {
+          password: 0,
+          loginHistory: 0, // Remove the full loginHistory array from response
+          lastLogin: 0, // Remove the lastLogin object after extracting the field
+        },
+      },
+    ]);
+
     res.json(users);
   } catch (err) {
     res.status(500).json({ error: err.message });

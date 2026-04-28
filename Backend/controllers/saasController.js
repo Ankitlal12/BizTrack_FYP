@@ -24,6 +24,36 @@ const getSubscriptionExpiry = () => {
   return expires;
 };
 
+const recordSaasFlowLoginHistory = async (user, req) => {
+  try {
+    if (!user?._id || !user?.tenantKey) return;
+
+    const oneMinuteAgo = new Date(Date.now() - 60 * 1000);
+    const recentLogin = await LoginHistory.findOne({
+      userId: user._id,
+      loginMethod: "google",
+      success: true,
+      loginTime: { $gte: oneMinuteAgo },
+    });
+
+    if (recentLogin) return;
+
+    await LoginHistory.create({
+      tenantKey: user.tenantKey,
+      userId: user._id,
+      userName: user.name || user.email,
+      userRole: user.role || "owner",
+      ipAddress: req.ip || req.connection?.remoteAddress,
+      userAgent: req.get("User-Agent"),
+      loginMethod: "google",
+      success: true,
+      loginTime: new Date(),
+    });
+  } catch (error) {
+    console.error("Failed to record SaaS flow login history:", error);
+  }
+};
+
 // Admin session times removed - no longer tracking in audit logs
 
 const verifyGoogleToken = async (credential) => {
@@ -226,6 +256,8 @@ exports.verifyGoogleSignupPayment = async (req, res) => {
         return res.status(409).json({ error: "Signup already processed but owner account was not found." });
       }
 
+      await recordSaasFlowLoginHistory(owner, req);
+
       const token = generateToken(owner);
       const ownerResponse = owner.toObject();
       delete ownerResponse.password;
@@ -258,6 +290,8 @@ exports.verifyGoogleSignupPayment = async (req, res) => {
       if (!owner) {
         return res.status(409).json({ error: "Signup already processed but owner account was not found." });
       }
+
+      await recordSaasFlowLoginHistory(owner, req);
 
       const token = generateToken(owner);
       const ownerResponse = owner.toObject();
@@ -430,24 +464,35 @@ exports.verifyGoogleSignupPayment = async (req, res) => {
       console.error("Failed to create initial payment notification:", notifError);
     }
 
-    // Create admin contact message
+    // Create admin contact message (with deduplication)
     try {
-      await AdminContactMessage.create({
+      const oneMinuteAgo = new Date(Date.now() - 60 * 1000);
+      const recentMessage = await AdminContactMessage.findOne({
         type: "payment_received",
         clientId: owner._id,
-        clientEmail: owner.email,
-        clientName: owner.name,
-        title: `New Payment Received - ${owner.email}`,
-        message: `Initial subscription payment of NPR ${SAAS_SIGNUP_AMOUNT} received. 10-day subscription activated until ${owner.subscriptionExpiresAt.toLocaleDateString()}.`,
-        actionUrl: `/admin/payment-history`,
-        metadata: {
-          amount: SAAS_SIGNUP_AMOUNT,
-          paymentType: "initial",
-          subscriptionDays: SAAS_SUBSCRIPTION_DAYS,
-          expiryDate: owner.subscriptionExpiresAt,
-        },
+        createdAt: { $gte: oneMinuteAgo },
       });
-      console.log("✅ Admin contact message created");
+
+      if (recentMessage) {
+        console.log(`⏭️ Skipping duplicate admin message: payment_received for ${owner.email} (recent one exists)`);
+      } else {
+        await AdminContactMessage.create({
+          type: "payment_received",
+          clientId: owner._id,
+          clientEmail: owner.email,
+          clientName: owner.name,
+          title: `New Payment Received - ${owner.email}`,
+          message: `Initial subscription payment of NPR ${SAAS_SIGNUP_AMOUNT} received. 10-day subscription activated until ${owner.subscriptionExpiresAt.toLocaleDateString()}.`,
+          actionUrl: `/admin/payment-history`,
+          metadata: {
+            amount: SAAS_SIGNUP_AMOUNT,
+            paymentType: "initial",
+            subscriptionDays: SAAS_SUBSCRIPTION_DAYS,
+            expiryDate: owner.subscriptionExpiresAt,
+          },
+        });
+        console.log("✅ Admin contact message created");
+      }
     } catch (contactError) {
       console.error("Failed to create admin contact message:", contactError);
     }
@@ -457,6 +502,8 @@ exports.verifyGoogleSignupPayment = async (req, res) => {
     } catch (emailError) {
       console.error("Failed to send signup confirmation email:", emailError);
     }
+
+    await recordSaasFlowLoginHistory(owner, req);
 
     const token = generateToken(owner);
     const ownerResponse = owner.toObject();
@@ -559,6 +606,10 @@ exports.initiateRenewalGoogle = async (req, res) => {
 };
 
 exports.verifyRenewalPayment = async (req, res) => {
+  console.log('═══════════════════════════════════════════════════════');
+  console.log('🔄 RENEWAL PAYMENT VERIFICATION STARTED - NEW CODE VERSION 2.0');
+  console.log('═══════════════════════════════════════════════════════');
+  
   try {
     const { pidx } = req.body;
 
@@ -578,6 +629,8 @@ exports.verifyRenewalPayment = async (req, res) => {
 
     // Idempotency: if this renewal was already processed, don't apply extension again.
     if (signup.paymentStatus === "completed") {
+      await recordSaasFlowLoginHistory(owner, req);
+
       const token = generateToken(owner);
       const ownerResponse = owner.toObject();
       delete ownerResponse.password;
@@ -599,6 +652,8 @@ exports.verifyRenewalPayment = async (req, res) => {
       signup.status = "completed";
       signup.ownerUserId = owner._id;
       await signup.save();
+
+      await recordSaasFlowLoginHistory(owner, req);
 
       const token = generateToken(owner);
       const ownerResponse = owner.toObject();
@@ -627,16 +682,47 @@ exports.verifyRenewalPayment = async (req, res) => {
     const now = new Date();
     const currentExpiry = owner.subscriptionExpiresAt ? new Date(owner.subscriptionExpiresAt) : now;
     
-    // If already expired, start from now, otherwise extend from current expiry
-    const startDate = currentExpiry > now ? currentExpiry : now;
+    console.log('🔍 Renewal Debug Info:');
+    console.log('   Owner email:', owner.email);
+    console.log('   Owner subscriptionExpiresAt (raw from DB):', owner.subscriptionExpiresAt);
+    console.log('   Current time:', now.toISOString());
+    console.log('   Current time (local):', now.toString());
+    console.log('   Current expiry:', currentExpiry.toISOString());
+    console.log('   Current expiry (local):', currentExpiry.toString());
+    console.log('   Current expiry timestamp:', currentExpiry.getTime());
+    console.log('   Now timestamp:', now.getTime());
+    console.log('   Difference in ms:', currentExpiry.getTime() - now.getTime());
+    console.log('   Difference in hours:', (currentExpiry.getTime() - now.getTime()) / (1000 * 60 * 60));
+    console.log('   Difference in days (Math.ceil):', Math.ceil((currentExpiry.getTime() - now.getTime()) / (1000 * 60 * 60 * 24)));
+    console.log('   Is expired? (currentExpiry <= now):', currentExpiry <= now);
+    console.log('   Is NOT expired? (currentExpiry > now):', currentExpiry > now);
+    
+    // ALWAYS extend from current expiry date, regardless of whether it's expired
+    // This ensures users get the full benefit of renewing early
+    const startDate = new Date(currentExpiry);
     const newExpiry = new Date(startDate);
     newExpiry.setDate(newExpiry.getDate() + SAAS_SUBSCRIPTION_DAYS);
+    
+    console.log('   ---');
+    console.log('   Start date for calculation:', startDate.toISOString());
+    console.log('   Days to add (SAAS_SUBSCRIPTION_DAYS):', SAAS_SUBSCRIPTION_DAYS);
+    console.log('   New expiry:', newExpiry.toISOString());
+    console.log('   New expiry (local):', newExpiry.toString());
+    console.log('   Days from now to new expiry:', Math.ceil((newExpiry.getTime() - now.getTime()) / (1000 * 60 * 60 * 24)));
+    console.log('   ---');
 
     owner.subscriptionLastPaidAt = now;
     owner.subscriptionExpiresAt = newExpiry;
     owner.accountStatus = "active";
     owner.active = true;
+    
+    console.log('   Saving to database...');
+    console.log('   New subscriptionExpiresAt being saved:', owner.subscriptionExpiresAt);
+    
     await owner.save();
+    
+    console.log('   ✅ Saved successfully!');
+    console.log('═══════════════════════════════════════════════════════');
 
     // Reactivate all team members
     await User.updateMany(
@@ -722,35 +808,48 @@ exports.verifyRenewalPayment = async (req, res) => {
       console.error("Failed to create user notification:", notifError);
     }
 
-    // Create admin contact message
+    // Create admin contact message (with deduplication)
     try {
-      const daysRemaining = Math.ceil((newExpiry - now) / (1000 * 60 * 60 * 24));
-      const wasExpired = currentExpiry < now;
-      
-      await AdminContactMessage.create({
+      const oneMinuteAgo = new Date(Date.now() - 60 * 1000);
+      const recentMessage = await AdminContactMessage.findOne({
         type: "subscription_renewed",
         clientId: owner._id,
-        clientEmail: owner.email,
-        clientName: owner.name,
-        title: `User Renewed Subscription - ${owner.email}`,
-        message: wasExpired 
-          ? `User ${owner.name} (${owner.email}) renewed their expired subscription. Payment: NPR ${SAAS_SIGNUP_AMOUNT}. New expiry: ${newExpiry.toLocaleDateString()} (${daysRemaining} days from now).`
-          : `User ${owner.name} (${owner.email}) renewed their subscription early. Payment: NPR ${SAAS_SIGNUP_AMOUNT}. Extended from ${currentExpiry.toLocaleDateString()} to ${newExpiry.toLocaleDateString()} (${daysRemaining} total days remaining).`,
-        actionUrl: `/admin/payment-history`,
-        metadata: {
-          amount: SAAS_SIGNUP_AMOUNT,
-          paymentType: "renewal",
-          subscriptionDays: SAAS_SUBSCRIPTION_DAYS,
-          newExpiryDate: newExpiry,
-          previousExpiry: currentExpiry,
-          wasExpired: wasExpired,
-          totalDaysRemaining: daysRemaining,
-        },
+        createdAt: { $gte: oneMinuteAgo },
       });
-      console.log("✅ Admin contact message created for renewal");
+
+      if (recentMessage) {
+        console.log(`⏭️ Skipping duplicate admin message: subscription_renewed for ${owner.email} (recent one exists)`);
+      } else {
+        const daysRemaining = Math.ceil((newExpiry - now) / (1000 * 60 * 60 * 24));
+        const wasExpired = currentExpiry < now;
+        
+        await AdminContactMessage.create({
+          type: "subscription_renewed",
+          clientId: owner._id,
+          clientEmail: owner.email,
+          clientName: owner.name,
+          title: `User Renewed Subscription - ${owner.email}`,
+          message: wasExpired 
+            ? `User ${owner.name} (${owner.email}) renewed their expired subscription. Payment: NPR ${SAAS_SIGNUP_AMOUNT}. New expiry: ${newExpiry.toLocaleDateString()} (${daysRemaining} days from now).`
+            : `User ${owner.name} (${owner.email}) renewed their subscription early. Payment: NPR ${SAAS_SIGNUP_AMOUNT}. Extended from ${currentExpiry.toLocaleDateString()} to ${newExpiry.toLocaleDateString()} (${daysRemaining} total days remaining).`,
+          actionUrl: `/admin/payment-history`,
+          metadata: {
+            amount: SAAS_SIGNUP_AMOUNT,
+            paymentType: "renewal",
+            subscriptionDays: SAAS_SUBSCRIPTION_DAYS,
+            newExpiryDate: newExpiry,
+            previousExpiry: currentExpiry,
+            wasExpired: wasExpired,
+            totalDaysRemaining: daysRemaining,
+          },
+        });
+        console.log("✅ Admin contact message created for renewal");
+      }
     } catch (contactError) {
       console.error("Failed to create admin contact message:", contactError);
     }
+
+    await recordSaasFlowLoginHistory(owner, req);
 
     const token = generateToken(owner);
     const ownerResponse = owner.toObject();
@@ -799,7 +898,7 @@ exports.getSaasClients = async (req, res) => {
           staffCount,
           subscriptionExpired,
           daysRemaining,
-          lastLoginAt: lastLoginRecord?.loginTime || null,
+          lastLoginAt: lastLoginRecord?.loginTime || owner.subscriptionLastPaidAt || owner.createdAt || null,
         };
       })
     );

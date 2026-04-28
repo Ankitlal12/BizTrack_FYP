@@ -152,7 +152,7 @@ const Sidebar = memo(() => {
 
           {/* Logo / collapse toggle */}
           <div className={`flex items-center ${collapsed ? 'justify-center' : 'justify-between'} p-4 border-b`}>
-            {!collapsed && <h2 className="text-xl font-bold text-teal-600">BizTrack</h2>}
+            {!collapsed && <h2 className="text-2xl font-semibold text-teal-600">BizTrack</h2>}
             <button onClick={toggleSidebar} className="hidden md:block p-1 rounded-md hover:bg-gray-100">
               {collapsed ? <FiMenu size={20} /> : <RxCross2 size={20} />}
             </button>
@@ -170,12 +170,12 @@ const Sidebar = memo(() => {
                         onClick={() => toggleGroup(entry.name)}
                         onMouseEnter={() => handleGroupHover(entry.name, true)}
                         onMouseLeave={() => handleGroupHover(entry.name, false)}
-                        className={`w-full flex items-center ${collapsed ? 'justify-center' : 'px-6'} py-3 text-gray-600 hover:bg-gray-100 transition-colors`}
+                        className={`w-full flex items-center ${collapsed ? 'justify-center' : 'px-6'} py-3 text-base text-gray-600 hover:bg-gray-100 transition-colors`}
                       >
                         <span className="inline-flex">{entry.icon}</span>
                         {!collapsed && (
                           <div className="ml-3 flex items-center justify-between w-full">
-                            <span>{entry.name}</span>
+                            <span className="text-base">{entry.name}</span>
                             {open ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
                           </div>
                         )}
@@ -188,12 +188,12 @@ const Sidebar = memo(() => {
                               <NavLink
                                 to={sub.path}
                                 className={({ isActive }) =>
-                                  `flex items-center pl-12 pr-6 py-2.5 transition-colors ${isActive ? 'bg-teal-50 text-teal-600 border-r-4 border-teal-500' : 'text-gray-600 hover:bg-gray-100'}`
+                                  `flex items-center pl-12 pr-6 py-2.5 text-base transition-colors ${isActive ? 'bg-teal-50 text-teal-600 border-r-4 border-teal-500' : 'text-gray-600 hover:bg-gray-100'}`
                                 }
                                 onClick={closeMobile}
                               >
                                 <span className="inline-flex">{sub.icon}</span>
-                                <span className="ml-3 text-sm">{sub.name}</span>
+                                <span className="ml-3 text-base">{sub.name}</span>
                               </NavLink>
                             </li>
                           ))}
@@ -210,14 +210,14 @@ const Sidebar = memo(() => {
                       to={entry.path}
                       end
                       className={({ isActive }) =>
-                        `flex items-center ${collapsed ? 'justify-center' : 'px-6'} py-3 transition-colors ${isActive ? 'bg-teal-50 text-teal-600 border-r-4 border-teal-500' : 'text-gray-600 hover:bg-gray-100'}`
+                        `flex items-center ${collapsed ? 'justify-center' : 'px-6'} py-3 text-base transition-colors ${isActive ? 'bg-teal-50 text-teal-600 border-r-4 border-teal-500' : 'text-gray-600 hover:bg-gray-100'}`
                       }
                       onClick={closeMobile}
                     >
                       <span className="inline-flex">{entry.icon}</span>
                       {!collapsed && (
                         <div className="ml-3 flex items-center justify-between w-full">
-                          <span>{entry.name}</span>
+                          <span className="text-base">{entry.name}</span>
                           {entry.badge && (
                             <span className={`px-2 py-1 text-xs font-bold text-white rounded-full ${entry.badgeColor || 'bg-teal-500'}`}>
                               {entry.badge}

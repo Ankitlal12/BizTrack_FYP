@@ -38,21 +38,34 @@ const checkSubscriptions = async () => {
           { $set: { active: false } }
         );
 
-        // Create admin notification
-        await AdminContactMessage.create({
-          type: "subscription_expired",
-          clientId: owner._id,
-          clientEmail: owner.email,
-          clientName: owner.name,
-          title: `Subscription Expired - ${owner.email}`,
-          message: `Account automatically frozen due to subscription expiry (10-day period). Last payment: ${owner.subscriptionLastPaidAt?.toLocaleDateString() || 'N/A'}. Days expired: ${Math.abs(daysLeft)}`,
-          actionUrl: `/admin/users`,
-          metadata: {
-            expiryDate: expiryDate,
-            daysExpired: Math.abs(daysLeft),
-            subscriptionPeriod: "10 days",
-          },
-        });
+        // Create admin notification (with deduplication)
+        try {
+          const oneDayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
+          const recentMessage = await AdminContactMessage.findOne({
+            type: "subscription_expired",
+            clientId: owner._id,
+            createdAt: { $gte: oneDayAgo },
+          });
+
+          if (!recentMessage) {
+            await AdminContactMessage.create({
+              type: "subscription_expired",
+              clientId: owner._id,
+              clientEmail: owner.email,
+              clientName: owner.name,
+              title: `Subscription Expired - ${owner.email}`,
+              message: `Account automatically frozen due to subscription expiry (10-day period). Last payment: ${owner.subscriptionLastPaidAt?.toLocaleDateString() || 'N/A'}. Days expired: ${Math.abs(daysLeft)}`,
+              actionUrl: `/admin/users`,
+              metadata: {
+                expiryDate: expiryDate,
+                daysExpired: Math.abs(daysLeft),
+                subscriptionPeriod: "10 days",
+              },
+            });
+          }
+        } catch (msgError) {
+          console.error("Failed to create admin message for expired subscription:", msgError);
+        }
 
         // Notify owner (in-app)
         try {
@@ -89,21 +102,34 @@ const checkSubscriptions = async () => {
       if (daysLeft > 0 && daysLeft < 2 && owner.accountStatus === "active") {
         console.log(`⚠️ Sending expiry warning to: ${owner.email} (${daysLeft} days left)`);
 
-        // Create admin notification
-        await AdminContactMessage.create({
-          type: "subscription_expiring_soon",
-          clientId: owner._id,
-          clientEmail: owner.email,
-          clientName: owner.name,
-          title: `Subscription Expiring Soon - ${owner.email}`,
-          message: `Only ${daysLeft} day(s) remaining in 10-day subscription. Expires on ${expiryDate.toLocaleDateString()}`,
-          actionUrl: `/admin/users`,
-          metadata: {
-            expiryDate: expiryDate,
-            daysLeft: daysLeft,
-            subscriptionPeriod: "10 days",
-          },
-        });
+        // Create admin notification (with deduplication)
+        try {
+          const oneDayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
+          const recentMessage = await AdminContactMessage.findOne({
+            type: "subscription_expiring_soon",
+            clientId: owner._id,
+            createdAt: { $gte: oneDayAgo },
+          });
+
+          if (!recentMessage) {
+            await AdminContactMessage.create({
+              type: "subscription_expiring_soon",
+              clientId: owner._id,
+              clientEmail: owner.email,
+              clientName: owner.name,
+              title: `Subscription Expiring Soon - ${owner.email}`,
+              message: `Only ${daysLeft} day(s) remaining in 10-day subscription. Expires on ${expiryDate.toLocaleDateString()}`,
+              actionUrl: `/admin/users`,
+              metadata: {
+                expiryDate: expiryDate,
+                daysLeft: daysLeft,
+                subscriptionPeriod: "10 days",
+              },
+            });
+          }
+        } catch (msgError) {
+          console.error("Failed to create admin message for expiring subscription:", msgError);
+        }
 
         // Notify owner (in-app)
         try {

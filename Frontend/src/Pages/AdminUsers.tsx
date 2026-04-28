@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react'
-import { Eye, Pencil, X, Trash2, Zap, CheckCircle, RotateCw } from 'lucide-react'
+import { Eye, X, Trash2, Zap, CheckCircle, RotateCw } from 'lucide-react'
 import Layout from '../layout/Layout'
-import { saasAPI, usersAPI } from '../services/api'
+import { saasAPI } from '../services/api'
 
 const ADMIN_EMAIL = 'admin@gmail.com'
 
@@ -30,10 +30,6 @@ const AdminUsers = () => {
   const [error, setError] = useState('')
 
   const [selectedUser, setSelectedUser] = useState<UserRow | null>(null)
-  const [editingUser, setEditingUser] = useState<UserRow | null>(null)
-  const [editUsername, setEditUsername] = useState('')
-  const [editActive, setEditActive] = useState(true)
-  const [isSaving, setIsSaving] = useState(false)
 
   const loadUsers = async () => {
     setIsLoading(true)
@@ -59,55 +55,6 @@ const AdminUsers = () => {
     const inactive = total - active
     return { total, active, inactive }
   }, [users])
-
-  const openEditModal = (user: UserRow) => {
-    setEditingUser(user)
-    setEditUsername(user.username || '')
-    setEditActive(user.active)
-    setError('')
-  }
-
-  const saveUser = async () => {
-    if (!editingUser) return
-
-    const id = toId(editingUser)
-    if (!id) {
-      setError('Invalid user selected for update.')
-      return
-    }
-
-    const trimmedUsername = editUsername.trim()
-
-    if (!trimmedUsername) {
-      setError('Username cannot be empty.')
-      return
-    }
-
-    setIsSaving(true)
-    setError('')
-    try {
-      const updatePayload: { username?: string } = {}
-
-      if (trimmedUsername !== editingUser.username) {
-        updatePayload.username = trimmedUsername
-      }
-
-      if (Object.keys(updatePayload).length > 0) {
-        await usersAPI.update(id, updatePayload)
-      }
-
-      if (editActive !== editingUser.active) {
-        await usersAPI.updateStatus(id, editActive)
-      }
-
-      setEditingUser(null)
-      await loadUsers()
-    } catch (err: any) {
-      setError(err?.message || 'Failed to save user changes.')
-    } finally {
-      setIsSaving(false)
-    }
-  }
 
   const handleFreezeToggle = async (user: UserRow) => {
     const id = toId(user)
@@ -248,13 +195,6 @@ const AdminUsers = () => {
                         <Eye size={16} />
                       </button>
                       <button
-                        onClick={() => openEditModal(user)}
-                        title="Edit user"
-                        className="inline-flex items-center justify-center p-2 rounded-md border border-blue-200 bg-blue-50 text-blue-700 hover:bg-blue-100 transition-colors"
-                      >
-                        <Pencil size={16} />
-                      </button>
-                      <button
                         onClick={() => handleFreezeToggle(user)}
                         title={user.accountStatus === 'frozen' ? 'Unfreeze client' : 'Freeze client'}
                         className="inline-flex items-center justify-center p-2 rounded-md border border-amber-200 bg-amber-50 text-amber-700 hover:bg-amber-100 transition-colors"
@@ -299,62 +239,6 @@ const AdminUsers = () => {
               <p><span className="font-semibold">Role:</span> SaaS Owner</p>
               <p><span className="font-semibold">Status:</span> {selectedUser.active ? 'Active' : 'Inactive'}</p>
               <p><span className="font-semibold">Date Added:</span> {selectedUser.dateAdded ? new Date(selectedUser.dateAdded).toLocaleDateString() : '-'}</p>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {editingUser && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
-          <div className="w-full max-w-md rounded-xl bg-white shadow-xl">
-            <div className="flex items-center justify-between border-b px-4 py-3">
-              <h2 className="font-semibold text-gray-900">Edit User</h2>
-              <button
-                onClick={() => setEditingUser(null)}
-                className="text-gray-500 hover:text-gray-700"
-                title="Close edit dialog"
-                aria-label="Close edit dialog"
-              >
-                <X size={18} />
-              </button>
-            </div>
-            <div className="space-y-4 px-4 py-4">
-              <div>
-                <label htmlFor="admin-edit-username" className="mb-1 block text-sm font-medium text-gray-700">Username</label>
-                <input
-                  id="admin-edit-username"
-                  value={editUsername}
-                  onChange={(e) => setEditUsername(e.target.value)}
-                  placeholder="Enter username"
-                  className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-teal-500 focus:outline-none"
-                />
-              </div>
-
-              <div className="flex items-center justify-between rounded-lg border border-gray-200 px-3 py-2">
-                <p className="text-sm text-gray-700">Active Status</p>
-                <button
-                  onClick={() => setEditActive((v) => !v)}
-                  className={`rounded-full px-3 py-1 text-xs font-semibold ${editActive ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}
-                >
-                  {editActive ? 'Active' : 'Inactive'}
-                </button>
-              </div>
-
-              <div className="flex justify-end gap-2 pt-2">
-                <button
-                  onClick={() => setEditingUser(null)}
-                  className="rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-700 hover:bg-gray-50"
-                >
-                  Cancel
-                </button>
-                <button
-                  onClick={saveUser}
-                  disabled={isSaving}
-                  className="rounded-lg bg-teal-600 px-3 py-2 text-sm font-semibold text-white hover:bg-teal-700 disabled:opacity-70"
-                >
-                  {isSaving ? 'Saving...' : 'Save Changes'}
-                </button>
-              </div>
             </div>
           </div>
         </div>

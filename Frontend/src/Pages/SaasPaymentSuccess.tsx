@@ -12,6 +12,11 @@ const SaasPaymentSuccess = () => {
 
   const [isVerifying, setIsVerifying] = useState(true)
   const [error, setError] = useState('')
+  const [renewalInfo, setRenewalInfo] = useState<{
+    daysGranted?: number
+    subscriptionExpiresAt?: string
+    totalDaysRemaining?: number
+  }>({})
   const isRenewalFlow = location.pathname === '/renew/payment-success'
 
   useEffect(() => {
@@ -28,6 +33,19 @@ const SaasPaymentSuccess = () => {
           ? await saasAPI.verifyRenewalPayment(pidx)
           : await saasAPI.verifyGoogleSignupPayment(pidx)
 
+        // Store renewal information
+        if (isRenewalFlow && response.subscriptionExpiresAt) {
+          const expiryDate = new Date(response.subscriptionExpiresAt)
+          const now = new Date()
+          const totalDaysRemaining = Math.ceil((expiryDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24))
+          
+          setRenewalInfo({
+            daysGranted: response.daysGranted,
+            subscriptionExpiresAt: response.subscriptionExpiresAt,
+            totalDaysRemaining
+          })
+        }
+
         tokenManager.setToken(response.token)
         const userObj = {
           id: response.user._id || response.user.id,
@@ -35,13 +53,20 @@ const SaasPaymentSuccess = () => {
           email: response.user.email,
           role: response.user.role,
           avatar: response.user.avatar,
+          subscriptionExpiresAt: response.user.subscriptionExpiresAt || response.subscriptionExpiresAt,
+          subscriptionLastPaidAt: response.user.subscriptionLastPaidAt,
+          accountStatus: response.user.accountStatus,
+          isSaasCustomer: response.user.isSaasCustomer,
         }
 
         setUser(userObj)
         setIsAuthenticated(true)
         localStorage.setItem('biztrack_user', JSON.stringify(userObj))
 
-        navigate('/', { replace: true })
+        // Delay navigation to show success message with renewal details
+        setTimeout(() => {
+          navigate('/', { replace: true })
+        }, isRenewalFlow ? 3000 : 2000)
       } catch (err: any) {
         setError(err?.message || (isRenewalFlow ? 'Renewal verification failed.' : 'Payment verification failed.'))
       } finally {
@@ -82,8 +107,27 @@ const SaasPaymentSuccess = () => {
           <div className="space-y-4">
             <CheckCircle2 className="mx-auto h-10 w-10 text-green-600" />
             <h1 className="text-xl font-bold text-slate-900">
-              {isRenewalFlow ? 'Subscription Renewed' : 'Workspace Activated'}
+              {isRenewalFlow ? 'Subscription Renewed Successfully!' : 'Workspace Activated'}
             </h1>
+            {isRenewalFlow && renewalInfo.totalDaysRemaining && (
+              <div className="bg-teal-50 border border-teal-200 rounded-lg p-4 space-y-2">
+                <p className="text-sm font-semibold text-teal-900">
+                  ✅ {renewalInfo.daysGranted} days added to your subscription
+                </p>
+                <p className="text-sm text-teal-700">
+                  You now have <span className="font-bold">{renewalInfo.totalDaysRemaining} days</span> remaining
+                </p>
+                {renewalInfo.subscriptionExpiresAt && (
+                  <p className="text-xs text-teal-600">
+                    Expires on: {new Date(renewalInfo.subscriptionExpiresAt).toLocaleDateString('en-US', {
+                      year: 'numeric',
+                      month: 'long',
+                      day: 'numeric'
+                    })}
+                  </p>
+                )}
+              </div>
+            )}
             <p className="text-sm text-slate-600">
               {isRenewalFlow
                 ? 'Redirecting you to your BizTrack dashboard...'

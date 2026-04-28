@@ -455,6 +455,20 @@ const createNotification = async (notificationData) => {
       throw new Error("tenantKey is required for notifications");
     }
 
+    // Deduplication: Check if a notification of the same type already exists within the last 60 seconds
+    // This prevents duplicate notifications from webhook retries or concurrent requests
+    const oneMinuteAgo = new Date(Date.now() - 60 * 1000);
+    const recentDuplicate = await Notification.findOne({
+      tenantKey: notificationData.tenantKey,
+      type: notificationData.type,
+      createdAt: { $gte: oneMinuteAgo },
+    });
+
+    if (recentDuplicate) {
+      console.log(`⏭️ Skipping duplicate notification: ${notificationData.type} - ${notificationData.title} (recent one exists at ${recentDuplicate.createdAt})`);
+      return { temp: recentDuplicate, archive: recentDuplicate, skipped: true };
+    }
+
     const sharedId = new mongoose.Types.ObjectId();
 
     const [tempNotification, archiveNotification] = await Promise.all([

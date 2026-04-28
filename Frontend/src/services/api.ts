@@ -118,9 +118,18 @@ async function apiRequest<T>(
       // These are normal when sessions expire or users log out
       const isSessionEndpoint = endpoint.includes('/login-history/heartbeat') || 
                                  endpoint.includes('/login-history/logout');
-      const isExpectedAuthError = (error.status === 401 || error.status === 404) && isSessionEndpoint;
       
-      if (!isExpectedAuthError) {
+      // Don't log 404 errors for optional admin stats endpoints (may not be implemented)
+      const isOptionalAdminEndpoint = endpoint.includes('/admin/stats/revenue') ||
+                                       endpoint.includes('/admin/stats/usage');
+      
+      const isExpectedAuthError = (error.status === 401 || error.status === 404) && isSessionEndpoint;
+      const isExpectedMissingFeature = error.status === 404 && isOptionalAdminEndpoint;
+      
+      // Don't log expected login failures (401) - these are user errors, not system errors
+      const isLoginFailure = error.status === 401 && endpoint.includes('/users/login');
+      
+      if (!isExpectedAuthError && !isExpectedMissingFeature && !isLoginFailure) {
         console.error('API request failed:', error);
       }
       throw error;

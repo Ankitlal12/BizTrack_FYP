@@ -96,8 +96,8 @@ const SubscriptionBanner = ({ user }: { user: any }) => {
         <div className="flex items-center gap-3 flex-1">
           <Icon className={colors.icon} size={20} />
           <div className="flex items-center gap-2">
-            <p className="text-sm font-medium">{getMessage()}</p>
-            <span className="text-xs opacity-75">
+            <p className="text-base font-medium">{getMessage()}</p>
+            <span className="text-sm opacity-75">
               (Expires: {expiryDate.toLocaleDateString()})
             </span>
           </div>
@@ -105,7 +105,7 @@ const SubscriptionBanner = ({ user }: { user: any }) => {
         <div className="flex items-center gap-2">
           <button
             onClick={() => navigate('/renew')}
-            className={`flex items-center gap-2 px-3 py-1.5 ${colors.button} text-white text-sm font-semibold rounded-lg transition-colors whitespace-nowrap`}
+            className={`flex items-center gap-2 px-3 py-1.5 ${colors.button} text-white text-sm font-medium rounded-lg transition-colors whitespace-nowrap`}
           >
             <CreditCard size={14} />
             Renew
@@ -133,11 +133,11 @@ const ProfileCard = ({ user }: { user: any }) => (
       <div className="absolute top-0 right-0 w-32 h-32 bg-teal-400 opacity-20 rounded-full -mr-16 -mt-16" />
       <div className="absolute bottom-0 left-0 w-24 h-24 bg-teal-300 opacity-20 rounded-full -ml-12 -mb-12" />
       <div className="relative flex flex-col items-center">
-        <div className="h-24 w-24 rounded-full bg-white/20 backdrop-blur-sm border-4 border-white/30 flex items-center justify-center text-white font-bold text-3xl shadow-lg mb-3">
+        <div className="h-24 w-24 rounded-full bg-white/20 backdrop-blur-sm border-4 border-white/30 flex items-center justify-center text-white font-semibold text-3xl shadow-lg mb-3">
           {user ? getInitials(user.name) : 'JD'}
         </div>
-        <h3 className="text-xl font-semibold text-white mb-1">{user?.name || 'John Doe'}</h3>
-        <span className="text-sm text-teal-100 capitalize bg-white/20 px-3 py-1 rounded-full">{user?.role || 'User'}</span>
+        <h3 className="text-2xl font-medium text-white mb-1">{user?.name || 'John Doe'}</h3>
+        <span className="text-base text-teal-100 capitalize bg-white/20 px-3 py-1 rounded-full">{user?.role || 'User'}</span>
       </div>
     </div>
 
@@ -153,8 +153,8 @@ const ProfileCard = ({ user }: { user: any }) => (
           <div className="flex items-start gap-3">
             <div className="p-2 bg-teal-50 rounded-lg">{icon}</div>
             <div className="flex-1">
-              <label className="text-xs font-semibold text-gray-500 uppercase tracking-wide">{label}</label>
-              <p className="text-sm text-gray-700 mt-1 break-all capitalize">{value}</p>
+              <label className="text-sm font-medium text-gray-500 uppercase tracking-wide">{label}</label>
+              <p className="text-base text-gray-700 mt-1 break-all capitalize">{value}</p>
             </div>
           </div>
         </div>
@@ -264,7 +264,7 @@ const Layout: React.FC<LayoutProps> = memo(({ children }) => {
       <div className="flex-1 flex flex-col overflow-hidden">
         <header className="bg-white shadow-sm z-10">
           <div className="px-3 sm:px-4 py-3 flex items-center justify-between">
-            <h1 className="text-lg sm:text-2xl font-semibold text-gray-800">BizTrack</h1>
+            <h1 className="text-xl sm:text-3xl font-medium text-gray-800">BizTrack</h1>
 
             <div className="flex items-center gap-4">
               {/* Notifications (owner only) */}

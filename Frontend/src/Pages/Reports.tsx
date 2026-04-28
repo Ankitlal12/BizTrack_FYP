@@ -1072,18 +1072,23 @@ const Reports: React.FC = () => {
 
       {/* Chatbot Popup */}
       {isChatbotOpen && (
-        <div className="fixed inset-0 z-50 flex items-end justify-end bg-black/40 p-4 sm:items-center sm:justify-center">
-          <div className="relative h-[85vh] w-full max-w-6xl overflow-hidden rounded-2xl border border-teal-200/80 bg-gradient-to-br from-white via-teal-50/60 to-slate-50 shadow-2xl">
+        <div className="fixed inset-0 z-50 flex items-end justify-end bg-slate-950/60 p-4 backdrop-blur-sm sm:items-center sm:justify-center">
+          <div className="relative h-[85vh] w-full max-w-6xl overflow-hidden rounded-[32px] border border-white/50 bg-[linear-gradient(180deg,rgba(255,255,255,0.96)_0%,rgba(248,250,252,0.92)_100%)] shadow-[0_30px_90px_-35px_rgba(15,23,42,0.7)]">
+            <div className="pointer-events-none absolute inset-0">
+              <div className="absolute -top-24 right-[-5rem] h-72 w-72 rounded-full bg-teal-200/35 blur-3xl" />
+              <div className="absolute bottom-0 left-[-6rem] h-64 w-64 rounded-full bg-cyan-200/30 blur-3xl" />
+              <div className="biz-grid-overlay opacity-30" />
+            </div>
             <button
               type="button"
               onClick={() => setIsChatbotOpen(false)}
-              className="absolute right-3 top-3 z-10 inline-flex h-9 w-9 items-center justify-center rounded-full bg-white/80 text-slate-700 shadow transition-colors hover:bg-white"
+              className="absolute right-4 top-4 z-10 inline-flex h-10 w-10 items-center justify-center rounded-full border border-slate-200 bg-white/90 text-slate-700 shadow-sm transition-all hover:-translate-y-0.5 hover:bg-white"
               title="Close chatbot"
               aria-label="Close chatbot"
             >
               <X className="h-5 w-5" />
             </button>
-            <div className="h-full overflow-y-auto p-2 sm:p-4">
+            <div className="relative h-full overflow-y-auto p-2 sm:p-4">
               <ReportChatbot reportContext={reportChatbotContext} mode="sales" />
             </div>
           </div>

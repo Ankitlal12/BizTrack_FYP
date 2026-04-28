@@ -337,13 +337,17 @@ const ReportAssistant: React.FC<ReportChatbotProps> = ({ reportContext, mode = '
   }
 
   return (
-    <section className="rounded-3xl border border-teal-100 bg-gradient-to-br from-white via-teal-50/40 to-slate-50 text-slate-900 shadow-[0_25px_60px_-25px_rgba(15,118,110,0.35)] overflow-hidden">
-      <div className="relative p-6 sm:p-7 bg-gradient-to-r from-teal-700 via-teal-600 to-cyan-600 border-b border-teal-500/40">
-        <div className="absolute -top-20 right-[-4rem] h-64 w-64 rounded-full bg-white/20 blur-3xl pointer-events-none" />
-        <div className="absolute -bottom-20 left-[-4rem] h-56 w-56 rounded-full bg-cyan-200/30 blur-3xl pointer-events-none" />
+    <section className="relative overflow-hidden rounded-[32px] border border-slate-200/80 bg-[linear-gradient(180deg,rgba(255,255,255,0.95)_0%,rgba(246,250,249,0.94)_100%)] text-slate-900 shadow-[0_30px_80px_-35px_rgba(15,23,42,0.45)]">
+      <div className="pointer-events-none absolute inset-0">
+        <div className="absolute -top-24 right-[-5rem] h-72 w-72 rounded-full bg-teal-200/35 blur-3xl" />
+        <div className="absolute bottom-0 left-[-5rem] h-64 w-64 rounded-full bg-cyan-200/30 blur-3xl" />
+        <div className="biz-grid-overlay opacity-30" />
+      </div>
+
+      <div className="relative border-b border-white/70 bg-[linear-gradient(135deg,rgba(8,47,73,0.98)_0%,rgba(13,148,136,0.95)_55%,rgba(6,182,212,0.9)_100%)] p-6 sm:p-7">
         <div className="relative flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
           <div className="max-w-2xl">
-            <div className="inline-flex items-center gap-2 rounded-full bg-white/20 px-3 py-1 text-xs font-semibold uppercase tracking-[0.2em] text-white/95">
+            <div className="inline-flex items-center gap-2 rounded-full border border-white/20 bg-white/15 px-3 py-1 text-xs font-semibold uppercase tracking-[0.2em] text-white/95 backdrop-blur-md">
               <Bot className="w-4 h-4" />
               AI Business Assistant
             </div>
@@ -360,7 +364,7 @@ const ReportAssistant: React.FC<ReportChatbotProps> = ({ reportContext, mode = '
 
           <div className="grid grid-cols-2 gap-3 sm:gap-4 w-full lg:w-[420px]">
             {config.badges.map((badge) => (
-              <div key={badge.label} className="rounded-2xl border border-white/30 bg-white/15 p-4 backdrop-blur-md transition-transform duration-200 hover:-translate-y-0.5">
+              <div key={badge.label} className="rounded-3xl border border-white/20 bg-white/15 p-4 backdrop-blur-md transition-transform duration-200 hover:-translate-y-0.5 hover:bg-white/20">
                 <div className="flex items-center gap-2 text-xs uppercase tracking-[0.18em] text-teal-50/90">
                   {badge.icon}
                   {badge.label}
@@ -373,15 +377,15 @@ const ReportAssistant: React.FC<ReportChatbotProps> = ({ reportContext, mode = '
         </div>
       </div>
 
-      <div className="grid gap-4 p-4 sm:p-6 lg:grid-cols-[1.2fr_0.8fr]">
-        <div className="rounded-2xl border border-teal-100 bg-white p-4 sm:p-5 shadow-sm">
+      <div className="relative grid gap-4 p-4 sm:p-6 lg:grid-cols-[1.2fr_0.8fr]">
+        <div className="rounded-[28px] border border-slate-200/70 bg-white/90 p-4 sm:p-5 shadow-sm backdrop-blur-sm">
           <div className="flex flex-wrap gap-2 mb-4">
             {config.prompts.map((item) => (
               <button
                 key={item.label}
                 onClick={() => void sendMessage(item.prompt)}
                 disabled={isSending}
-                className="inline-flex items-center gap-2 rounded-full border border-teal-200 bg-teal-50 px-3 py-2 text-xs font-semibold text-teal-700 transition-all hover:bg-teal-100 hover:border-teal-300 disabled:opacity-60"
+                className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-slate-50 px-3 py-2 text-xs font-semibold text-slate-700 transition-all hover:-translate-y-0.5 hover:border-teal-200 hover:bg-teal-50 disabled:opacity-60"
               >
                 {item.icon}
                 {item.label}
@@ -389,7 +393,7 @@ const ReportAssistant: React.FC<ReportChatbotProps> = ({ reportContext, mode = '
             ))}
           </div>
 
-          <div className="max-h-[420px] overflow-y-auto space-y-3 pr-1 rounded-2xl border border-slate-100 bg-gradient-to-b from-white to-slate-50 p-2 sm:p-3">
+          <div className="max-h-[420px] overflow-y-auto space-y-3 pr-1 rounded-[24px] border border-slate-100 bg-[linear-gradient(180deg,rgba(255,255,255,0.9)_0%,rgba(248,250,252,0.96)_100%)] p-2 sm:p-3 shadow-inner shadow-slate-100/70">
             {messages.map((message, index) => (
               <div
                 key={`${message.role}-${index}`}
@@ -431,7 +435,7 @@ const ReportAssistant: React.FC<ReportChatbotProps> = ({ reportContext, mode = '
             <button
               type="submit"
               disabled={isSending || !input.trim()}
-              className="inline-flex items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-teal-500 to-cyan-500 px-5 py-3 text-sm font-semibold text-white shadow-sm transition-all hover:from-teal-600 hover:to-cyan-600 disabled:cursor-not-allowed disabled:opacity-60"
+              className="inline-flex items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-teal-500 to-cyan-500 px-5 py-3 text-sm font-semibold text-white shadow-sm transition-all hover:-translate-y-0.5 hover:from-teal-600 hover:to-cyan-600 disabled:cursor-not-allowed disabled:opacity-60"
             >
               <Send className="w-4 h-4" />
               Send
@@ -440,7 +444,7 @@ const ReportAssistant: React.FC<ReportChatbotProps> = ({ reportContext, mode = '
         </div>
 
         <aside className="space-y-4">
-          <div className="rounded-2xl border border-teal-100 bg-white p-4 sm:p-5 shadow-sm">
+          <div className="rounded-[28px] border border-slate-200/70 bg-white/90 p-4 sm:p-5 shadow-sm backdrop-blur-sm">
             <div className="flex items-center gap-2 text-sm font-semibold text-slate-800">
               <Zap className="w-4 h-4 text-teal-300" />
               Context snapshot
@@ -448,19 +452,19 @@ const ReportAssistant: React.FC<ReportChatbotProps> = ({ reportContext, mode = '
             <div className="mt-4 grid grid-cols-2 gap-3">
               {mode === 'sales' && (
                 <>
-                  <div className="rounded-xl border border-slate-100 bg-slate-50 p-3">
+                  <div className="rounded-2xl border border-slate-100 bg-slate-50 p-3">
                     <div className="text-xs text-slate-500">Sales</div>
                     <div className="mt-1 text-lg font-bold text-slate-900">Rs {reportContext.summary.totalSales.toFixed(2)}</div>
                   </div>
-                  <div className="rounded-xl border border-slate-100 bg-slate-50 p-3">
+                  <div className="rounded-2xl border border-slate-100 bg-slate-50 p-3">
                     <div className="text-xs text-slate-500">Profit</div>
                     <div className="mt-1 text-lg font-bold text-slate-900">Rs {reportContext.summary.grossProfit.toFixed(2)}</div>
                   </div>
-                  <div className="rounded-xl border border-slate-100 bg-slate-50 p-3">
+                  <div className="rounded-2xl border border-slate-100 bg-slate-50 p-3">
                     <div className="text-xs text-slate-500">Fast movers</div>
                     <div className="mt-1 text-lg font-bold text-slate-900">{reportContext.fastMovingProducts.length}</div>
                   </div>
-                  <div className="rounded-xl border border-slate-100 bg-slate-50 p-3">
+                  <div className="rounded-2xl border border-slate-100 bg-slate-50 p-3">
                     <div className="text-xs text-slate-500">Low stock</div>
                     <div className="mt-1 text-lg font-bold text-slate-900">{reportContext.lowStockItems.length}</div>
                   </div>
@@ -469,19 +473,19 @@ const ReportAssistant: React.FC<ReportChatbotProps> = ({ reportContext, mode = '
 
               {mode === 'stock' && (
                 <>
-                  <div className="rounded-xl border border-slate-100 bg-slate-50 p-3">
+                  <div className="rounded-2xl border border-slate-100 bg-slate-50 p-3">
                     <div className="text-xs text-slate-500">Revenue</div>
                     <div className="mt-1 text-lg font-bold text-slate-900">Rs {reportContext.summary.totalSales.toFixed(2)}</div>
                   </div>
-                  <div className="rounded-xl border border-slate-100 bg-slate-50 p-3">
+                  <div className="rounded-2xl border border-slate-100 bg-slate-50 p-3">
                     <div className="text-xs text-slate-500">COGS</div>
                     <div className="mt-1 text-lg font-bold text-slate-900">Rs {reportContext.summary.cogs.toFixed(2)}</div>
                   </div>
-                  <div className="rounded-xl border border-slate-100 bg-slate-50 p-3">
+                  <div className="rounded-2xl border border-slate-100 bg-slate-50 p-3">
                     <div className="text-xs text-slate-500">Gross Margin</div>
                     <div className="mt-1 text-lg font-bold text-slate-900">{reportContext.summary.grossMargin.toFixed(1)}%</div>
                   </div>
-                  <div className="rounded-xl border border-slate-100 bg-slate-50 p-3">
+                  <div className="rounded-2xl border border-slate-100 bg-slate-50 p-3">
                     <div className="text-xs text-slate-500">Low stock items</div>
                     <div className="mt-1 text-lg font-bold text-slate-900">{reportContext.lowStockItems.length}</div>
                   </div>
@@ -490,19 +494,19 @@ const ReportAssistant: React.FC<ReportChatbotProps> = ({ reportContext, mode = '
 
               {mode === 'staff' && (
                 <>
-                  <div className="rounded-xl border border-slate-100 bg-slate-50 p-3">
+                  <div className="rounded-2xl border border-slate-100 bg-slate-50 p-3">
                     <div className="text-xs text-slate-500">Team Revenue</div>
                     <div className="mt-1 text-lg font-bold text-slate-900">Rs {reportContext.summary.totalSales.toFixed(2)}</div>
                   </div>
-                  <div className="rounded-xl border border-slate-100 bg-slate-50 p-3">
+                  <div className="rounded-2xl border border-slate-100 bg-slate-50 p-3">
                     <div className="text-xs text-slate-500">Total Sales</div>
                     <div className="mt-1 text-lg font-bold text-slate-900">{reportContext.summary.totalOrders}</div>
                   </div>
-                  <div className="rounded-xl border border-slate-100 bg-slate-50 p-3">
+                  <div className="rounded-2xl border border-slate-100 bg-slate-50 p-3">
                     <div className="text-xs text-slate-500">Active Staff</div>
                     <div className="mt-1 text-lg font-bold text-slate-900">{reportContext.customerRetention?.overview?.activeStaff || 0}</div>
                   </div>
-                  <div className="rounded-xl border border-slate-100 bg-slate-50 p-3">
+                  <div className="rounded-2xl border border-slate-100 bg-slate-50 p-3">
                     <div className="text-xs text-slate-500">Total Sessions</div>
                     <div className="mt-1 text-lg font-bold text-slate-900">{reportContext.customerRetention?.totalSessions || 0}</div>
                   </div>
@@ -511,7 +515,7 @@ const ReportAssistant: React.FC<ReportChatbotProps> = ({ reportContext, mode = '
             </div>
           </div>
 
-          <div className="rounded-2xl border border-teal-100 bg-white p-4 sm:p-5 shadow-sm">
+          <div className="rounded-[28px] border border-slate-200/70 bg-white/90 p-4 sm:p-5 shadow-sm backdrop-blur-sm">
             <div className="flex items-center gap-2 text-sm font-semibold text-slate-800">
               <TrendingUp className="w-4 h-4 text-teal-300" />
               What it can answer
