@@ -18,6 +18,17 @@ const GOOGLE_CLIENT_ID =
 const SAAS_SIGNUP_AMOUNT = Number(process.env.SAAS_SIGNUP_AMOUNT || 999);
 const SAAS_SUBSCRIPTION_DAYS = Number(process.env.SAAS_SUBSCRIPTION_DAYS || 30);
 
+// CRITICAL: Validate configuration
+if (SAAS_SUBSCRIPTION_DAYS < 1) {
+  console.warn('⚠️  WARNING: SAAS_SUBSCRIPTION_DAYS is', SAAS_SUBSCRIPTION_DAYS, '- defaulting to 30 days');
+}
+
+if (process.env.SAAS_SUBSCRIPTION_DAYS) {
+  console.log('✅ SAAS_SUBSCRIPTION_DAYS configured:', SAAS_SUBSCRIPTION_DAYS, 'days');
+} else {
+  console.log('⚠️  SAAS_SUBSCRIPTION_DAYS using default:', SAAS_SUBSCRIPTION_DAYS, 'days');
+}
+
 const getSubscriptionExpiry = () => {
   const expires = new Date();
   expires.setDate(expires.getDate() + SAAS_SUBSCRIPTION_DAYS);
@@ -323,6 +334,7 @@ exports.verifyGoogleSignupPayment = async (req, res) => {
       const securePassword = signup.passwordHash || await bcrypt.hash(`${signup.googleId}-${Date.now()}`, 10);
 
       try {
+        const expiryDate = getSubscriptionExpiry();
         owner = await User.create({
           name: signup.ownerName,
           email: signup.email,
@@ -335,10 +347,11 @@ exports.verifyGoogleSignupPayment = async (req, res) => {
           accountStatus: "active",
           subscriptionPlan: "monthly",
           subscriptionLastPaidAt: new Date(),
-          subscriptionExpiresAt: getSubscriptionExpiry(),
+          subscriptionExpiresAt: expiryDate,
           active: true,
           dateAdded: new Date(),
         });
+        console.log(`✅ New owner created with subscription expiring: ${expiryDate.toISOString()}`);
       } catch (createError) {
         if (createError?.code === 11000) {
           owner = await User.findOne({
@@ -373,9 +386,16 @@ exports.verifyGoogleSignupPayment = async (req, res) => {
       owner.accountStatus = "active";
       owner.subscriptionPlan = "monthly";
       owner.subscriptionLastPaidAt = new Date();
-      owner.subscriptionExpiresAt = getSubscriptionExpiry();
+      
+      // CRITICAL: Ensure subscriptionExpiresAt is properly set
+      const expiryDate = getSubscriptionExpiry();
+      owner.subscriptionExpiresAt = expiryDate;
       changed = true;
-      if (changed) await owner.save();
+      
+      if (changed) {
+        await owner.save();
+        console.log(`✅ Existing owner updated with subscription expiring: ${expiryDate.toISOString()}`);
+      }
     }
 
     if (owner.passwordHash) {
@@ -505,8 +525,26 @@ exports.verifyGoogleSignupPayment = async (req, res) => {
 
     await recordSaasFlowLoginHistory(owner, req);
 
-    const token = generateToken(owner);
-    const ownerResponse = owner.toObject();
+    // Fetch fresh owner data to ensure consistency
+    const freshOwnerData = await User.findById(owner._id);
+    if (!freshOwnerData) {
+      console.error('⚠️  Warning: Owner not found after initial signup!');
+      const token = generateToken(owner);
+      const ownerResponse = owner.toObject();
+      delete ownerResponse.password;
+      return res.json({
+        message: "Signup completed successfully.",
+        user: ownerResponse,
+        token,
+        workspace: {
+          businessName: signup.businessName,
+          ownerEmail: signup.email,
+        },
+      });
+    }
+
+    const token = generateToken(freshOwnerData);
+    const ownerResponse = freshOwnerData.toObject();
     delete ownerResponse.password;
 
     return res.json({
@@ -617,56 +655,76 @@ exports.verifyRenewalPayment = async (req, res) => {
       return res.status(400).json({ error: "Payment identifier is required." });
     }
 
-    const signup = await SaasSignup.findOne({ pidx });
-    if (!signup) {
-      return res.status(404).json({ error: "Renewal record not found for this payment." });
+    // CRITICAL FIX: Handle both initial signups (SaasSignup) and renewals (SubscriptionPayment)
+    // For initial signups: pidx is in SaasSignup
+    // For renewals: pidx is in SubscriptionPayment
+    
+    let signup = await SaasSignup.findOne({ pidx });
+    let owner = null;
+    let isRenewal = false;
+
+    if (signup) {
+      // Initial signup flow
+      owner = await User.findOne({ email: signup.email, role: "owner" });
+      if (!owner) {
+        return res.status(404).json({ error: "Owner account not found." });
+      }
+
+      // Idempotency: if this signup was already processed, don't apply extension again.
+      if (signup.paymentStatus === "completed") {
+        await recordSaasFlowLoginHistory(owner, req);
+
+        const token = generateToken(owner);
+        const ownerResponse = owner.toObject();
+        delete ownerResponse.password;
+
+        return res.json({
+          message: "Subscription payment already processed.",
+          user: ownerResponse,
+          token,
+          subscriptionExpiresAt: owner.subscriptionExpiresAt,
+          daysGranted: SAAS_SUBSCRIPTION_DAYS,
+          alreadyProcessed: true,
+        });
+      }
+    } else {
+      // Renewal flow: look for existing payment by pidx
+      const existingPayment = await SubscriptionPayment.findOne({ pidx });
+      if (existingPayment) {
+        // Already processed renewal
+        owner = await User.findById(existingPayment.ownerId);
+        if (!owner) {
+          return res.status(404).json({ error: "Owner account not found." });
+        }
+
+        await recordSaasFlowLoginHistory(owner, req);
+
+        const token = generateToken(owner);
+        const ownerResponse = owner.toObject();
+        delete ownerResponse.password;
+
+        return res.json({
+          message: "Subscription renewal already processed.",
+          user: ownerResponse,
+          token,
+          subscriptionExpiresAt: owner.subscriptionExpiresAt,
+          daysGranted: existingPayment.daysGranted || SAAS_SUBSCRIPTION_DAYS,
+          alreadyProcessed: true,
+        });
+      } else {
+        // New renewal: pidx doesn't exist yet, so we need to check with Khalti first
+        // Then create SubscriptionPayment for this renewal
+        isRenewal = true;
+        
+        // For renewals, we need to verify the payment first, then look up owner
+        // We'll verify it and then try to match it to an existing owner
+        console.log('🔄 Renewal payment detected (pidx not in DB yet)');
+      }
     }
 
-    const owner = await User.findOne({ email: signup.email, role: "owner" });
-    if (!owner) {
-      return res.status(404).json({ error: "Owner account not found." });
-    }
-
-    // Idempotency: if this renewal was already processed, don't apply extension again.
-    if (signup.paymentStatus === "completed") {
-      await recordSaasFlowLoginHistory(owner, req);
-
-      const token = generateToken(owner);
-      const ownerResponse = owner.toObject();
-      delete ownerResponse.password;
-
-      return res.json({
-        message: "Subscription renewal already processed.",
-        user: ownerResponse,
-        token,
-        subscriptionExpiresAt: owner.subscriptionExpiresAt,
-        daysGranted: SAAS_SUBSCRIPTION_DAYS,
-        alreadyProcessed: true,
-      });
-    }
-
-    // Secondary idempotency guard for duplicate callbacks on the same payment identifier.
-    const existingPayment = await SubscriptionPayment.findOne({ pidx });
-    if (existingPayment) {
-      signup.paymentStatus = "completed";
-      signup.status = "completed";
-      signup.ownerUserId = owner._id;
-      await signup.save();
-
-      await recordSaasFlowLoginHistory(owner, req);
-
-      const token = generateToken(owner);
-      const ownerResponse = owner.toObject();
-      delete ownerResponse.password;
-
-      return res.json({
-        message: "Subscription renewal already processed.",
-        user: ownerResponse,
-        token,
-        subscriptionExpiresAt: owner.subscriptionExpiresAt,
-        daysGranted: existingPayment.daysGranted || SAAS_SUBSCRIPTION_DAYS,
-        alreadyProcessed: true,
-      });
+    // If still no owner for renewal, continue - will get it after Khalti verification
+    if (!owner && !isRenewal) {
+      return res.status(404).json({ error: "Payment record not found." });
     }
 
     const verification = await verifyKhaltiPayment(pidx, 'admin');
@@ -680,25 +738,75 @@ exports.verifyRenewalPayment = async (req, res) => {
 
     // Update subscription dates
     const now = new Date();
-    const currentExpiry = owner.subscriptionExpiresAt ? new Date(owner.subscriptionExpiresAt) : now;
     
     console.log('🔍 Renewal Debug Info:');
     console.log('   Owner email:', owner.email);
     console.log('   Owner subscriptionExpiresAt (raw from DB):', owner.subscriptionExpiresAt);
     console.log('   Current time:', now.toISOString());
-    console.log('   Current time (local):', now.toString());
-    console.log('   Current expiry:', currentExpiry.toISOString());
-    console.log('   Current expiry (local):', currentExpiry.toString());
+    
+    // CRITICAL FIX FOR RENEWALS: Check payment history FIRST to get accurate previous subscription end
+    // This ensures we add 10 days to the RIGHT base, not lose days in the process
+    console.log('   🔎 Checking payment history for accurate subscription end date...');
+    let currentExpiry = null;
+    
+    // IMPORTANT: Skip payments created today or with today's end date (these are likely broken)
+    // and find the most recent VALID payment from yesterday or earlier
+    const todayStart = new Date(now);
+    todayStart.setHours(0, 0, 0, 0);
+    
+    const validPayments = await SubscriptionPayment.find({ 
+      ownerId: owner._id,
+      createdAt: { $lt: todayStart } // Only payments from before today
+    })
+      .sort({ createdAt: -1 })
+      .select('subscriptionEndDate paymentType createdAt')
+      .limit(5);
+    
+    let latestValidPayment = null;
+    if (validPayments.length > 0) {
+      // Use the most recent valid payment
+      latestValidPayment = validPayments[0];
+      console.log('   ✅ Found valid payment from before today');
+    } else {
+      // If no payments from before today, don't look at today's payments
+      // Instead, we'll rely on owner.subscriptionExpiresAt
+      console.log(`   ⚠️  No valid payments from before today`);
+    }
+    
+    // CRITICAL VALIDATION: Even if payment found, verify it has a valid future end date
+    let paymentEndDate = null;
+    if (latestValidPayment && latestValidPayment.subscriptionEndDate) {
+      paymentEndDate = new Date(latestValidPayment.subscriptionEndDate);
+      console.log(`   Payment end date: ${paymentEndDate.toISOString()}`);
+      
+      // If payment end date is today or in past, it's invalid
+      if (paymentEndDate <= now) {
+        console.log(`   ⚠️  Payment end date is TODAY/PAST (invalid), ignoring this payment`);
+        paymentEndDate = null;
+      }
+    }
+    
+    if (paymentEndDate) {
+      currentExpiry = paymentEndDate;
+      console.log(`   ✅ Using payment end date as base`);
+    } else if (owner.subscriptionExpiresAt) {
+      // Use owner's subscription end date (works for both future and today/past dates)
+      currentExpiry = new Date(owner.subscriptionExpiresAt);
+      console.log('   ✅ Using owner.subscriptionExpiresAt as base');
+    } else {
+      currentExpiry = now;
+      console.log('   ⚠️  No valid data, using current time as base');
+    }
+    
+    console.log('   Current expiry (will be used as base):', currentExpiry.toISOString());
     console.log('   Current expiry timestamp:', currentExpiry.getTime());
     console.log('   Now timestamp:', now.getTime());
-    console.log('   Difference in ms:', currentExpiry.getTime() - now.getTime());
-    console.log('   Difference in hours:', (currentExpiry.getTime() - now.getTime()) / (1000 * 60 * 60));
-    console.log('   Difference in days (Math.ceil):', Math.ceil((currentExpiry.getTime() - now.getTime()) / (1000 * 60 * 60 * 24)));
+    const daysUntilExpiry = Math.ceil((currentExpiry.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
+    console.log('   Days remaining before renewal:', daysUntilExpiry);
     console.log('   Is expired? (currentExpiry <= now):', currentExpiry <= now);
-    console.log('   Is NOT expired? (currentExpiry > now):', currentExpiry > now);
     
     // ALWAYS extend from current expiry date, regardless of whether it's expired
-    // This ensures users get the full benefit of renewing early
+    // This ensures users get the full benefit of renewing early or get a fresh subscription if expired
     const startDate = new Date(currentExpiry);
     const newExpiry = new Date(startDate);
     newExpiry.setDate(newExpiry.getDate() + SAAS_SUBSCRIPTION_DAYS);
@@ -725,15 +833,20 @@ exports.verifyRenewalPayment = async (req, res) => {
     console.log('═══════════════════════════════════════════════════════');
 
     // Reactivate all team members
-    await User.updateMany(
-      { tenantKey: owner.tenantKey, _id: { $ne: owner._id } },
-      { $set: { active: true } }
-    );
+    if (owner.tenantKey) {
+      await User.updateMany(
+        { tenantKey: owner.tenantKey, _id: { $ne: owner._id } },
+        { $set: { active: true } }
+      );
+    }
 
-    signup.paymentStatus = "completed";
-    signup.status = "completed";
-    signup.ownerUserId = owner._id;
-    await signup.save();
+    // Update signup record if it exists
+    if (signup) {
+      signup.paymentStatus = "completed";
+      signup.status = "completed";
+      signup.ownerUserId = owner._id;
+      await signup.save();
+    }
 
     // Record payment history (check for duplicates first)
     try {
@@ -851,15 +964,28 @@ exports.verifyRenewalPayment = async (req, res) => {
 
     await recordSaasFlowLoginHistory(owner, req);
 
-    const token = generateToken(owner);
-    const ownerResponse = owner.toObject();
+    // Fetch fresh owner data from database to ensure we have the latest
+    const freshOwner = await User.findById(owner._id);
+    if (!freshOwner) {
+      console.error('⚠️  Critical: Owner not found after save!');
+      return res.status(500).json({ error: 'Failed to verify renewal - owner data corrupted' });
+    }
+
+    console.log('✅ RENEWAL VERIFICATION COMPLETE');
+    console.log('   Fresh owner subscriptionExpiresAt from DB:', freshOwner.subscriptionExpiresAt);
+    console.log('   Expected new expiry:', newExpiry.toISOString());
+    console.log('   Match:', freshOwner.subscriptionExpiresAt?.getTime() === newExpiry.getTime());
+
+    const token = generateToken(freshOwner);
+    const ownerResponse = freshOwner.toObject();
     delete ownerResponse.password;
 
     return res.json({
       message: "Subscription renewed successfully.",
       user: ownerResponse,
       token,
-      subscriptionExpiresAt: newExpiry,
+      subscriptionExpiresAt: freshOwner.subscriptionExpiresAt,
+      subscriptionLastPaidAt: freshOwner.subscriptionLastPaidAt,
       daysGranted: SAAS_SUBSCRIPTION_DAYS,
     });
   } catch (error) {

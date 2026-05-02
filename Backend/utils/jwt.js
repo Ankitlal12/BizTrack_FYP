@@ -43,8 +43,17 @@ const verifyToken = (token) => {
  */
 const extractTokenFromHeader = (authHeader) => {
   if (!authHeader) return null;
-  const parts = authHeader.split(' ');
-  return parts.length === 2 && parts[0] === 'Bearer' ? parts[1] : null;
+  
+  // Normalize header: remove extra spaces and check Bearer type
+  const trimmed = authHeader.trim();
+  const parts = trimmed.split(/\s+/); // Split on one or more whitespace
+  
+  // Check if it starts with Bearer (case-insensitive)
+  if (parts.length >= 2 && parts[0].toLowerCase() === 'bearer') {
+    return parts.slice(1).join(' '); // Return the token (join in case token has spaces)
+  }
+  
+  return null;
 };
 
 module.exports = {
