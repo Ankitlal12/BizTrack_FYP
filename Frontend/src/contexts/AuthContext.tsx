@@ -99,6 +99,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           const parsedUser = JSON.parse(savedUser)
           setUser(parsedUser)
           setIsAuthenticated(true)
+          
+          // Log current subscription status for debugging
+          if (parsedUser.isSaasCustomer && parsedUser.subscriptionExpiresAt) {
+            const expiryDate = new Date(parsedUser.subscriptionExpiresAt)
+            const now = new Date()
+            const daysRemaining = Math.ceil((expiryDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24))
+            console.log(`🔐 Auth loaded: ${parsedUser.email}, subscription expires in ${daysRemaining} days (${expiryDate.toISOString()})`)
+          }
 
           // Admin and owners can fetch the full staff list
           if (parsedUser.role === 'admin' || parsedUser.role === 'owner') {

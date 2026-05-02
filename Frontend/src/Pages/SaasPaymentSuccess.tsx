@@ -39,6 +39,11 @@ const SaasPaymentSuccess = () => {
           const now = new Date()
           const totalDaysRemaining = Math.ceil((expiryDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24))
           
+          console.log('🔄 Renewal response received:');
+          console.log('   Raw response.subscriptionExpiresAt:', response.subscriptionExpiresAt);
+          console.log('   Parsed expiry date:', expiryDate.toISOString());
+          console.log('   Days remaining:', totalDaysRemaining);
+          
           setRenewalInfo({
             daysGranted: response.daysGranted,
             subscriptionExpiresAt: response.subscriptionExpiresAt,
@@ -47,21 +52,29 @@ const SaasPaymentSuccess = () => {
         }
 
         tokenManager.setToken(response.token)
+        
+        // CRITICAL: Always use response.subscriptionExpiresAt (the fresh DB value from backend)
+        // NOT response.user.subscriptionExpiresAt (might be old)
         const userObj = {
           id: response.user._id || response.user.id,
           name: response.user.name,
           email: response.user.email,
           role: response.user.role,
           avatar: response.user.avatar,
-          subscriptionExpiresAt: response.user.subscriptionExpiresAt || response.subscriptionExpiresAt,
-          subscriptionLastPaidAt: response.user.subscriptionLastPaidAt,
+          subscriptionExpiresAt: response.subscriptionExpiresAt || response.user.subscriptionExpiresAt,
+          subscriptionLastPaidAt: response.subscriptionLastPaidAt || response.user.subscriptionLastPaidAt,
           accountStatus: response.user.accountStatus,
           isSaasCustomer: response.user.isSaasCustomer,
         }
 
+        console.log('📝 Setting user context with:');
+        console.log('   subscriptionExpiresAt:', userObj.subscriptionExpiresAt);
+        console.log('   subscriptionLastPaidAt:', userObj.subscriptionLastPaidAt);
+
         setUser(userObj)
         setIsAuthenticated(true)
         localStorage.setItem('biztrack_user', JSON.stringify(userObj))
+        localStorage.setItem('biztrack_token', response.token)
 
         // Delay navigation to show success message with renewal details
         setTimeout(() => {
