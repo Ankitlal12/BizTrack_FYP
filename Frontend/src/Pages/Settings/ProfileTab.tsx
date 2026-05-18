@@ -7,6 +7,7 @@ type ProfileTabProps = {
   user?: {
     name?: string
     email?: string
+    phoneNumber?: string
     role?: string
     subscriptionExpiresAt?: string
     accountStatus?: string
@@ -254,7 +255,11 @@ const ProfileTab: React.FC<ProfileTabProps> = ({ user }) => {
             title="Phone Number"
             className="w-full border border-gray-300 rounded-lg py-2 px-4"
             placeholder="Enter phone number"
+            defaultValue={user?.phoneNumber || ''}
           />
+          <p className="mt-1 text-xs text-gray-500">
+            You can use your phone number to login instead of email
+          </p>
         </div>
         <div className="border-t pt-6">
           <button className="bg-teal-500 hover:bg-teal-600 text-white py-2 px-6 rounded-lg">

@@ -258,27 +258,33 @@ const Reports: React.FC = () => {
     try {
       setLoading(true);
 
+      // Calculate number of days in range (for previous period comparison)
       const startDate = new Date(dateFrom + 'T00:00:00');
       const endDate = new Date(dateTo + 'T23:59:59');
       const days = Math.max(1, Math.round((endDate.getTime() - startDate.getTime()) / 86400000));
 
       // Previous period (same length, shifted back)
       const prevEndDate = new Date(startDate);
-      prevEndDate.setMilliseconds(prevEndDate.getMilliseconds() - 1);
+      prevEndDate.setDate(prevEndDate.getDate() - 1);
       const prevStartDate = new Date(prevEndDate);
       prevStartDate.setDate(prevStartDate.getDate() - days + 1);
 
+      // Format dates back to YYYY-MM-DD for backend (backend uses Nepal timezone conversion)
+      const prevDateFrom = prevStartDate.toLocaleDateString('en-CA');
+      const prevDateTo = prevEndDate.toLocaleDateString('en-CA');
+
+      // Send dates as YYYY-MM-DD strings for proper Nepal timezone handling
       const params = new URLSearchParams();
-      params.append('dateFrom', startDate.toISOString());
-      params.append('dateTo', endDate.toISOString());
+      params.append('dateFrom', dateFrom);
+      params.append('dateTo', dateTo);
 
       const prevParams = new URLSearchParams();
-      prevParams.append('dateFrom', prevStartDate.toISOString());
-      prevParams.append('dateTo', prevEndDate.toISOString());
+      prevParams.append('dateFrom', prevDateFrom);
+      prevParams.append('dateTo', prevDateTo);
 
       const retentionParams = new URLSearchParams();
-      retentionParams.append('dateFrom', startDate.toISOString());
-      retentionParams.append('dateTo', endDate.toISOString());
+      retentionParams.append('dateFrom', dateFrom);
+      retentionParams.append('dateTo', dateTo);
 
       const [sales, inventoryResponse, retentionResponse, purchases, prevSalesData] = await Promise.all([
         fetchAllSalesInRange(params),

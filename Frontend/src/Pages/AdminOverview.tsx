@@ -466,8 +466,8 @@ const AdminOverview = () => {
                 subtitle={`${metrics.active} active, ${metrics.inactive} inactive`}
               />
               <StatCard
-                title="Monthly Recurring Revenue"
-                value={`Rs ${revenueData?.summary?.totalMRR ? revenueData.summary.totalMRR.toLocaleString() : (paymentHistory.length > 0 ? Math.round(paymentHistory.reduce((sum: number, p: any) => sum + (p.amount || 0), 0) / 6).toLocaleString() : '0')}`}
+                title="Total Payments Received"
+                value={`Rs ${paymentHistory.reduce((sum: number, p: any) => sum + (p.amount || 0), 0).toLocaleString()}`}
                 icon={DollarSign}
                 onClick={() => navigate('/payment-history')}
                 subtitle={paymentHistory.length > 0 ? `${paymentHistory.length} total payments` : "No payments yet"}
@@ -490,12 +490,6 @@ const AdminOverview = () => {
                 value={`${metrics.total > 0 ? ((metrics.active / metrics.total) * 100).toFixed(1) : 0}%`}
                 icon={TrendingUp}
                 subtitle={`Churn: ${revenueData?.summary?.churnRate || '0%'}`}
-              />
-              <StatCard
-                title="Avg Revenue/Client"
-                value={`Rs ${metrics.total > 0 ? Math.round((revenueData?.summary?.totalMRR || 0) / metrics.total) : 0}`}
-                icon={CreditCard}
-                subtitle="Per client monthly"
               />
             </div>
           </div>

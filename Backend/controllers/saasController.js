@@ -16,11 +16,11 @@ const GOOGLE_CLIENT_ID =
   "905396434192-03aqn8vkab2knh33brep80bfvmh3ojik.apps.googleusercontent.com";
 
 const SAAS_SIGNUP_AMOUNT = Number(process.env.SAAS_SIGNUP_AMOUNT || 999);
-const SAAS_SUBSCRIPTION_DAYS = Number(process.env.SAAS_SUBSCRIPTION_DAYS || 30);
+const SAAS_SUBSCRIPTION_DAYS = Number(process.env.SAAS_SUBSCRIPTION_DAYS || 10);
 
 // CRITICAL: Validate configuration
 if (SAAS_SUBSCRIPTION_DAYS < 1) {
-  console.warn('⚠️  WARNING: SAAS_SUBSCRIPTION_DAYS is', SAAS_SUBSCRIPTION_DAYS, '- defaulting to 30 days');
+  console.warn('⚠️  WARNING: SAAS_SUBSCRIPTION_DAYS is', SAAS_SUBSCRIPTION_DAYS, '- defaulting to 10 days');
 }
 
 if (process.env.SAAS_SUBSCRIPTION_DAYS) {
@@ -722,7 +722,23 @@ exports.verifyRenewalPayment = async (req, res) => {
       }
     }
 
-    // If still no owner for renewal, continue - will get it after Khalti verification
+    // If still no owner for renewal, we need to look it up from the signup record
+    if (!owner && isRenewal) {
+      // For renewal, we need to find the owner from the signup record
+      // The signup record was created during renewal initiation
+      signup = await SaasSignup.findOne({ pidx });
+      if (!signup) {
+        return res.status(404).json({ error: "Renewal record not found." });
+      }
+      
+      owner = await User.findOne({ email: signup.email, role: "owner" });
+      if (!owner) {
+        return res.status(404).json({ error: "Owner account not found for renewal." });
+      }
+      
+      console.log('✅ Found owner for renewal:', owner.email);
+    }
+    
     if (!owner && !isRenewal) {
       return res.status(404).json({ error: "Payment record not found." });
     }
@@ -730,9 +746,11 @@ exports.verifyRenewalPayment = async (req, res) => {
     const verification = await verifyKhaltiPayment(pidx, 'admin');
 
     if (!verification.isCompleted) {
-      signup.paymentStatus = "failed";
-      signup.status = "failed";
-      await signup.save();
+      if (signup) {
+        signup.paymentStatus = "failed";
+        signup.status = "failed";
+        await signup.save();
+      }
       return res.status(400).json({ error: verification.message || "Payment not completed." });
     }
 
@@ -744,58 +762,17 @@ exports.verifyRenewalPayment = async (req, res) => {
     console.log('   Owner subscriptionExpiresAt (raw from DB):', owner.subscriptionExpiresAt);
     console.log('   Current time:', now.toISOString());
     
-    // CRITICAL FIX FOR RENEWALS: Check payment history FIRST to get accurate previous subscription end
-    // This ensures we add 10 days to the RIGHT base, not lose days in the process
-    console.log('   🔎 Checking payment history for accurate subscription end date...');
+    // SIMPLIFIED LOGIC: Always use owner.subscriptionExpiresAt as the base
+    // This is the source of truth and gets updated after each renewal
     let currentExpiry = null;
     
-    // IMPORTANT: Skip payments created today or with today's end date (these are likely broken)
-    // and find the most recent VALID payment from yesterday or earlier
-    const todayStart = new Date(now);
-    todayStart.setHours(0, 0, 0, 0);
-    
-    const validPayments = await SubscriptionPayment.find({ 
-      ownerId: owner._id,
-      createdAt: { $lt: todayStart } // Only payments from before today
-    })
-      .sort({ createdAt: -1 })
-      .select('subscriptionEndDate paymentType createdAt')
-      .limit(5);
-    
-    let latestValidPayment = null;
-    if (validPayments.length > 0) {
-      // Use the most recent valid payment
-      latestValidPayment = validPayments[0];
-      console.log('   ✅ Found valid payment from before today');
-    } else {
-      // If no payments from before today, don't look at today's payments
-      // Instead, we'll rely on owner.subscriptionExpiresAt
-      console.log(`   ⚠️  No valid payments from before today`);
-    }
-    
-    // CRITICAL VALIDATION: Even if payment found, verify it has a valid future end date
-    let paymentEndDate = null;
-    if (latestValidPayment && latestValidPayment.subscriptionEndDate) {
-      paymentEndDate = new Date(latestValidPayment.subscriptionEndDate);
-      console.log(`   Payment end date: ${paymentEndDate.toISOString()}`);
-      
-      // If payment end date is today or in past, it's invalid
-      if (paymentEndDate <= now) {
-        console.log(`   ⚠️  Payment end date is TODAY/PAST (invalid), ignoring this payment`);
-        paymentEndDate = null;
-      }
-    }
-    
-    if (paymentEndDate) {
-      currentExpiry = paymentEndDate;
-      console.log(`   ✅ Using payment end date as base`);
-    } else if (owner.subscriptionExpiresAt) {
-      // Use owner's subscription end date (works for both future and today/past dates)
+    if (owner.subscriptionExpiresAt) {
       currentExpiry = new Date(owner.subscriptionExpiresAt);
       console.log('   ✅ Using owner.subscriptionExpiresAt as base');
     } else {
+      // Fallback to now if no subscription date exists (shouldn't happen for renewals)
       currentExpiry = now;
-      console.log('   ⚠️  No valid data, using current time as base');
+      console.log('   ⚠️  No subscription date found, using current time as base');
     }
     
     console.log('   Current expiry (will be used as base):', currentExpiry.toISOString());
@@ -806,10 +783,12 @@ exports.verifyRenewalPayment = async (req, res) => {
     console.log('   Is expired? (currentExpiry <= now):', currentExpiry <= now);
     
     // ALWAYS extend from current expiry date, regardless of whether it's expired
-    // This ensures users get the full benefit of renewing early or get a fresh subscription if expired
-    const startDate = new Date(currentExpiry);
-    const newExpiry = new Date(startDate);
-    newExpiry.setDate(newExpiry.getDate() + SAAS_SUBSCRIPTION_DAYS);
+    // This ensures users get the full benefit of renewing early
+   const baseDate = currentExpiry > now ? currentExpiry : now;
+
+  const startDate = new Date(baseDate);
+  const newExpiry = new Date(baseDate);
+  newExpiry.setDate(newExpiry.getDate() + SAAS_SUBSCRIPTION_DAYS);
     
     console.log('   ---');
     console.log('   Start date for calculation:', startDate.toISOString());

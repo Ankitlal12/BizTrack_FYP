@@ -24,7 +24,8 @@
     "test:watch": "jest --watch",
     "test:coverage": "jest --coverage --forceExit",
     "payments:dedupe:dry": "node scripts/removeDuplicatePayments.js",
-    "payments:dedupe:apply": "node scripts/removeDuplicatePayments.js --apply"
+    "payments:dedupe:apply": "node scripts/removeDuplicatePayments.js --apply",
+    "fix-indexes": "node migrations/fix-username-index.js"
   },
   "keywords": [],
   "author": "",

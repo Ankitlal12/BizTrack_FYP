@@ -3,8 +3,9 @@ import React, { useState } from 'react'
 type StaffMember = {
   id: string
   name: string
-  email: string
-  username: string
+  phoneNumber?: string
+  email?: string
+  username?: string
   role: string
   dateAdded: string
   active: boolean
@@ -12,19 +13,17 @@ type StaffMember = {
 
 type NewStaff = {
   name: string
-  email: string
-  username: string
+  phoneNumber: string
   password: string
   confirmPassword: string
   role: string
-  sendCredentialsEmail: boolean
 }
 
 type StaffTabProps = {
   staffMembers: StaffMember[]
   toggleStaffStatus: (id: string) => Promise<void>
   addStaffMember: (member: any) => Promise<any>
-  updateStaffMember: (id: string, data: { username?: string; password?: string; role?: string }) => Promise<any>
+  updateStaffMember: (id: string, data: { phoneNumber?: string; password?: string; role?: string }) => Promise<any>
   deleteStaffMember: (id: string) => Promise<void>
 }
 
@@ -37,12 +36,10 @@ const StaffTab: React.FC<StaffTabProps> = ({
 }) => {
   const [newStaff, setNewStaff] = useState<NewStaff>({
     name: '',
-    email: '',
-    username: '',
+    phoneNumber: '',
     password: '',
     confirmPassword: '',
     role: 'staff',
-    sendCredentialsEmail: false,
   })
   const [formErrors, setFormErrors] = useState<Record<string, string>>({})
   const [isSubmitting, setIsSubmitting] = useState(false)
@@ -53,7 +50,7 @@ const StaffTab: React.FC<StaffTabProps> = ({
   const [isEditModalOpen, setIsEditModalOpen] = useState(false)
   const [editingStaff, setEditingStaff] = useState<StaffMember | null>(null)
   const [editFormData, setEditFormData] = useState({
-    username: '',
+    phoneNumber: '',
     password: '',
     confirmPassword: '',
     role: '',
@@ -64,7 +61,7 @@ const StaffTab: React.FC<StaffTabProps> = ({
   const [editError, setEditError] = useState('')
   const [editSuccess, setEditSuccess] = useState(false)
 
-  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+  const phoneRegex = /^(97|98)\d{8}$/
   const passwordRegex = /^(?=.*[A-Za-z])(?=.*\d)(?=.*[^A-Za-z\d]).+$/
 
   const validateStaffPassword = (password: string) => {
@@ -83,24 +80,15 @@ const StaffTab: React.FC<StaffTabProps> = ({
     return ''
   }
 
-  const validateEmail = (email: string) => {
-    const normalized = email.trim().toLowerCase()
+  const validatePhoneNumber = (phone: string) => {
+    const trimmed = phone.trim()
 
-    if (!normalized) {
-      return 'Email is required'
+    if (!trimmed) {
+      return 'Phone number is required'
     }
 
-    if (!emailRegex.test(normalized)) {
-      return 'Enter a valid email address'
-    }
-
-    // Catch common typos such as gmail.con
-    if (normalized.endsWith('.con') || normalized.endsWith('.cmo')) {
-      return 'Email domain looks invalid. Did you mean .com?'
-    }
-
-    if (normalized.includes('@gmail.') && !normalized.endsWith('@gmail.com')) {
-      return 'Gmail address must end with @gmail.com'
+    if (!phoneRegex.test(trimmed)) {
+      return 'Phone number must be 10 digits starting with 97 or 98'
     }
 
     return ''
@@ -122,7 +110,7 @@ const StaffTab: React.FC<StaffTabProps> = ({
   const handleEditClick = (staff: StaffMember) => {
     setEditingStaff(staff)
     setEditFormData({
-      username: staff.username,
+      phoneNumber: staff.phoneNumber || '',
       password: '',
       confirmPassword: '',
       role: staff.role,
@@ -137,7 +125,7 @@ const StaffTab: React.FC<StaffTabProps> = ({
     setIsEditModalOpen(false)
     setEditingStaff(null)
     setEditFormData({
-      username: '',
+      phoneNumber: '',
       password: '',
       confirmPassword: '',
       role: '',
@@ -155,9 +143,12 @@ const StaffTab: React.FC<StaffTabProps> = ({
 
     const errors: Record<string, string> = {}
     
-    // Validate username
-    if (!editFormData.username || editFormData.username.trim() === '') {
-      errors.username = 'Username is required'
+    // Validate phone number only if provided
+    if (editFormData.phoneNumber && editFormData.phoneNumber.trim()) {
+      const phoneError = validatePhoneNumber(editFormData.phoneNumber)
+      if (phoneError) {
+        errors.phoneNumber = phoneError
+      }
     }
 
     // Validate password if provided
@@ -178,10 +169,10 @@ const StaffTab: React.FC<StaffTabProps> = ({
 
     setIsUpdating(true)
     try {
-      const updateData: { username?: string; password?: string; role?: string } = {}
+      const updateData: { phoneNumber?: string; password?: string; role?: string } = {}
       
-      if (editFormData.username !== editingStaff.username) {
-        updateData.username = editFormData.username.trim()
+      if (editFormData.phoneNumber && editFormData.phoneNumber !== editingStaff.phoneNumber) {
+        updateData.phoneNumber = editFormData.phoneNumber.trim()
       }
       
       if (editFormData.password) {
@@ -212,8 +203,8 @@ const StaffTab: React.FC<StaffTabProps> = ({
         'Failed to update staff member. Please try again.'
       setEditError(errorMessage)
 
-      if (errorMessage.includes('username') || errorMessage.includes('Username')) {
-        setEditFormErrors({ username: 'This username is already taken' })
+      if (errorMessage.includes('phone') || errorMessage.includes('Phone')) {
+        setEditFormErrors({ phoneNumber: 'This phone number is already taken' })
       }
     } finally {
       setIsUpdating(false)
@@ -223,8 +214,9 @@ const StaffTab: React.FC<StaffTabProps> = ({
   const handleDeleteStaff = async () => {
     if (!editingStaff) return
 
+    const identifier = editingStaff.phoneNumber || editingStaff.email || editingStaff.username || editingStaff.name
     const confirmed = window.confirm(
-      `Are you sure you want to delete the user "${editingStaff.name}" (${editingStaff.username})? This action cannot be undone.`
+      `Are you sure you want to delete the user "${editingStaff.name}" (${identifier})? This action cannot be undone.`
     )
 
     if (!confirmed) return
@@ -253,17 +245,16 @@ const StaffTab: React.FC<StaffTabProps> = ({
 
     const errors: Record<string, string> = {}
     const trimmedName = newStaff.name.trim()
-    const trimmedEmail = newStaff.email.trim().toLowerCase()
-    const trimmedUsername = newStaff.username.trim()
+    const trimmedPhone = newStaff.phoneNumber.trim()
 
     if (!trimmedName) errors.name = 'Name is required'
 
-    const emailError = validateEmail(trimmedEmail)
-    if (emailError) errors.email = emailError
+    const phoneError = validatePhoneNumber(trimmedPhone)
+    if (phoneError) errors.phoneNumber = phoneError
 
-    if (!trimmedUsername) errors.username = 'Username is required'
     const passwordError = validateStaffPassword(newStaff.password)
     if (passwordError) errors.password = passwordError
+    
     if (newStaff.password !== newStaff.confirmPassword) {
       errors.confirmPassword = 'Passwords do not match'
     }
@@ -277,23 +268,19 @@ const StaffTab: React.FC<StaffTabProps> = ({
     try {
       await addStaffMember({
         name: trimmedName,
-        email: trimmedEmail,
-        username: trimmedUsername,
+        phoneNumber: trimmedPhone,
         password: newStaff.password,
         role: newStaff.role,
         active: true,
         dateAdded: new Date().toISOString().split('T')[0],
-        sendCredentialsEmail: newStaff.sendCredentialsEmail,
       })
 
       setNewStaff({
         name: '',
-        email: '',
-        username: '',
+        phoneNumber: '',
         password: '',
         confirmPassword: '',
         role: 'staff',
-        sendCredentialsEmail: false,
       })
       setFormErrors({})
       setSubmitSuccess(true)
@@ -306,13 +293,8 @@ const StaffTab: React.FC<StaffTabProps> = ({
         'Failed to add staff member. Please try again.'
       setSubmitError(errorMessage)
 
-      if (errorMessage.includes('email') || errorMessage.includes('Email')) {
-        setFormErrors({ email: 'This email is already in use' })
-      } else if (
-        errorMessage.includes('username') ||
-        errorMessage.includes('Username')
-      ) {
-        setFormErrors({ username: 'This username is already taken' })
+      if (errorMessage.includes('phone') || errorMessage.includes('Phone')) {
+        setFormErrors({ phoneNumber: 'This phone number is already in use' })
       }
     } finally {
       setIsSubmitting(false)
@@ -337,29 +319,32 @@ const StaffTab: React.FC<StaffTabProps> = ({
 
       {/* Staff table — hidden on mobile, shown on md+ */}
       <div className="hidden md:block overflow-x-auto">
-        <table className="min-w-full divide-y divide-gray-200">
-          <thead className="bg-gray-50">
-            <tr>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Name</th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Email</th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Username</th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Role</th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Date Added</th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
-              <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
-            </tr>
-          </thead>
-          <tbody className="bg-white divide-y divide-gray-200">
-            {staffMembers.map((staff) => (
+        {staffMembers.length === 0 ? (
+          <div className="bg-gray-50 border border-gray-200 rounded-lg p-8 text-center">
+            <p className="text-gray-500 text-sm">No staff members found. Add your first team member below.</p>
+          </div>
+        ) : (
+          <table className="min-w-full divide-y divide-gray-200">
+            <thead className="bg-gray-50">
+              <tr>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Name</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Phone Number</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Role</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Date Added</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
+                <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
+              </tr>
+            </thead>
+            <tbody className="bg-white divide-y divide-gray-200">
+              {staffMembers.map((staff) => (
               <tr key={staff.id} className="hover:bg-gray-50">
                 <td className="px-6 py-4 whitespace-nowrap">
                   <div className="font-medium text-gray-900">{staff.name}</div>
                 </td>
                 <td className="px-6 py-4 whitespace-nowrap">
-                  <div className="text-sm text-gray-500">{staff.email}</div>
-                </td>
-                <td className="px-6 py-4 whitespace-nowrap">
-                  <div className="text-sm text-gray-500">{staff.username}</div>
+                  <div className="text-sm text-gray-500">
+                    {staff.phoneNumber || staff.email || staff.username || '-'}
+                  </div>
                 </td>
                 <td className="px-6 py-4 whitespace-nowrap">
                   <span className={`inline-flex px-2 py-1 text-xs font-medium rounded-full ${getRoleBadgeClass(staff.role)}`}>
@@ -384,20 +369,27 @@ const StaffTab: React.FC<StaffTabProps> = ({
                   <button onClick={() => handleEditClick(staff)} className="text-blue-600 hover:text-blue-900">Edit</button>
                 </td>
               </tr>
-            ))}
-          </tbody>
-        </table>
+              ))}
+            </tbody>
+          </table>
+        )}
       </div>
 
       {/* Staff cards — shown on mobile only */}
       <div className="md:hidden space-y-3">
-        {staffMembers.map((staff) => (
+        {staffMembers.length === 0 ? (
+          <div className="bg-gray-50 border border-gray-200 rounded-lg p-6 text-center">
+            <p className="text-gray-500 text-sm">No staff members found. Add your first team member below.</p>
+          </div>
+        ) : (
+          staffMembers.map((staff) => (
           <div key={staff.id} className="bg-white border border-gray-200 rounded-lg p-4 space-y-3">
             <div className="flex items-start justify-between">
               <div>
                 <p className="font-semibold text-gray-900">{staff.name}</p>
-                <p className="text-sm text-gray-500">{staff.email}</p>
-                <p className="text-xs text-gray-400">@{staff.username}</p>
+                <p className="text-sm text-gray-500">
+                  {staff.phoneNumber || staff.email || staff.username || 'No contact info'}
+                </p>
               </div>
               <div className="flex flex-col items-end gap-1">
                 <span className={`inline-flex px-2 py-0.5 text-xs font-medium rounded-full ${getRoleBadgeClass(staff.role)}`}>
@@ -424,7 +416,8 @@ const StaffTab: React.FC<StaffTabProps> = ({
               </button>
             </div>
           </div>
-        ))}
+          ))
+        )}
       </div>
 
       <div id="add-staff-form" className="mt-12 border-t pt-8">
@@ -432,8 +425,7 @@ const StaffTab: React.FC<StaffTabProps> = ({
 
         {submitSuccess && (
           <div className="mb-4 bg-green-50 border border-green-200 text-green-700 rounded-lg p-3 text-sm">
-            Staff member added successfully! They can now log in with their
-            credentials.
+            Staff member added successfully! They can now log in with their phone number and password.
           </div>
         )}
 
@@ -462,66 +454,43 @@ const StaffTab: React.FC<StaffTabProps> = ({
                     name: e.target.value,
                   })
                 }
+                placeholder="Enter full name"
               />
               {formErrors.name && (
                 <p className="mt-1 text-sm text-red-600">{formErrors.name}</p>
               )}
             </div>
             <div>
-              <label htmlFor="staff-email" className="block text-sm font-medium text-gray-700 mb-1">
-                Email
+              <label htmlFor="staff-phone" className="block text-sm font-medium text-gray-700 mb-1">
+                Phone Number
               </label>
               <input
-                id="staff-email"
-                type="email"
+                id="staff-phone"
+                type="text"
                 className={`w-full border ${
-                  formErrors.email ? 'border-red-500' : 'border-gray-300'
+                  formErrors.phoneNumber ? 'border-red-500' : 'border-gray-300'
                 } rounded-lg py-2 px-4`}
-                value={newStaff.email}
-                onChange={(e) =>
+                value={newStaff.phoneNumber}
+                onChange={(e) => {
+                  // Only allow digits
+                  const value = e.target.value.replace(/\D/g, '')
                   setNewStaff({
                     ...newStaff,
-                    email: e.target.value,
+                    phoneNumber: value,
                   })
-                }
-                onBlur={(e) => {
-                  const emailError = validateEmail(e.target.value)
-                  setFormErrors((prev) => ({
-                    ...prev,
-                    email: emailError,
-                  }))
                 }}
+                placeholder="9876543210"
+                maxLength={10}
               />
-              {formErrors.email && (
-                <p className="mt-1 text-sm text-red-600">{formErrors.email}</p>
+              {formErrors.phoneNumber && (
+                <p className="mt-1 text-sm text-red-600">{formErrors.phoneNumber}</p>
               )}
+              <p className="mt-1 text-xs text-gray-500">
+                Must be 10 digits starting with 97 or 98
+              </p>
             </div>
           </div>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <div>
-              <label htmlFor="staff-username" className="block text-sm font-medium text-gray-700 mb-1">
-                Username
-              </label>
-              <input
-                id="staff-username"
-                type="text"
-                className={`w-full border ${
-                  formErrors.username ? 'border-red-500' : 'border-gray-300'
-                } rounded-lg py-2 px-4`}
-                value={newStaff.username}
-                onChange={(e) =>
-                  setNewStaff({
-                    ...newStaff,
-                    username: e.target.value,
-                  })
-                }
-              />
-              {formErrors.username && (
-                <p className="mt-1 text-sm text-red-600">
-                  {formErrors.username}
-                </p>
-              )}
-            </div>
             <div>
               <label htmlFor="staff-role" className="block text-sm font-medium text-gray-700 mb-1">
                 Role
@@ -560,6 +529,7 @@ const StaffTab: React.FC<StaffTabProps> = ({
                     password: e.target.value,
                   })
                 }
+                placeholder="Enter password"
               />
               {formErrors.password && (
                 <p className="mt-1 text-sm text-red-600">
@@ -589,6 +559,7 @@ const StaffTab: React.FC<StaffTabProps> = ({
                     confirmPassword: e.target.value,
                   })
                 }
+                placeholder="Confirm password"
               />
               {formErrors.confirmPassword && (
                 <p className="mt-1 text-sm text-red-600">
@@ -596,27 +567,6 @@ const StaffTab: React.FC<StaffTabProps> = ({
                 </p>
               )}
             </div>
-          </div>
-          <div className="flex items-center">
-            <input
-              id="send-credentials"
-              name="send-credentials"
-              type="checkbox"
-              className="h-4 w-4 text-teal-600 focus:ring-teal-500 border-gray-300 rounded"
-              checked={newStaff.sendCredentialsEmail}
-              onChange={(e) =>
-                setNewStaff({
-                  ...newStaff,
-                  sendCredentialsEmail: e.target.checked,
-                })
-              }
-            />
-            <label
-              htmlFor="send-credentials"
-              className="ml-2 block text-sm text-gray-900"
-            >
-              Send login credentials via email
-            </label>
           </div>
           <div>
             <button
@@ -674,24 +624,32 @@ const StaffTab: React.FC<StaffTabProps> = ({
 
               <form onSubmit={handleUpdateStaff} className="space-y-4">
                 <div>
-                  <label htmlFor="edit-staff-username" className="block text-sm font-medium text-gray-700 mb-1">
-                    Username
+                  <label htmlFor="edit-staff-phone" className="block text-sm font-medium text-gray-700 mb-1">
+                    Phone Number {!editingStaff.phoneNumber && <span className="text-red-500">*</span>}
                   </label>
                   <input
-                    id="edit-staff-username"
+                    id="edit-staff-phone"
                     type="text"
                     className={`w-full border ${
-                      editFormErrors.username ? 'border-red-500' : 'border-gray-300'
+                      editFormErrors.phoneNumber ? 'border-red-500' : 'border-gray-300'
                     } rounded-lg py-2 px-4`}
-                    value={editFormData.username}
-                    onChange={(e) =>
-                      setEditFormData({ ...editFormData, username: e.target.value })
-                    }
-                    required
+                    value={editFormData.phoneNumber}
+                    onChange={(e) => {
+                      // Only allow digits
+                      const value = e.target.value.replace(/\D/g, '')
+                      setEditFormData({ ...editFormData, phoneNumber: value })
+                    }}
+                    maxLength={10}
+                    placeholder={editingStaff.phoneNumber ? editingStaff.phoneNumber : "Add phone number to enable login"}
                   />
-                  {editFormErrors.username && (
-                    <p className="mt-1 text-sm text-red-600">{editFormErrors.username}</p>
+                  {editFormErrors.phoneNumber && (
+                    <p className="mt-1 text-sm text-red-600">{editFormErrors.phoneNumber}</p>
                   )}
+                  <p className="mt-1 text-xs text-gray-500">
+                    {editingStaff.phoneNumber 
+                      ? "Must be 10 digits starting with 97 or 98"
+                      : "⚠️ This user cannot login until a phone number is added"}
+                  </p>
                 </div>
 
                 {/* Role — only shown for non-owner accounts */}
@@ -803,4 +761,3 @@ const StaffTab: React.FC<StaffTabProps> = ({
 }
 
 export default StaffTab
-

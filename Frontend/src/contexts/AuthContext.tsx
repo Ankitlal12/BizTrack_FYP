@@ -19,7 +19,8 @@ export type UserRole = 'admin' | 'owner' | 'manager' | 'staff'
 export interface User {
   id: string
   name: string
-  email: string
+  email?: string
+  phoneNumber?: string
   role: UserRole
   avatar?: string
   subscriptionExpiresAt?: string
@@ -29,11 +30,9 @@ export interface User {
 }
 
 export interface StaffMember extends User {
-  username: string
   password?: string
   active: boolean
   dateAdded: string
-  sendCredentialsEmail?: boolean
 }
 
 interface AuthContextType {
@@ -41,14 +40,14 @@ interface AuthContextType {
   staffMembers: StaffMember[]
   isAuthenticated: boolean
   isLoading: boolean
-  login: (username: string, password: string) => Promise<boolean>
+  login: (username: string, password: string, tenantKey?: string) => Promise<boolean>
   googleLogin: (credential: string) => Promise<boolean>
   logout: () => void
   setUser: (user: User | null) => void
   setIsAuthenticated: (isAuthenticated: boolean) => void
   addStaffMember: (staff: Omit<StaffMember, 'id'>) => Promise<StaffMember>
   toggleStaffStatus: (id: string) => Promise<void>
-  updateStaffMember: (id: string, data: { username?: string; password?: string; role?: string }) => Promise<StaffMember>
+  updateStaffMember: (id: string, data: { phoneNumber?: string; password?: string; role?: string }) => Promise<StaffMember>
   deleteStaffMember: (id: string) => Promise<void>
 }
 
@@ -65,9 +64,9 @@ const AuthContext = createContext<AuthContextType>({
   logout: () => {},
   setUser: () => {},
   setIsAuthenticated: () => {},
-  addStaffMember: async () => ({ id: '', name: '', email: '', username: '', role: 'staff', active: true, dateAdded: '' }),
+  addStaffMember: async () => ({ id: '', name: '', email: '', phoneNumber: '', role: 'staff', active: true, dateAdded: '' }),
   toggleStaffStatus: async () => {},
-  updateStaffMember: async () => ({ id: '', name: '', email: '', username: '', role: 'staff', active: true, dateAdded: '' }),
+  updateStaffMember: async () => ({ id: '', name: '', email: '', phoneNumber: '', role: 'staff', active: true, dateAdded: '' }),
   deleteStaffMember: async () => {},
 })
 
@@ -116,7 +115,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
                 id: s._id || s.id,
                 name: s.name,
                 email: s.email,
-                username: s.username,
+                phoneNumber: s.phoneNumber,
                 role: s.role,
                 active: s.active,
                 dateAdded: s.dateAdded
@@ -147,9 +146,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   // NORMAL LOGIN
   // =====================
   const login = useCallback(
-    async (username: string, password: string): Promise<boolean> => {
+    async (username: string, password: string, tenantKey?: string): Promise<boolean> => {
       try {
-        const response = await usersAPI.login(username, password)
+        const response = await usersAPI.login(username, password, tenantKey)
         
         const loggedInUser = response.user || response
         const token = response.token
@@ -162,6 +161,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           id: loggedInUser._id || loggedInUser.id,
           name: loggedInUser.name,
           email: loggedInUser.email,
+          phoneNumber: loggedInUser.phoneNumber,
           role: loggedInUser.role,
           avatar: loggedInUser.avatar,
           subscriptionExpiresAt: loggedInUser.subscriptionExpiresAt,
@@ -182,7 +182,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
               id: s._id || s.id,
               name: s.name,
               email: s.email,
-              username: s.username,
+              phoneNumber: s.phoneNumber,
               role: s.role,
               active: s.active,
               dateAdded: s.dateAdded 
@@ -239,6 +239,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           id: loggedInUser._id || loggedInUser.id,
           name: loggedInUser.name,
           email: loggedInUser.email,
+          phoneNumber: loggedInUser.phoneNumber,
           role: loggedInUser.role,
           avatar: loggedInUser.avatar,
           subscriptionExpiresAt: loggedInUser.subscriptionExpiresAt,
@@ -259,7 +260,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
               id: s._id || s.id,
               name: s.name,
               email: s.email,
-              username: s.username,
+              phoneNumber: s.phoneNumber,
               role: s.role,
               active: s.active,
               dateAdded: s.dateAdded 
@@ -327,12 +328,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       // Create staff member via API
       const newStaff = await usersAPI.create({
         name: staff.name,
-        email: staff.email,
-        username: staff.username,
+        phoneNumber: staff.phoneNumber,
         password: staff.password,
         role: staff.role,
         active: staff.active !== undefined ? staff.active : true,
-        sendCredentialsEmail: !!staff.sendCredentialsEmail,
       })
 
       // Convert MongoDB _id to id and format dateAdded
@@ -340,7 +339,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         id: newStaff._id || newStaff.id,
         name: newStaff.name,
         email: newStaff.email,
-        username: newStaff.username,
+        phoneNumber: newStaff.phoneNumber,
         role: newStaff.role,
         active: newStaff.active,
         dateAdded: newStaff.dateAdded 
@@ -380,7 +379,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         id: updatedStaff._id || updatedStaff.id,
         name: updatedStaff.name,
         email: updatedStaff.email,
-        username: updatedStaff.username,
+        phoneNumber: updatedStaff.phoneNumber,
         role: updatedStaff.role,
         active: updatedStaff.active,
         dateAdded: updatedStaff.dateAdded 
@@ -401,7 +400,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   // =====================
   // UPDATE STAFF
   // =====================
-  const updateStaffMember = useCallback(async (id: string, data: { username?: string; password?: string; role?: string }) => {
+  const updateStaffMember = useCallback(async (id: string, data: { phoneNumber?: string; password?: string; role?: string }) => {
     try {
       // Update staff member via API
       const updatedStaff = await usersAPI.update(id, data)
@@ -418,7 +417,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         id: updatedStaff._id || updatedStaff.id,
         name: updatedStaff.name || currentStaff.name,
         email: updatedStaff.email || currentStaff.email,
-        username: updatedStaff.username || currentStaff.username,
+        phoneNumber: updatedStaff.phoneNumber || currentStaff.phoneNumber,
         role: updatedStaff.role || currentStaff.role,
         active: updatedStaff.active !== undefined ? updatedStaff.active : currentStaff.active,
         dateAdded: updatedStaff.dateAdded 

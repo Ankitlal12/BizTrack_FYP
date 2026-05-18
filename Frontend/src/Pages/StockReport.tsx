@@ -122,11 +122,10 @@ const StockReport: React.FC = () => {
     try {
       setLoading(true);
 
-      const startDate = new Date(dateFrom + 'T00:00:00');
-      const endDate = new Date(dateTo + 'T23:59:59');
+      // Send dates as YYYY-MM-DD strings for proper Nepal timezone handling
       const params = new URLSearchParams();
-      params.append('dateFrom', startDate.toISOString());
-      params.append('dateTo', endDate.toISOString());
+      params.append('dateFrom', dateFrom);
+      params.append('dateTo', dateTo);
 
       const [inventoryResponse, sales] = await Promise.all([
         inventoryAPI.getAll(),

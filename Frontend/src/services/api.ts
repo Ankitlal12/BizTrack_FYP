@@ -315,9 +315,9 @@ export const usersAPI = {
     method: 'POST',
     body: JSON.stringify(data),
   }),
-  login: (username: string, password: string) => apiRequest<any>('/users/login', {
+  login: (username: string, password: string, tenantKey?: string) => apiRequest<any>('/users/login', {
     method: 'POST',
-    body: JSON.stringify({ username, password }),
+    body: JSON.stringify({ username, password, ...(tenantKey && { tenantKey }) }),
   }),
   googleLogin: (credential: string) => apiRequest<any>('/users/google-login', {
     method: 'POST',
@@ -343,11 +343,18 @@ export const usersAPI = {
     method: 'PUT',
     body: JSON.stringify({ active }),
   }),
-  update: (id: string, data: { username?: string; password?: string; role?: string }) => apiRequest<any>(`/users/${id}`, {
+  update: (id: string, data: { phoneNumber?: string; password?: string; role?: string }) => apiRequest<any>(`/users/${id}`, {
     method: 'PUT',
     body: JSON.stringify(data),
   }),
   delete: (id: string) => apiRequest<{ message: string; deletedUser: any }>(`/users/${id}`, {
+    method: 'DELETE',
+  }),
+  updatePhoneNumber: (phoneNumber: string) => apiRequest<any>('/users/phone/update', {
+    method: 'PUT',
+    body: JSON.stringify({ phoneNumber }),
+  }),
+  removePhoneNumber: () => apiRequest<any>('/users/phone/remove', {
     method: 'DELETE',
   }),
 };
@@ -496,7 +503,7 @@ export const tokenManager = {
 export const userAPI = {
   login: (credentials: { username: string; password: string }) => 
     usersAPI.login(credentials.username, credentials.password),
-  updateUser: (id: string, data: { username?: string; password?: string; role?: string }) => 
+  updateUser: (id: string, data: { phoneNumber?: string; password?: string; role?: string }) => 
     usersAPI.update(id, data),
   getById: (id: string) => usersAPI.getById(id),
   getAll: () => usersAPI.getAll(),

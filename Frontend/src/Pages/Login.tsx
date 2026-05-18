@@ -13,12 +13,15 @@ import { toast } from 'sonner';
 const Login = () => {
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
+  const [tenantKey, setTenantKey] = useState('');
   const [fieldErrors, setFieldErrors] = useState<{ username?: string; password?: string }>({});
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [isGoogleLoading, setIsGoogleLoading] = useState(false);
   const [showRenewAction, setShowRenewAction] = useState(false);
+  const [multipleWorkspacesFound, setMultipleWorkspacesFound] = useState(false);
+  const [workspaceOptions, setWorkspaceOptions] = useState<{ tenantKey: string; emailHint: string }[]>([]);
   
   // OTP state
   const [showOTP, setShowOTP] = useState(false);
@@ -44,7 +47,7 @@ const Login = () => {
     const trimmedUsername = username.trim();
 
     if (!trimmedUsername) {
-      nextErrors.username = 'Email or username is required';
+      nextErrors.username = 'Email or phone number is required';
     }
 
     if (!password) {
@@ -68,13 +71,18 @@ const Login = () => {
     setIsLoading(true);
 
     try {
-      const success = await login(trimmedUsername, password);
+      const success = await login(trimmedUsername, password, tenantKey || undefined);
       if (!success) {
         setError('Invalid email/username or password');
       }
       // Navigation is handled inside AuthContext.login() based on role
     } catch (err: any) {
-      if (isSubscriptionExpiredError(err)) {
+      // Only show workspace picker if backend says same username+password exist in multiple workspaces (extremely rare)
+      if (err?.code === 'MULTIPLE_WORKSPACES' || err?.status === 409) {
+        setMultipleWorkspacesFound(true);
+        setWorkspaceOptions(err?.data?.workspaces || []);
+        setError('Multiple accounts found with the same credentials. Please select your workspace below.');
+      } else if (isSubscriptionExpiredError(err)) {
         setError('Your subscription expired');
         setShowRenewAction(true);
       } else {
@@ -239,10 +247,10 @@ const Login = () => {
 
         {/* Form */}
         <form className="space-y-5" onSubmit={handleSubmit}>
-          {/* Email/Username */}
+          {/* Email/Username/Phone */}
           <div>
             <label htmlFor="username" className="block text-sm font-medium text-gray-700 mb-1">
-              Email or Username
+              Email or Phone Number
             </label>
             <div className="relative">
               <CiUser className="absolute left-3 top-3.5 text-gray-400 text-lg" />
@@ -256,7 +264,7 @@ const Login = () => {
                     setFieldErrors((prev) => ({ ...prev, username: undefined }));
                   }
                 }}
-                placeholder="Enter your email or username"
+                placeholder="Email (admin/owner) or Phone (staff/manager)"
                 className={`pl-10 w-full border ${fieldErrors.username ? 'border-red-400' : 'border-gray-200'} rounded-xl py-3 
                   focus:ring-2 focus:ring-teal-500 focus:border-teal-500 
                   outline-none transition-all text-gray-800 placeholder-gray-400`}
@@ -265,6 +273,9 @@ const Login = () => {
             {fieldErrors.username && (
               <p className="mt-1 text-sm text-red-600">{fieldErrors.username}</p>
             )}
+            <p className="mt-1 text-xs text-gray-500">
+              Admin/Owner: Use email • Staff/Manager: Use phone number (10 digits)
+            </p>
           </div>
 
           {/* Password */}
@@ -306,6 +317,44 @@ const Login = () => {
               <p className="mt-1 text-sm text-red-600">{fieldErrors.password}</p>
             )}
           </div>
+
+          {/* Workspace picker - only shown when same username+password exist in multiple workspaces */}
+          {multipleWorkspacesFound && (
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Select Your Workspace
+              </label>
+              {workspaceOptions.length > 0 ? (
+                <div className="flex flex-col gap-2">
+                  {workspaceOptions.map((ws, idx) => (
+                    <button
+                      key={ws.tenantKey}
+                      type="button"
+                      onClick={() => setTenantKey(ws.tenantKey)}
+                      className={`w-full text-left px-4 py-3 rounded-xl border-2 transition-all ${
+                        tenantKey === ws.tenantKey
+                          ? 'border-teal-500 bg-teal-50 text-teal-700 font-medium'
+                          : 'border-gray-200 bg-white text-gray-700 hover:border-teal-300'
+                      }`}
+                    >
+                      <span className="block text-xs text-gray-500 mb-0.5">Account {idx + 1}</span>
+                      <span className="font-medium">{ws.emailHint}</span>
+                    </button>
+                  ))}
+                </div>
+              ) : (
+                <input
+                  type="text"
+                  value={tenantKey}
+                  onChange={(e) => setTenantKey(e.target.value.trim())}
+                  placeholder="Enter your workspace ID"
+                  className="pl-4 w-full border border-gray-200 rounded-xl py-3
+                    focus:ring-2 focus:ring-teal-500 focus:border-teal-500
+                    outline-none transition-all text-gray-800 placeholder-gray-400"
+                />
+              )}
+            </div>
+          )}
 
           {/* Remember + Help */}
           <div className="flex items-center justify-between text-sm">

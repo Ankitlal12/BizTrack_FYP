@@ -8,6 +8,7 @@ const { OAuth2Client } = require("google-auth-library");
 const { generateToken } = require("../utils/jwt");
 const { getNepaliCurrentDateTime } = require("../utils/dateUtils");
 const { createNotification } = require("../utils/notificationHelper");
+const { fixUserIndexes } = require("../config/db");
 const { generateOTP, getOTPExpiration, verifyOTP, sendOTPEmail, sendCredentialsEmail } = require("../utils/otpService");
 
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -184,29 +185,23 @@ const recordLoginHistory = async (user, req, method, success) => {
 // Create a new user (staff member)
 exports.createUser = async (req, res) => {
   try {
-    const { name, email, username, password, role, sendCredentialsEmail: shouldSendCredentials } = req.body;
+    const { name, phoneNumber, password, role } = req.body;
 
     const trimmedName = (name || "").trim();
-    const normalizedEmail = (email || "").trim().toLowerCase();
-    const trimmedUsername = (username || "").trim();
+    const trimmedPhone = (phoneNumber || "").trim();
 
     // Validate required fields
-    if (!trimmedName || !normalizedEmail || !trimmedUsername || !password) {
+    if (!trimmedName || !trimmedPhone || !password) {
       return res.status(400).json({ 
-        error: "Name, email, username, and password are required" 
+        error: "Name, phone number, and password are required" 
       });
     }
 
-    if (!EMAIL_REGEX.test(normalizedEmail)) {
-      return res.status(400).json({ error: "Invalid email format" });
-    }
-
-    if (normalizedEmail.endsWith('.con') || normalizedEmail.endsWith('.cmo')) {
-      return res.status(400).json({ error: "Email domain looks invalid. Did you mean .com?" });
-    }
-
-    if (normalizedEmail.includes('@gmail.') && !normalizedEmail.endsWith('@gmail.com')) {
-      return res.status(400).json({ error: "Gmail address must end with @gmail.com" });
+    // Validate phone number format (10 digits starting with 97 or 98)
+    if (!/^(97|98)\d{8}$/.test(trimmedPhone)) {
+      return res.status(400).json({ 
+        error: "Phone number must be 10 digits starting with 97 or 98" 
+      });
     }
 
     if (!isStrongStaffPassword(password)) {
@@ -220,19 +215,12 @@ exports.createUser = async (req, res) => {
       return res.status(403).json({ error: "No workspace context found for this owner." });
     }
 
-    // Check if user with email or username already exists
-    const existingFilter = isPlatformAdmin(req.user)
-      ? { $or: [{ email: normalizedEmail }, { username: trimmedUsername }] }
-      : {
-          tenantKey,
-          $or: [{ email: normalizedEmail }, { username: trimmedUsername }],
-        };
-
-    const existingUser = await User.findOne(existingFilter);
+    // Check if user with phone number already exists
+    const existingUser = await User.findOne({ phoneNumber: trimmedPhone });
 
     if (existingUser) {
       return res.status(400).json({ 
-        error: "User with this email or username already exists" 
+        error: "User with this phone number already exists" 
       });
     }
 
@@ -241,38 +229,30 @@ exports.createUser = async (req, res) => {
     const hashedPassword = await bcrypt.hash(password, saltRounds);
 
     // Create user
-    const user = await User.create({
+    const assignedRole = role || 'staff';
+
+    const userData = {
       name: trimmedName,
-      email: normalizedEmail,
-      username: trimmedUsername,
+      phoneNumber: trimmedPhone,
       password: hashedPassword,
-      role: role || 'staff',
+      role: assignedRole,
       tenantKey: isPlatformAdmin(req.user)
         ? (req.body.tenantKey || null)
         : tenantKey,
       active: true,
+      credentialsInitialized: true,
+      credentialsInitializedBy: req.user._id,
+      credentialsInitializedAt: new Date(),
       dateAdded: new Date(),
-    });
+    };
 
-    let credentialEmailSent = false;
-    if (shouldSendCredentials) {
-      const emailResult = await sendCredentialsEmail(
-        normalizedEmail,
-        trimmedName,
-        trimmedUsername,
-        password,
-        role || 'staff'
-      );
-      credentialEmailSent = !!emailResult.success;
-
-      if (!credentialEmailSent) {
-        await User.findByIdAndDelete(user._id);
-        return res.status(500).json({
-          error: "User was not created because credential email could not be sent. Please verify email settings and try again.",
-        });
-      }
+    // Don't include email field at all for staff/manager (let sparse index work properly)
+    // Only include email if it's explicitly provided
+    if (req.body.email) {
+      userData.email = req.body.email.trim();
     }
 
+    const user = await User.create(userData);
     // Create notification for new staff member
     try {
       await createNotification({
@@ -284,10 +264,8 @@ exports.createUser = async (req, res) => {
         relatedModel: "User",
         metadata: {
           userName: trimmedName,
-          email: normalizedEmail,
+          phoneNumber: trimmedPhone,
           role: role || 'staff',
-          username: trimmedUsername,
-          credentialEmailSent,
         },
       });
     } catch (notifError) {
@@ -299,10 +277,7 @@ exports.createUser = async (req, res) => {
     const userResponse = user.toObject();
     delete userResponse.password;
 
-    res.status(201).json({
-      ...userResponse,
-      credentialEmailSent,
-    });
+    res.status(201).json(userResponse);
   } catch (err) {
     res.status(400).json({ error: err.message });
   }
@@ -371,16 +346,15 @@ exports.login = async (req, res) => {
   try {
     const { username, password } = req.body;
     const loginIdentifier = (username || "").trim();
-    const normalizedIdentifier = loginIdentifier.toLowerCase();
 
     if (!loginIdentifier || !password) {
       return res.status(400).json({ 
-        error: "Email/username and password are required" 
+        error: "Email/Phone number and password are required" 
       });
     }
 
     // Static admin bootstrap credentials requested by product requirement.
-    if (normalizedIdentifier === ADMIN_EMAIL && password === ADMIN_PASSWORD) {
+    if (loginIdentifier === ADMIN_EMAIL && password === ADMIN_PASSWORD) {
       let adminUser = await User.findOne({ email: ADMIN_EMAIL });
 
       if (!adminUser) {
@@ -389,7 +363,7 @@ exports.login = async (req, res) => {
         adminUser = await User.create({
           name: "System Admin",
           email: ADMIN_EMAIL,
-          username: "admin",
+          phoneNumber: "9700000000", // Admin phone
           password: hashedPassword,
           role: "admin",
           active: true,
@@ -419,27 +393,29 @@ exports.login = async (req, res) => {
       });
     }
 
-    // Find user by assigned username or assigned email.
-    const identifierRegex = new RegExp(`^${escapeRegExp(loginIdentifier)}$`, "i");
-    const matchedUsers = await User.find({
-      $or: [
-        { username: identifierRegex },
-        { email: identifierRegex },
-      ],
-    }).limit(5);
+    // Determine if login identifier is email or phone number
+    const isEmail = EMAIL_REGEX.test(loginIdentifier);
+    const isPhone = /^(97|98)\d{8}$/.test(loginIdentifier);
 
-    if (matchedUsers.length > 1) {
-      return res.status(409).json({
-        error: "Multiple accounts matched this login ID. Please contact admin to resolve duplicate usernames.",
-      });
+    let user = null;
+
+    // Try to find user by email first (for admin/owner)
+    if (isEmail) {
+      user = await User.findOne({ email: loginIdentifier });
+    }
+    
+    // If not found by email, try phone number (for staff/manager)
+    if (!user && isPhone) {
+      user = await User.findOne({ phoneNumber: loginIdentifier });
+    }
+    
+    // If still not found and it's not a valid phone or email format, try username as fallback
+    if (!user && !isEmail && !isPhone) {
+      user = await User.findOne({ username: loginIdentifier });
     }
 
-    const user = matchedUsers[0];
-
     if (!user) {
-      return res.status(401).json({ 
-        error: "Invalid username or password" 
-      });
+      return res.status(401).json({ error: "Invalid credentials" });
     }
 
     try {
@@ -601,11 +577,11 @@ exports.getUserById = async (req, res) => {
   }
 };
 
-// Update user (username and/or password)
+// Update user (phone number and/or password)
 exports.updateUser = async (req, res) => {
   try {
     const { id } = req.params;
-    const { username, password, role } = req.body;
+    const { phoneNumber, password, role } = req.body;
 
     // Find user
     const user = await User.findById(id);
@@ -624,20 +600,32 @@ exports.updateUser = async (req, res) => {
 
     const updateData = {};
 
-    // Update username if provided
-    if (username !== undefined) {
-      if (!username || username.trim() === '') {
-        return res.status(400).json({ error: "Username cannot be empty" });
+    // Update phone number if provided
+    if (phoneNumber !== undefined) {
+      const trimmedPhone = phoneNumber.trim();
+      
+      if (!trimmedPhone) {
+        return res.status(400).json({ error: "Phone number cannot be empty" });
       }
+      
+      // Validate phone number format
+      if (!/^(97|98)\d{8}$/.test(trimmedPhone)) {
+        return res.status(400).json({ 
+          error: "Phone number must be 10 digits starting with 97 or 98" 
+        });
+      }
+      
+      // Check if phone number already exists
       const existingUser = await User.findOne({
-        username: username.trim(),
+        phoneNumber: trimmedPhone,
         _id: { $ne: id },
-        ...(isPlatformAdmin(req.user) ? {} : { tenantKey: resolveTenantKey(req.user) }),
       });
+      
       if (existingUser) {
-        return res.status(400).json({ error: "Username is already taken" });
+        return res.status(400).json({ error: "Phone number is already taken" });
       }
-      updateData.username = username.trim();
+      
+      updateData.phoneNumber = trimmedPhone;
     }
 
     // Update password if provided
@@ -669,7 +657,7 @@ exports.updateUser = async (req, res) => {
     // Notification
     try {
       const changeDetails = [];
-      if (updateData.username) changeDetails.push(`username changed to "${updateData.username}"`);
+      if (updateData.phoneNumber) changeDetails.push(`phone number changed to "${updateData.phoneNumber}"`);
       if (updateData.password) changeDetails.push('password updated');
       if (updateData.role) changeDetails.push(`role changed to "${updateData.role}"`);
 
@@ -680,7 +668,7 @@ exports.updateUser = async (req, res) => {
         message: `${user.name} has been updated: ${changeDetails.join(', ')}.`,
         relatedId: user._id,
         relatedModel: "User",
-        metadata: { userName: user.name, email: user.email, changes: changeDetails, changedAt: new Date() },
+        metadata: { userName: user.name, phoneNumber: user.phoneNumber, changes: changeDetails, changedAt: new Date() },
       });
     } catch (notifError) {
       console.error("Failed to create notification:", notifError);
@@ -1089,6 +1077,144 @@ exports.toggle2FA = async (req, res) => {
   }
 };
 
+// ==================== CREDENTIALS INITIALIZATION ENDPOINTS ====================
+
+// Initialize/Enable credentials for staff member (called by owner)
+exports.initializeStaffCredentials = async (req, res) => {
+  try {
+    const { staffId } = req.params;
+    const requester = req.user;
+
+    // Only owners or admins can initialize credentials
+    if (requester.role !== 'owner' && requester.role !== 'admin') {
+      return res.status(403).json({ 
+        error: "Only workspace owners or admins can initialize staff credentials" 
+      });
+    }
+
+    // Find the staff member
+    const staffMember = await User.findById(staffId);
+    if (!staffMember) {
+      return res.status(404).json({ error: "Staff member not found" });
+    }
+
+    // Verify staff is in the same workspace (unless requester is admin)
+    if (requester.role !== 'admin' && staffMember.tenantKey !== requester.tenantKey) {
+      return res.status(403).json({ 
+        error: "You can only initialize credentials for staff in your workspace" 
+      });
+    }
+
+    // Can only initialize credentials for staff/manager roles
+    if (!['staff', 'manager'].includes(staffMember.role)) {
+      return res.status(400).json({ 
+        error: "Credentials can only be initialized for staff or manager roles" 
+      });
+    }
+
+    // Update staff credentials status
+    staffMember.credentialsInitialized = true;
+    staffMember.credentialsInitializedAt = new Date();
+    staffMember.credentialsInitializedBy = requester._id;
+    await staffMember.save();
+
+    // Create notification for staff member
+    try {
+      await createNotification({
+        tenantKey: staffMember.tenantKey,
+        userId: staffMember._id,
+        type: "credentials_initialized",
+        title: "Account Activated",
+        message: `Your account has been activated by ${requester.name}. You can now log in with your credentials.`,
+        relatedId: staffMember._id,
+        relatedModel: "User",
+      });
+    } catch (notifError) {
+      console.error("Failed to create notification:", notifError);
+    }
+
+    // Return user without password
+    const userResponse = staffMember.toObject();
+    delete userResponse.password;
+
+    res.json({
+      message: "Staff credentials initialized successfully",
+      user: userResponse,
+    });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+};
+
+// Get pending staff members (credentials not yet initialized)
+exports.getPendingStaff = async (req, res) => {
+  try {
+    const requester = req.user;
+    const filter = {
+      role: { $in: ['staff', 'manager'] },
+      credentialsInitialized: false,
+    };
+
+    // Filter by tenant for non-admins
+    if (requester.role !== 'admin') {
+      filter.tenantKey = requester.tenantKey;
+    }
+
+    const pendingStaff = await User.find(filter)
+      .select('-password -otp')
+      .sort({ dateAdded: -1 });
+
+    res.json({
+      count: pendingStaff.length,
+      staff: pendingStaff,
+    });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+};
+
+// ==================== ADMIN MAINTENANCE ENDPOINTS ====================
+
+// Fix username indexes - ADMIN ONLY
+// Drops old global unique index and creates compound unique index (tenantKey + username)
+exports.fixUsernameIndexes = async (req, res) => {
+  try {
+    // Only admins can fix indexes
+    if (req.user?.role !== 'admin') {
+      return res.status(403).json({
+        error: "Only admins can fix database indexes"
+      });
+    }
+
+    console.log("\n🔧 Admin triggered username index fix");
+    const result = await fixUserIndexes();
+
+    if (result) {
+      return res.json({
+        success: true,
+        message: "Username indexes fixed successfully",
+        details: {
+          oldIndexDropped: "username_1 (global unique)",
+          newIndexCreated: "{ tenantKey: 1, username: 1 } (per-tenant unique)",
+          status: "Same username now allowed across different workspaces"
+        }
+      });
+    } else {
+      return res.status(500).json({
+        success: false,
+        error: "Could not fix indexes - see server logs",
+        hint: "Try manually dropping the username_1 index from MongoDB Atlas UI"
+      });
+    }
+  } catch (err) {
+    console.error("Error fixing indexes:", err);
+    res.status(500).json({ 
+      error: "Failed to fix indexes",
+      details: err.message 
+    });
+  }
+};
+
 // ==================== ANALYTICS ENDPOINTS ====================
 
 // Staff Analytics - comprehensive performance metrics for all staff
@@ -1276,3 +1402,78 @@ exports.getStaffAnalytics = async (req, res) => {
 };
 
 
+
+
+// ==================== PHONE NUMBER MANAGEMENT ====================
+
+// Update phone number for current user
+exports.updatePhoneNumber = async (req, res) => {
+  try {
+    const { phoneNumber } = req.body;
+    const userId = req.user.id;
+
+    if (!phoneNumber || !phoneNumber.trim()) {
+      return res.status(400).json({ error: "Phone number is required" });
+    }
+
+    // Validate phone number format (basic validation)
+    const cleanPhone = phoneNumber.trim();
+    if (!/^[\d\s\-\+\(\)]+$/.test(cleanPhone)) {
+      return res.status(400).json({ error: "Invalid phone number format" });
+    }
+
+    // Check if phone number is already taken by another user
+    const existingUser = await User.findOne({ 
+      phoneNumber: cleanPhone,
+      _id: { $ne: userId }
+    });
+
+    if (existingUser) {
+      return res.status(409).json({ error: "This phone number is already registered to another account" });
+    }
+
+    // Update user's phone number
+    const user = await User.findByIdAndUpdate(
+      userId,
+      { phoneNumber: cleanPhone },
+      { new: true }
+    ).select('-password');
+
+    if (!user) {
+      return res.status(404).json({ error: "User not found" });
+    }
+
+    return res.json({
+      message: "Phone number updated successfully",
+      user: user.toObject()
+    });
+  } catch (error) {
+    console.error("Error updating phone number:", error);
+    return res.status(500).json({ error: error.message || "Failed to update phone number" });
+  }
+};
+
+// Remove phone number from current user
+exports.removePhoneNumber = async (req, res) => {
+  try {
+    const userId = req.user.id;
+
+    const user = await User.findByIdAndUpdate(
+      userId,
+      { $unset: { phoneNumber: "" } },
+      { new: true }
+    ).select('-password');
+
+    if (!user) {
+      return res.status(404).json({ error: "User not found" });
+    }
+
+    return res.json({
+      message: "Phone number removed successfully",
+      user: user.toObject()
+    });
+  } catch (error) {
+    console.error("Error removing phone number:", error);
+    return res.status(500).json({ error: error.message || "Failed to remove phone number" });
+  }
+};

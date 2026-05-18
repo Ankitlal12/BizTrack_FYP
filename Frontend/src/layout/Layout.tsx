@@ -37,7 +37,7 @@ const SubscriptionBanner = ({ user }: { user: any }) => {
   const daysRemaining = Math.ceil(diffTime / (1000 * 60 * 60 * 24))
   const isExpired = expiryDate < now
 
-  // Show banner if expired or less than 5 days remaining
+  // Always show banner for SaaS customers (not just warnings)
   const showWarning = isExpired || daysRemaining < 5
 
   const getStatusColor = () => {
@@ -90,6 +90,7 @@ const SubscriptionBanner = ({ user }: { user: any }) => {
   const colors = colorClasses[getStatusColor() as keyof typeof colorClasses]
   const Icon = showWarning ? AlertCircle : CheckCircle
 
+  // Always show the banner for SaaS customers
   return (
     <div className={`${colors.bg} border-b ${colors.text} px-4 py-2.5`}>
       <div className="max-w-7xl mx-auto flex items-center justify-between gap-4">
@@ -110,7 +111,7 @@ const SubscriptionBanner = ({ user }: { user: any }) => {
             <CreditCard size={14} />
             Renew
           </button>
-          {showWarning && (
+          {!dismissed && (
             <button
               onClick={() => setDismissed(true)}
               className="p-1.5 hover:bg-black/5 rounded-lg transition-colors"

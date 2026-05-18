@@ -939,16 +939,7 @@ const Dashboard = () => {
               <h3 className="text-lg font-semibold text-slate-900">Quick Actions</h3>
               <p className="text-sm text-slate-600">Common tasks at your fingertips</p>
             </div>
-            <div className="grid grid-cols-2 gap-4 sm:grid-cols-4 lg:grid-cols-6">
-              <button
-                onClick={() => navigate('/billing')}
-                className="group flex flex-col items-center gap-2 rounded-2xl border border-slate-200 bg-white p-4 text-center transition-all hover:-translate-y-0.5 hover:border-teal-300 hover:shadow-lg hover:shadow-teal-100/60"
-              >
-                <div className="rounded-xl bg-teal-50 p-3 transition-transform group-hover:scale-110">
-                  <ShoppingCart className="h-5 w-5 text-teal-700" />
-                </div>
-                <span className="text-sm font-semibold text-slate-700">New Sale</span>
-              </button>
+            <div className="grid grid-cols-2 gap-4 sm:grid-cols-4 lg:grid-cols-5">
               <button
                 onClick={() => navigate('/purchases')}
                 className="group flex flex-col items-center gap-2 rounded-2xl border border-slate-200 bg-white p-4 text-center transition-all hover:-translate-y-0.5 hover:border-teal-300 hover:shadow-lg hover:shadow-teal-100/60"
